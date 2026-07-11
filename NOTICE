@@ -1,0 +1,9 @@
+splatworld
+Copyright 2026 Lukas (apoage)
+
+Licensed under the Apache License, Version 2.0 (the "License"); see the LICENSE file.
+
+---
+This product bundles GDGS (Godot Gaussian Splatting), Copyright (c) ReconWorldLab,
+which is licensed under the MIT License. The vendored copy lives under
+godot/addons/gdgs/ with its upstream license at godot/addons/gdgs/LICENSE.upstream.

@@ -1,0 +1,37 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# --- Data: raw inputs are user photogrammetry, NEVER commit (CLAUDE.md) ---
+# Sample/source datasets: large; sample splats are CC0, pixel4 clips are raw footage — not published
+datasets/
+assets/raw/*
+!assets/raw/.gitkeep
+
+# Built assets are large; track metrics.json but not the heavy binaries/previews
+assets/built/*/asset.ply
+assets/built/*/preview/
+assets/built/**/*.ply
+*.mp4
+*.MP4
+
+# --- Godot ---
+godot/.godot/
+*.import
+.import/
+
+# --- dark-factory runtime (config/queue/decisions ARE tracked; these are not) ---
+.dark-factory/state.json
+.dark-factory/run-*.jsonl
+.dark-factory/verdicts/
+
+# --- OS / editors ---
+.DS_Store
+*.swp
+
+# local sample splats (CC0, not tracked)
+godot/gs_assets/*.ply
