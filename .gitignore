@@ -39,6 +39,9 @@ godot/shots/
 .dark-factory/run-*.jsonl
 .dark-factory/verdicts/
 
+# --- private reference scaffolding (license-restricted checkouts, e.g. GI-GS) — NEVER commit ---
+scaffold/
+
 # --- local Claude Code session state (settings/locks; never commit) ---
 .claude/
 

@@ -4,14 +4,15 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-12** (post-run: ingest/code-hardening/smoke-loop/perf-budget SHIPPED v0.2.0→v0.5.0;
-only M2 remains, held for owner go-ahead; D2 now data-backed, D3 seeded).
+**2026-07-12** (next-run prep: owner go-ahead for M2 GIVEN; M2 split into M2a runtime +
+M2b decompose — independent lanes, each shippable alone; docs-guide filler seeded).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-11-m2-decompose.md` | L | **M2** — GI-GS hybrid vendor+port (D1 DECIDED). ⚠️ Milestone-scale/high-risk: touches the schema contract + relight thesis, front-loads a risky external CUDA build-verify (GI-GS on sm_86/cu124). The 2026-07-12 run STOPPED here by design — wants its own (ideally attended) session + owner confirmation of vendoring scope. Step 1 = private reference build-verify; license exclusions in the task Notes are hard rules |
+| 1 | `tasks/2026-07-12-m2-relight-runtime.md` | M | **M2a** — extended-PLY importer + relight compute pass + orbiting light in Godot. Independent of decompose: verifies on the EXISTING placeholder-attribute asset. Lane: `godot/`. Also fixes the broken `single_asset.tscn` |
+| 2 | `tasks/2026-07-11-m2-decompose.md` | L | **M2b** — GI-GS hybrid vendor+port onto gsplat (D1 DECIDED, go-ahead given). Phased A→D, each independently shippable; phase-A build-verify stall is a finding, not a run-sink. License guardrails are HARD rules (`scaffold/` gitignored). Lane: `precompute/` |
 
 **Shipped in the 2026-07-12 factory run (banners on task files):** ingest-stage (v0.2.0),
 code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0). See `docs/2026-07-12-handoff.md`.
@@ -20,6 +21,11 @@ code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0). See `docs/20
 
 - `tasks/recurring-quality-pass.md` — **recurring** code-quality / structure / doc-drift sweep
   (owner mandate 2026-07-12). One bounded pass per pickup; banner with date; never "done".
+  First seeded slice: the broken `res://scenes/single_asset.tscn` red ERROR during
+  `godot --import` (flagged in the smoke-loop banner).
+- `tasks/2026-07-12-docs-guide.md` — `docs/pipeline.md` walkthrough (clip → asset → Godot)
+  + core docstrings + README "Docs" section. Acceptance: a fresh reader reproduces M1 from
+  the guide alone.
 
 ## Parked — owner-gated (NOT factory work; the owner/planner executes these)
 
