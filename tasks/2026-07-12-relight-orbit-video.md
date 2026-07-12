@@ -1,3 +1,5 @@
+> **STATUS (2026-07-12): SHIPPED as v0.10.0** — run finale. `render_orbit.gd` → `docs/media/relight_orbit.{mp4,gif}` (README-embedded) on the real phase-D `pxl_144634` asset with env-SH ambient. Gates PASS: 180 frames, relit covered-luma std 0.0287 (≫0.003), cut MAD 0.078 (≫0.02); env-SH used; flow-verifier re-confirmed. mp4 is a compact 0.105 MB (below the 0.2 MB floor — benign: sparse foliage on dark bg; gif 0.33 MB clears it). Orbit uses an elevation sweep so the near-isotropic normals still read as responsive (DECISIONS D5). Owner eyeball = final word on look; framing/brightness flagged in the validation doc.
+
 # relight-orbit-video — demo video of the relighting (owner request)
 
 **Size/risk:** S–M / low. **Status:** READY once M2b phase D + env-sh-runtime ship (same

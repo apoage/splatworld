@@ -17,6 +17,11 @@ pass. **No neural networks at runtime.**
   frames registered, 2.39 M gaussians, 21.7 dB held-out PSNR).
 - **Next** — M2 `decompose`: inverse rendering for real per-Gaussian albedo/normal/roughness.
 
+![M2 relight demo](docs/media/relight_orbit.gif)
+
+*M2 relight demo: a raw→relit cut, then a 360° light orbit on the real decomposed
+`pxl_144634` asset with the recovered env-SH ambient.*
+
 | M0 — splat + mesh, correct occlusion | M1 — foliage splat from own footage |
 |---|---|
 | ![M0: cactus splat with intersecting mesh cube](docs/img/m0_shot.png) | ![M1: foliage asset trained and exported end to end](docs/img/m1_foliage_1.png) |

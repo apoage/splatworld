@@ -5,6 +5,27 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-07-12
+- **relight-orbit demo video** (`tasks/2026-07-12-relight-orbit-video.md`, owner request — the
+  run finale): the M2 relighting, finally SEEN moving. New `godot/relight/tools/render_orbit.gd`
+  (real-GPU, no-`--headless` orbit render) → `docs/media/relight_orbit.mp4` + `.gif`, embedded in
+  the README Status section. Single take on the real phase-D decomposed `pxl_144634` asset with
+  the recovered **env-SH ambient**: ~1 s RAW (baked) then a RELIT 360° light orbit — the cut
+  itself shows relighting is live.
+- **Orbit shape is deliberate (DECISIONS D5 in action):** the light does one 360° azimuth turn
+  *while* its elevation sweeps grazing→overhead→grazing. A pure-azimuth orbit would read as
+  near-static because the real decomposed foliage normals are near-isotropic (global-mean luma is
+  ~azimuth-invariant); the elevation sweep is what makes the relighting visibly respond.
+- **Machine gates (video beauty is the owner's eyeball call):** `RELIGHT_ORBIT_RESULT PASS`,
+  180 frames, env-SH used; relit covered-luma std **0.0287** (≫ 0.003 floor; ~18% swing over the
+  orbit — the data evidence that relighting responds), raw→relit spatial cut MAD **0.078** (≫ 0.02),
+  no black/popping frames. ffmpeg exit 0 both; **gif 0.33 MB** (README deliverable, clears the size
+  floor), **mp4 0.105 MB** — below the task's 0.2 MB floor but a valid h264 clip (compact because
+  the sparse foliage sits on a static dark background; encoder not inflated, nothing re-rendered).
+  Independently re-verified by a flow-verifier (gate re-run + ffprobe + regression).
+- **No product change** — no PLY schema change (SCHEMA_VERSION 1), no shading/relight-pass edit, no
+  vendored `addons/gdgs/` edit; the only code is the new render tool. `pytest` → 45 passed.
+
 ## [0.9.0] — 2026-07-12
 - **env-SH runtime ambient (DECISIONS D4)** (`tasks/2026-07-12-env-sh-runtime.md`): the Godot
   runtime now shades with the environment light M2b `decompose` recovered instead of a flat
