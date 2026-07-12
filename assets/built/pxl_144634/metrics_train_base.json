@@ -1,12 +1,16 @@
 {
   "stage": "train_base",
-  "n_gaussians": 2394584,
+  "n_gaussians": 2405519,
   "steps": 7000,
   "sh_degree": 3,
   "test_views": 26,
-  "psnr_heldout_db": 21.707,
+  "psnr_heldout_db": 21.682,
+  "min_psnr_db": 15.0,
+  "max_gaussians": null,
+  "grow_grad2d": 0.0002,
+  "refine_stop_iter": 15000,
   "scene_scale": 7.5026,
-  "wall_time_s": 232.9,
+  "wall_time_s": 229.3,
   "image_wh": [
     1047,
     1408

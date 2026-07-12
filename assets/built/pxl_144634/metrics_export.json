@@ -1,16 +1,38 @@
 {
   "stage": "export",
   "schema_version": 1,
-  "n_gaussians": 2394584,
+  "n_gaussians": 2405519,
+  "decompose_mode": true,
   "albedo": {
-    "min": 0.0,
-    "max": 1.8230218887329102,
+    "min": 0.0288008451461792,
+    "max": 0.9838144183158875,
     "nan": 0,
     "inf": 0
   },
-  "normal_unit_err": 1.1920928955078125e-07,
-  "rough": 0.6,
+  "normal_unit_err": 1.7881393432617188e-07,
+  "rough": {
+    "min": 0.03990549594163895,
+    "max": 0.9618956446647644,
+    "nan": 0,
+    "inf": 0
+  },
   "trans": 0.0,
   "label": 2,
-  "any_nan": false
+  "any_nan": false,
+  "prune": {
+    "enabled": false,
+    "n_before": 2405519,
+    "n_after": 2405519,
+    "n_pruned": 0,
+    "n_by_opacity": 0,
+    "n_by_scale": 0,
+    "n_by_isolation": 0,
+    "params": {
+      "prune_opacity": 0.0,
+      "prune_scale_std": null,
+      "prune_isolation_std": null,
+      "isolation_k": 4
+    }
+  },
+  "env_sidecar": "asset_env_sh.json"
 }

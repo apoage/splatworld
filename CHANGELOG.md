@@ -5,6 +5,45 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-07-12
+- **M2b Phase D — real-asset decompose validation + relightable-asset export**
+  (`tasks/2026-07-11-m2-decompose.md`): completes M2b (all four phases A/B/C/D done). The
+  held-out re-render **PSNR budget gate** (invariant #8, default-ON at 1.5 dB) PASSes on both
+  real photogrammetry scenes — decompose reproduces the held-out views within **≤0.52 dB** of
+  `train_base` on a **like-for-like full-frame** measure: **pxl_131945** 25.22→24.70 dB
+  (2,075,806 Gaussians; masked diagnostic 24.71), **pxl_144634** 21.68→21.64 dB (2,405,519;
+  masked 21.64). This resolves the "synthetic golden = inverse crime" open question with
+  real-data evidence.
+- **`export --from-decompose`** run for both assets — overwrites the M1 neutral `asset.ply` with
+  the real relightable asset (real albedo/normal/roughness, COLMAP→Godot conversion once in
+  export) + flipped `asset_env_sh.json` sidecar. Exported ranges in contract: albedo ⊂ [0.029,
+  0.984], roughness ⊂ [0.026, 0.963], `normal_unit_err` 1.79e-07, 0 NaN/Inf, each `element
+  vertex` count == its decompose N.
+- **Gate/contract fixes** (found by the phase-D verification panel; both were latent defects in
+  the v0.7.0 decompose stage, surfaced by real-data use):
+  - *(MAJOR, correctness)* the budget comparison was **not like-for-like** — `train_base` scored
+    held-out PSNR full-frame but `decompose` scored it over the foreground (alpha>τ) mask only.
+    `decompose` now gates on a **full-frame** PSNR matching `train_base` exactly (`held_out_psnr`);
+    the foreground value is retained as a non-gated `psnr_heldout_masked_db` diagnostic.
+  - *(MAJOR, fail-closed)* a gate-**failed** `decompose.ply` used to be written *before* the gates
+    (consumable by a manual `export --from-decompose`). `decompose` now writes the `.ply`/`env_sh`
+    **only after every fail-closed + budget gate passes** (`finalize_decompose`); metrics (with a
+    new tri-state `budget_ok`) are still written first so a failure stays inspectable.
+  - *(MINOR, fail-closed)* the baseline PSNR was trusted blindly from `metrics_train_base.json`;
+    `decompose` now **refuses** if that file's `n_gaussians` disagrees with the loaded
+    `train_base.ply` count (`read_verified_baseline_psnr`) — the exact class of the clobber below,
+    checked early before burning GPU.
+  - *(MINOR, regression)* added a committed test fencing M1 **neutral-export byte-identity**.
+- **Finding:** pxl_144634's `train_base.ply` had been clobbered with a degenerate 48,023-Gaussian
+  (init-only) model while its metrics still claimed 2.39M — this confounded the first decompose
+  (19.89 dB). Caught, corrupt file + stale metrics preserved as evidence, `train_base`
+  regenerated (2,405,519, 21.68 dB), decompose re-run (the PASS above). The new baseline
+  consistency check now guards this class at decompose time. Details:
+  `docs/validation-m2b-phaseD-2026-07-12.md`.
+- **No schema change** — SCHEMA_VERSION stays 1 (asset schema + Godot importer untouched); code
+  changes are confined to `precompute/stages/decompose.py` + tests. `pytest precompute/tests` →
+  **42 passed** (5 new gate/contract tests; CUDA golden MAE 0.0011); `smoke.sh` → SMOKE OK.
+
 ## [0.7.0] — 2026-07-12
 - **M2b Phase C — `decompose` stage** (`tasks/2026-07-11-m2-decompose.md`): the real
   inverse-rendering solve that replaces M1's placeholder attributes. Ports GI-GS's

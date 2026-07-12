@@ -1,3 +1,5 @@
+> **STATUS (2026-07-12): SHIPPED as v0.8.0** — phase D real-asset decompose validated on a like-for-like **full-frame** budget: pxl_131945 25.22→24.70 dB, pxl_144634 21.68→21.64 dB, both within the 1.5 dB gate (`budget_ok:true`); `export --from-decompose` produced the real relightable assets. All four phases (A/B/C/D) done. The phase-D verification panel caught + FIXED 2 latent v0.7.0 defects: (MAJOR) the gate compared decompose's foreground-masked PSNR against train_base's full-frame PSNR — now both full-frame; (MAJOR) a gate-failed decompose.ply was written before the gate — now written only after all gates pass (`finalize_decompose`); + a baseline ply-vs-metrics consistency check and a neutral-export byte-identity test. Tests 37→42. Finding: pxl_144634 train_base.ply corruption caught + regenerated (see docs/validation-m2b-phaseD-2026-07-12.md).
+
 # M2b — `decompose`: inverse rendering for relightable attributes (GI-GS port onto gsplat)
 
 **Size/risk:** L / high (touches the schema contract + the whole relight thesis).

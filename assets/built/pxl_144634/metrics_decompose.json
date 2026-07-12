@@ -1,0 +1,31 @@
+{
+  "stage": "decompose",
+  "n_gaussians": 2405519,
+  "iterations": 7000,
+  "pbr_iteration": 3000,
+  "image_wh": [
+    1047,
+    1408
+  ],
+  "albedo": {
+    "min": 0.0288008451461792,
+    "max": 0.9838144183158875,
+    "nan": 0,
+    "inf": 0
+  },
+  "albedo_std": 0.2347003072500229,
+  "rough": {
+    "min": 0.03990549594163895,
+    "max": 0.9618956446647644,
+    "nan": 0,
+    "inf": 0
+  },
+  "normal_unit_err": 1.7881393432617188e-07,
+  "psnr_heldout_db": 21.639,
+  "psnr_heldout_masked_db": 21.64,
+  "test_views": 26,
+  "wall_time_s": 391.0,
+  "train_base_psnr_db": 21.682,
+  "min_psnr_drop": 1.5,
+  "budget_ok": true
+}
