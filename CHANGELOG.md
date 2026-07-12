@@ -5,6 +5,22 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-12
+- **`precompute/smoke.sh`** — one-command end-to-end pipeline health check (owner mandate:
+  "a working automatic debugging loop"). Three stages: `pytest` → 400-step
+  `train_base,export` on `pxl_144634` (the hardened `-O`-safe stage gates are the pass/fail
+  signal, `--min-psnr 12` floor) → Godot `smoke_test.gd` data gate on the fresh artifact.
+  `set -Eeuo pipefail` + ERR/EXIT trap: on any failure exits nonzero naming the stage + last
+  30 log lines; on success prints `SMOKE OK (<N>s)` (~22 s on the 3090).
+- **Clean-tree by construction.** All smoke outputs route to a gitignored `.smoke/` via a new
+  backward-compatible `run.py --out-root` override (default `assets/built`), so the tracked
+  M1 metrics are never clobbered — required because this becomes the pre-commit `commands.build`
+  gate. `git status` is byte-identical before/after every run, including the failure path.
+- **Skip-friendly, but gate-safe.** Absent local asset → loud `SMOKE SKIPPED` (exit 0) for
+  CI-less clones; `SMOKE_REQUIRE_ASSET=1` turns a would-be skip into a HARD FAILURE so the
+  commit gate can never report green without actually running.
+- `run.py` also gained `--min-psnr` passthrough and an empty-`--out-root` reject.
+
 ## [0.3.0] — 2026-07-12
 Hardening pass on the M0/M1 code — 15 confirmed silent-failure/diagnostic/structure
 fixes from the pre-arming review (`tasks/2026-07-12-code-hardening.md`). Tests **5 → 25**.

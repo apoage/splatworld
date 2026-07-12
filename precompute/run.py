@@ -47,9 +47,9 @@ def _normalize_asset(name: str) -> str:
     return n.rstrip("/")
 
 
-def _cmd(stage, name, gpu, extra):
+def _cmd(stage, name, gpu, extra, built_root):
     raw = os.path.join(RAW, name)
-    built = os.path.join(BUILT, name)
+    built = os.path.join(built_root, name)
     if stage == "ingest":
         return [sys.executable, "-m", "precompute.stages.ingest",
                 "--asset", name, "--gpu", "0", *extra]  # video discovered by token
@@ -66,13 +66,13 @@ def _cmd(stage, name, gpu, extra):
     raise ValueError(f"unknown/unimplemented stage: {stage}")
 
 
-def run_asset(name, stages, gpu, extra_by_stage):
+def run_asset(name, stages, gpu, extra_by_stage, built_root):
     env = dict(os.environ)
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
     env.setdefault("CUDA_HOME", env.get("CONDA_PREFIX", ""))
     env.setdefault("TORCH_CUDA_ARCH_LIST", "8.6")
     for stage in stages:
-        cmd = _cmd(stage, name, gpu, extra_by_stage.get(stage, []))
+        cmd = _cmd(stage, name, gpu, extra_by_stage.get(stage, []), built_root)
         print(f"\n=== [{name}] stage={stage} gpu={gpu} ===\n{' '.join(cmd)}", flush=True)
         t = time.time()
         r = subprocess.run(cmd, env=env, cwd=REPO)
@@ -91,6 +91,14 @@ def main():
     ap.add_argument("--gpu", type=int, default=0)
     ap.add_argument("--gpus", default="0", help="comma list for --all-assets round-robin")
     ap.add_argument("--steps", type=int, help="train_base steps override")
+    ap.add_argument("--min-psnr", type=float,
+                    help="train_base: fail if held-out PSNR falls below this (dB); "
+                         "default = train_base's own floor. Used by smoke.sh for a "
+                         "step-count-appropriate gate.")
+    ap.add_argument("--out-root", default=None,
+                    help="write built outputs under <out-root>/<name>/ instead of "
+                         "assets/built/<name>/ (default). Lets smoke/CI runs land in a "
+                         "gitignored scratch dir without clobbering tracked metrics.")
     ap.add_argument("--video", help="ingest: source clip (else discovered by asset token)")
     ap.add_argument("--fps", type=int, help="ingest: frame extraction rate")
     # strict: unknown flags are a hard error (a typo must not silently become a
@@ -104,13 +112,22 @@ def main():
     for s in stages:
         if s not in STAGE_ORDER:
             sys.exit(f"stage '{s}' not implemented yet (have: {STAGE_ORDER})")
+    # explicit None check (NOT `or`): --out-root "" must not silently fall back to
+    # the TRACKED assets/built and dirty the tree — reject an empty string instead.
+    if args.out_root is not None and args.out_root == "":
+        sys.exit("--out-root must not be empty (omit it for the default assets/built)")
+    built_root = args.out_root if args.out_root is not None else BUILT
     ingest_extra = []
     if args.video:
         ingest_extra += ["--video", args.video]
     if args.fps:
         ingest_extra += ["--fps", str(args.fps)]
-    extra = {"ingest": ingest_extra,
-             "train_base": (["--steps", str(args.steps)] if args.steps else [])}
+    train_base_extra = []
+    if args.steps:
+        train_base_extra += ["--steps", str(args.steps)]
+    if args.min_psnr is not None:
+        train_base_extra += ["--min-psnr", str(args.min_psnr)]
+    extra = {"ingest": ingest_extra, "train_base": train_base_extra}
 
     if args.all_assets:
         names = sorted(d for d in os.listdir(RAW)
@@ -120,7 +137,7 @@ def main():
         # simple sequential round-robin (one asset per gpu at a time)
         ok = True
         for i, name in enumerate(names):
-            ok = run_asset(name, stages, gpus[i % len(gpus)], extra) and ok
+            ok = run_asset(name, stages, gpus[i % len(gpus)], extra, built_root) and ok
         sys.exit(0 if ok else 1)
 
     if not args.asset:
@@ -132,7 +149,7 @@ def main():
         if not os.path.isdir(raw_dir):
             sys.exit(f"asset raw workspace not found: {raw_dir}\n"
                      f"(pass a name that exists under {RAW}/, e.g. --asset <name>)")
-    sys.exit(0 if run_asset(args.asset, stages, args.gpu, extra) else 1)
+    sys.exit(0 if run_asset(args.asset, stages, args.gpu, extra, built_root) else 1)
 
 
 if __name__ == "__main__":

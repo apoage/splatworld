@@ -26,6 +26,10 @@ godot/.godot/
 # eyeball screenshots from relight/tools/*.gd (default RELIGHT_SHOT_DIR)
 godot/shots/
 
+# --- smoke.sh scratch: all end-to-end health-check outputs land here, never in
+# tracked assets/built (so a smoke run leaves the git tree clean) ---
+.smoke/
+
 # --- dark-factory runtime (config/queue/decisions ARE tracked; these are not) ---
 .dark-factory/state.json
 .dark-factory/run-*.jsonl

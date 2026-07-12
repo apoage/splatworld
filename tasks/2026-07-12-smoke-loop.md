@@ -1,7 +1,18 @@
 # smoke-loop — one-command end-to-end pipeline check (the automatic debugging loop's backbone)
 
-**Size/risk:** S–M / low. **Status:** READY (after `2026-07-12-code-hardening` — depends on
-its items 1 (train_base assertions) and 10 (smoke_test.gd parametrization)).
+> **STATUS (2026-07-12): SHIPPED as 0.4.0.** `precompute/smoke.sh` (+ `run.py --out-root`/
+> `--min-psnr`, `.gitignore .smoke/`). Verified by flow + correctness panel over one fix cycle:
+> green `SMOKE OK (22s)` with byte-identical clean tree, negative rc≠0 names the stage,
+> `SMOKE_REQUIRE_ASSET=1` hard-fails a missing-asset skip (commit-gate safe), false-green
+> attacks refuted (tee/pipefail/conda rc propagation; masked `--import` can't false-pass).
+> Verdict: `.dark-factory/verdicts/current.json`.
+> **PLANNER follow-up (config lane):** wire `commands.build = SMOKE_REQUIRE_ASSET=1 bash
+> precompute/smoke.sh` so the release ritual runs smoke before every commit — done at wrap-up.
+> Note: a pre-existing broken `res://scenes/single_asset.tscn` emits a red (non-fatal) ERROR
+> during `godot --import`; flagged for a cleanup slice.
+
+**Size/risk:** S–M / low. **Status:** SHIPPED (0.4.0); commands.build wiring at wrap-up.
+(Built on `2026-07-12-code-hardening` items 1 (train_base assertions) and 10 (smoke_test.gd parametrization).)
 
 ## Problem (owner mandate, 2026-07-12: "we should have a working automatic debugging loop")
 The factory's implement → verify → fix cycle needs a fast, loud, machine-checkable signal to
