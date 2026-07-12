@@ -168,9 +168,10 @@ decisions entry that never existed (must be resolved before M4 world-space place
 quat→R triplicated; `--all-assets` is sequential, not parallel.
 
 **ARMING CHECKLIST (next session, owner present):**
-1. `dark-factory@apothecary` is installed **local-scope for /home/lukas/Trader only** —
-   it is NOT active in splatworld. Install/enable it for this project first
-   (plugin v0.2.0 from the apothecary marketplace); verify `/dark-factory` resolves.
+1. ~~Install the plugin for splatworld~~ **DONE 2026-07-12**: `dark-factory@apothecary`
+   v0.2.0 installed local-scope for this project (`claude plugin install --scope local`).
+   Hooks + `/dark-factory` activate in sessions started AFTER the install — verify the
+   skill resolves at the start of the arming session.
 2. Tree must be committed (factory reads HEAD-adjacent state; verdict/commit gates
    assume a clean start).
 3. Config is ready: hooks read `lanes`/`guards`/`paths.queue` (verified against
