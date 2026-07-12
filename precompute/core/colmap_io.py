@@ -12,14 +12,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
+from .gaussmath import quat_to_rotmat
+
+# Undistorted pinhole camera models train_base can consume directly. Anything else
+# (OPENCV, RADIAL, FISHEYE, ...) carries distortion params that this pipeline drops
+# silently — so those must be undistorted upstream and rejected here.
+UNDISTORTED_MODELS = frozenset({"PINHOLE", "SIMPLE_PINHOLE"})
+
 
 def qvec2rotmat(q) -> np.ndarray:
-    w, x, y, z = q
-    return np.array([
-        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
-        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
-    ], dtype=np.float64)
+    """COLMAP qvec (w,x,y,z) -> 3x3 rotation matrix (float64). Thin wrapper over
+    the shared vectorized `gaussmath.quat_to_rotmat`."""
+    return quat_to_rotmat(q)
 
 
 @dataclass
@@ -94,16 +98,35 @@ def read_cameras_txt(path) -> dict:
 
 
 def read_images_txt(path) -> list:
-    lines = list(_data_lines(path))
+    """Parse images.txt. COLMAP writes exactly two lines per image (a metadata
+    line, then a POINTS2D line that may be EMPTY for an image with no observations).
+
+    A blank-line-dropping pass (the old `_data_lines`) shifts the 2-line pairing the
+    moment any image has an empty POINTS2D line, silently corrupting poses. Parse
+    statefully instead: a metadata line is one with >=10 whitespace fields
+    (id, qw,qx,qy,qz, tx,ty,tz, cam_id, name...); the line after each metadata line
+    is its POINTS2D line and is consumed regardless of content."""
     images = []
-    # two lines per image: metadata, then 2D points (skip the points line)
-    for i in range(0, len(lines), 2):
-        t = lines[i].split()
-        qvec = np.array(list(map(float, t[1:5])), dtype=np.float64)
-        tvec = np.array(list(map(float, t[5:8])), dtype=np.float64)
-        cam_id = int(t[8])
-        name = t[9]
-        images.append(Image(name=name, camera_id=cam_id, qvec=qvec, tvec=tvec))
+    expect_metadata = True
+    with open(path) as f:
+        for raw in f:
+            line = raw.strip()
+            if line.startswith("#"):
+                continue
+            if expect_metadata:
+                t = line.split()
+                if len(t) < 10:
+                    # stray blank / short line before a metadata record — skip it
+                    continue
+                qvec = np.array(list(map(float, t[1:5])), dtype=np.float64)
+                tvec = np.array(list(map(float, t[5:8])), dtype=np.float64)
+                cam_id = int(t[8])
+                name = " ".join(t[9:])   # filenames may contain spaces
+                images.append(Image(name=name, camera_id=cam_id, qvec=qvec, tvec=tvec))
+                expect_metadata = False
+            else:
+                # POINTS2D line for the image just read (may be empty) — consume it
+                expect_metadata = True
     return images
 
 
@@ -123,3 +146,23 @@ def load_model(sparse_txt_dir: str) -> ColmapModel:
     imgs = read_images_txt(os.path.join(sparse_txt_dir, "images.txt"))
     xyz, rgb = read_points3D_txt(os.path.join(sparse_txt_dir, "points3D.txt"))
     return ColmapModel(cameras=cams, images=imgs, points_xyz=xyz, points_rgb=rgb)
+
+
+def assert_undistorted(model: ColmapModel) -> None:
+    """Raise ValueError unless every camera USED by a registered image is an
+    undistorted pinhole model (PINHOLE / SIMPLE_PINHOLE).
+
+    read_cameras_txt keeps fx/fy/cx/cy for distorted models (OPENCV etc.) but drops
+    their distortion params — training on that model uses quietly wrong intrinsics
+    and "works" while being geometrically wrong. This is the guard that turns that
+    silent trap into a hard failure; train_base calls it right after load_model."""
+    used = {im.camera_id for im in model.images} or set(model.cameras)
+    bad = {cid: model.cameras[cid].model for cid in sorted(used)
+           if cid in model.cameras and model.cameras[cid].model not in UNDISTORTED_MODELS}
+    if bad:
+        raise ValueError(
+            "distorted COLMAP camera model(s) "
+            f"{bad} — train_base needs an UNDISTORTED pinhole model. Point --sparse "
+            "at the undistorted 'colmap/dense/sparse_txt' model (from "
+            "`colmap image_undistorter` + `model_converter --output_type TXT`), "
+            "NOT the raw SfM 'sparse/0' model.")

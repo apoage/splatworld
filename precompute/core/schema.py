@@ -68,9 +68,45 @@ def field_layout(n_basis: int = 0):
 
 # Attribute range / sanity expectations used by metrics.json validation.
 # (min, max) inclusive; None = unbounded. NaN/Inf is always a failure.
+# NOTE: the albedo upper bound is deliberately GENEROUS (4.0). Pre-decompose
+# albedo is baked SH-DC appearance, NOT true reflectance, so it can legitimately
+# exceed 1 (live assets peak ~1.82). Export is faithful (no clamp), so the bound
+# is a garbage-catcher for NaN/negative/absurd only. M2/decompose will TIGHTEN the
+# albedo bound to [0,1] once albedo becomes real reflectance.
 FIELD_RANGES = {
-    "albedo_r": (0.0, 1.5), "albedo_g": (0.0, 1.5), "albedo_b": (0.0, 1.5),
+    "albedo_r": (0.0, 4.0), "albedo_g": (0.0, 4.0), "albedo_b": (0.0, 4.0),
     "rough": (0.0, 1.0),
     "trans": (0.0, 1.0),
     "opacity": (None, None),  # logit space, unbounded
 }
+
+
+def validate_ranges(field_arrays: dict) -> list[str]:
+    """Check field arrays against FIELD_RANGES. Returns a list of human-readable
+    violation messages (empty == all good).
+
+    `field_arrays` maps a schema field name (e.g. "albedo_r", "rough", "trans",
+    "opacity") to its numpy array. Fields not present in FIELD_RANGES are ignored;
+    fields in FIELD_RANGES but absent from the mapping are skipped. NaN/Inf is
+    always a violation regardless of the declared bounds.
+
+    This is the consumer FIELD_RANGES always promised to have: export drives it and
+    asserts the result, so an out-of-contract attribute fails the stage.
+    """
+    import numpy as np
+    problems: list[str] = []
+    for name, (lo, hi) in FIELD_RANGES.items():
+        if name not in field_arrays:
+            continue
+        a = np.asarray(field_arrays[name])
+        if a.size == 0:
+            continue
+        if bool(np.isnan(a).any()) or bool(np.isinf(a).any()):
+            problems.append(f"{name}: NaN/Inf present")
+            continue
+        amin, amax = float(np.min(a)), float(np.max(a))
+        if lo is not None and amin < lo:
+            problems.append(f"{name}: min {amin:.4f} < {lo}")
+        if hi is not None and amax > hi:
+            problems.append(f"{name}: max {amax:.4f} > {hi}")
+    return problems

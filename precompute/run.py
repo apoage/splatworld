@@ -1,16 +1,25 @@
 """run.py — precompute driver.
 
 Runs pipeline stages for an asset by convention, dispatching to a GPU via
-CUDA_VISIBLE_DEVICES. On the trader 4x3090 box, --all-assets round-robins one
-asset per GPU (CLAUDE.md: never multi-GPU a single job).
+CUDA_VISIBLE_DEVICES (CLAUDE.md: never multi-GPU a single job).
 
 Path convention:
   raw model:  assets/raw/<name>/colmap/dense/{sparse_txt,images}   (from ingest)
   built:      assets/built/<name>/{train_base.ply, asset.ply, metrics_*.json}
 
+--asset accepts a bare name OR an `assets/raw/<name>` path (the prefix is stripped);
+the raw workspace dir must exist or the run fails fast. Unknown CLI flags are a hard
+error (a typo must not silently become a different experiment).
+
+--all-assets: NOTE this is currently a SEQUENTIAL rotation, not parallel dispatch.
+It processes assets one at a time, assigning gpu = gpus[i % len(gpus)] to asset i,
+but never runs two assets concurrently (no subprocess slot pool / per-GPU idle
+check yet). True one-process-per-GPU parallel dispatch is a TODO; today the only
+parallelism win is that different assets land on different GPUs across a run.
+
 Examples:
   python precompute/run.py --asset pxl_144634 --stages train_base,export --gpu 0
-  python precompute/run.py --all-assets --stages export            # round-robin
+  python precompute/run.py --all-assets --stages export            # sequential rotation
 
 Note: gsplat JIT needs CUDA_HOME + TORCH_CUDA_ARCH_LIST (see docs/decisions.md);
 run.py sets sane defaults if unset.
@@ -25,6 +34,17 @@ BUILT = os.path.join(REPO, "assets", "built")
 
 # Stages implemented so far. decompose/label/transmission/bake_basis are M2+ TODO.
 STAGE_ORDER = ["ingest", "train_base", "export"]
+
+
+def _normalize_asset(name: str) -> str:
+    """Accept a bare asset name or an `assets/raw/<name>` path; return the bare name.
+    Strips a leading assets/raw/ (any separator) and trailing slashes."""
+    n = name.strip().replace("\\", "/").rstrip("/")
+    prefix = "assets/raw/"
+    idx = n.find(prefix)
+    if idx != -1:
+        n = n[idx + len(prefix):]
+    return n.rstrip("/")
 
 
 def _cmd(stage, name, gpu, extra):
@@ -73,7 +93,12 @@ def main():
     ap.add_argument("--steps", type=int, help="train_base steps override")
     ap.add_argument("--video", help="ingest: source clip (else discovered by asset token)")
     ap.add_argument("--fps", type=int, help="ingest: frame extraction rate")
-    args, unknown = ap.parse_known_args()
+    # strict: unknown flags are a hard error (a typo must not silently become a
+    # different experiment). argparse exits nonzero with a clear message.
+    args = ap.parse_args()
+
+    if args.asset:
+        args.asset = _normalize_asset(args.asset)
 
     stages = STAGE_ORDER if args.stages == "all" else args.stages.split(",")
     for s in stages:
@@ -100,6 +125,13 @@ def main():
 
     if not args.asset:
         sys.exit("specify --asset <name> or --all-assets")
+    # Only stages that READ raw (ingest/train_base) require the raw workspace;
+    # export-only (a built/ reader) must work on a checkout where raw was cleaned.
+    if any(s in ("ingest", "train_base") for s in stages):
+        raw_dir = os.path.join(RAW, args.asset)
+        if not os.path.isdir(raw_dir):
+            sys.exit(f"asset raw workspace not found: {raw_dir}\n"
+                     f"(pass a name that exists under {RAW}/, e.g. --asset <name>)")
     sys.exit(0 if run_asset(args.asset, stages, args.gpu, extra) else 1)
 
 

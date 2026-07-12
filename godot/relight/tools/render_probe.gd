@@ -5,10 +5,31 @@ extends SceneTree
 #   DISPLAY=:0 godot --path godot --script res://relight/tools/render_probe.gd
 
 const ASSET := "res://gs_assets/cactus_142k.ply"
-const OUT := "/tmp/claude-1000/-home-lukas-splatworld/373979b4-7881-48cf-acdd-3433fa2526f5/scratchpad/m0_shot.png"
+var _out_dir: String
 var _frames := 0
 
+# Resolve the screenshot output dir: RELIGHT_SHOT_DIR env, else first cmdline user
+# arg (after `--`), else a repo-relative default. Returns an absolute fs path with
+# the directory created.
+func _resolve_shot_dir() -> String:
+	var d := OS.get_environment("RELIGHT_SHOT_DIR")
+	if d.is_empty():
+		var ua := OS.get_cmdline_user_args()
+		if ua.size() > 0:
+			d = ua[0]
+	if d.is_empty():
+		d = "res://shots"   # repo-relative default (godot/shots when run with --path godot)
+	var abs_dir := d
+	if d.begins_with("res://") or d.begins_with("user://"):
+		abs_dir = ProjectSettings.globalize_path(d)
+	elif not d.is_absolute_path():
+		# relative path -> resolve against the project root, not an unspecified CWD
+		abs_dir = ProjectSettings.globalize_path("res://".path_join(d))
+	DirAccess.make_dir_recursive_absolute(abs_dir)
+	return abs_dir
+
 func _initialize() -> void:
+	_out_dir = _resolve_shot_dir()
 	var root := get_root()
 	root.size = Vector2i(1280, 960)
 
@@ -61,8 +82,15 @@ func _process(_delta: float) -> bool:
 	var img := get_root().get_texture().get_image()
 	if img == null or img.get_width() == 0:
 		push_error("[probe] empty viewport image")
+		quit(1)
 		return true
-	var err := img.save_png(OUT)
-	print("[probe] save_png err=%d -> %s (%dx%d)" % [err, OUT, img.get_width(), img.get_height()])
+	var path := _out_dir.path_join("m0_shot.png")
+	var err := img.save_png(path)
+	# SHOT_SAVED must mean the file is really on disk — the factory reads this line.
+	if err != OK or not FileAccess.file_exists(path):
+		push_error("[probe] save_png FAILED err=%d -> %s" % [err, path])
+		quit(1)
+		return true
+	print("[probe] saved -> %s (%dx%d)" % [path, img.get_width(), img.get_height()])
 	print("SHOT_SAVED")
 	return true

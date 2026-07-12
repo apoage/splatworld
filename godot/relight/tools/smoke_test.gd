@@ -5,13 +5,26 @@ extends SceneTree
 # driver); the visual check is a separate GPU run for human eyeballing.
 #   godot --headless --path godot --script res://relight/tools/smoke_test.gd
 
-const ASSET := "res://gs_assets/cactus_142k.ply"
+# Defaults = the cactus sample; override for other assets via env:
+#   SMOKE_ASSET=res://gs_assets/foo.ply  SMOKE_MIN_COUNT=50000  godot --headless ...
+const DEFAULT_ASSET := "res://gs_assets/cactus_142k.ply"
+const DEFAULT_MIN_COUNT := 100000     # cactus sample has 139410 splats
+
+func _asset_path() -> String:
+	var a := OS.get_environment("SMOKE_ASSET")
+	return a if not a.is_empty() else DEFAULT_ASSET
+
+func _min_count() -> int:
+	var m := OS.get_environment("SMOKE_MIN_COUNT")
+	return int(m) if m.is_valid_int() else DEFAULT_MIN_COUNT
 
 func _initialize() -> void:
 	var ok := true
-	var res: Resource = load(ASSET)
+	var asset := _asset_path()
+	var min_count := _min_count()
+	var res: Resource = load(asset)
 	if res == null:
-		push_error("[smoke] load failed: %s" % ASSET)
+		push_error("[smoke] sample data missing — see data-release task (%s)" % asset)
 		_finish(false)
 		return
 
@@ -33,7 +46,7 @@ func _initialize() -> void:
 	print("[smoke] xyz_checksum=%f" % checksum)
 
 	ok = ok and is_gs
-	ok = ok and count > 100000            # sample has 139410 splats
+	ok = ok and count > min_count         # default: cactus sample has 139410 splats
 	ok = ok and xyz_len == count
 	ok = ok and fl > 0
 	ok = ok and _finite(aabb.position) and _finite(aabb.size) and aabb.size.length() > 0.0

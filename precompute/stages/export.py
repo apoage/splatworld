@@ -20,19 +20,15 @@ import argparse, json, os
 import numpy as np
 
 from precompute.core import ply_io, schema
+from precompute.core.gaussmath import quat_to_rotmat
 
 
 def shortest_axis_normals(scales_log, quats):
     """Per-Gaussian normal = covariance axis with the smallest scale (flattest)."""
-    q = quats / np.linalg.norm(quats, axis=1, keepdims=True)
-    w, x, y, z = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
-    # rotation matrix columns = principal axes in world
-    R = np.empty((len(q), 3, 3), np.float32)
-    R[:, 0, 0] = 1 - 2 * (y * y + z * z); R[:, 0, 1] = 2 * (x * y - w * z); R[:, 0, 2] = 2 * (x * z + w * y)
-    R[:, 1, 0] = 2 * (x * y + w * z); R[:, 1, 1] = 1 - 2 * (x * x + z * z); R[:, 1, 2] = 2 * (y * z - w * x)
-    R[:, 2, 0] = 2 * (x * z - w * y); R[:, 2, 1] = 2 * (y * z + w * x); R[:, 2, 2] = 1 - 2 * (x * x + y * y)
+    # rotation matrix columns = principal axes in world (shared vectorized helper)
+    R = quat_to_rotmat(quats)
     axis = np.argmin(scales_log, axis=1)               # smallest scale = flattest
-    normals = R[np.arange(len(q)), :, axis]            # that column
+    normals = R[np.arange(len(R)), :, axis]            # that column
     normals /= np.clip(np.linalg.norm(normals, axis=1, keepdims=True), 1e-9, None)
     return normals.astype(np.float32)
 
@@ -49,7 +45,12 @@ def main():
     g = ply_io.read_standard_3dgs_ply(args.inp)
     n = g["xyz"].shape[0]
 
-    albedo = np.clip(ply_io.sh0_to_rgb(g["f_dc"]), 0.0, None).astype(np.float32)  # SH0 only
+    # SH0 only. Faithful export: NO upper clamp — pre-decompose base color is baked
+    # SH-DC appearance, not true reflectance, so it can legitimately exceed 1 (the
+    # live asset peaks ~1.82). Only the original lower 0-clamp remains. validate_ranges
+    # below catches NaN / negative / absurd via a GENEROUS FIELD_RANGES bound; M2/
+    # decompose will tighten albedo to [0,1] once it becomes real reflectance.
+    albedo = np.clip(ply_io.sh0_to_rgb(g["f_dc"]), 0.0, None).astype(np.float32)
     normal = shortest_axis_normals(g["scale"], g["rot"])
 
     # single COLMAP->Godot conversion (positions, normals, orientations)
@@ -88,10 +89,21 @@ def main():
     with open(mpath, "w") as f:
         json.dump(metrics, f, indent=2)
 
-    # hard assertions: the metric that fails if export broke
-    assert not metrics["any_nan"], "NaN in exported asset"
-    assert metrics["normal_unit_err"] < 1e-3, "normals not unit length"
-    assert 0.0 <= metrics["albedo"]["min"], "negative albedo"
+    # fail-closed metric gates: the metric that FAILS if export broke (CLAUDE.md).
+    # raise SystemExit, NOT assert, so they survive `python -O` (matches ingest).
+    if metrics["any_nan"]:
+        raise SystemExit("[export] FATAL: NaN in exported asset")
+    if not (metrics["normal_unit_err"] < 1e-3):
+        raise SystemExit("[export] FATAL: normals not unit length")
+    if metrics["albedo"]["min"] < 0.0:
+        raise SystemExit("[export] FATAL: negative albedo")
+    # FIELD_RANGES contract check (generous albedo bound, rough/trans in [0,1], no NaN/Inf)
+    range_problems = schema.validate_ranges({
+        "albedo_r": asset.albedo[:, 0], "albedo_g": asset.albedo[:, 1], "albedo_b": asset.albedo[:, 2],
+        "rough": asset.rough, "trans": asset.trans, "opacity": asset.opacity,
+    })
+    if range_problems:
+        raise SystemExit("[export] FATAL: attribute range violations: " + "; ".join(range_problems))
     print(f"[export] {n} gaussians -> {args.out}  (schema {schema.SCHEMA_VERSION})")
     print(f"[export] albedo range [{metrics['albedo']['min']:.3f},{metrics['albedo']['max']:.3f}]  "
           f"normal_unit_err={metrics['normal_unit_err']:.2e}  metrics -> {mpath}")

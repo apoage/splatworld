@@ -23,6 +23,8 @@ assets/built/**/*.ply
 godot/.godot/
 *.import
 .import/
+# eyeball screenshots from relight/tools/*.gd (default RELIGHT_SHOT_DIR)
+godot/shots/
 
 # --- dark-factory runtime (config/queue/decisions ARE tracked; these are not) ---
 .dark-factory/state.json

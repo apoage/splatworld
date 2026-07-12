@@ -9,6 +9,7 @@ scattering open questions across task files. Answered rows move to DECIDED with 
 | # | Decision | Recommendation | Context |
 |---|----------|----------------|---------|
 | D2 | Final per-asset Gaussian budget for foliage blocks? | Wait for the count-vs-PSNR tradeoff table from `tasks/2026-07-11-perf-budget.md`, then pick the knee. Until decided, the task's provisional gate applies: ≤ 500k @ ≥ 20.7 dB held-out. (Not a wall for the task itself — it PRODUCES the data for this call.) | `tasks/2026-07-11-perf-budget.md`; CLAUDE.md perf target |
+| D3 | M4 orientation convention: how to resolve the GDGS identity-vs-scatter-basis 180°-about-Z inconsistency? | M4 carpet ALWAYS sets an explicit node basis (never leaves a splat node at identity) so GDGS's conditional default −180° Z correction never fires and all instances share one convention — do NOT re-derive the export matrix (it's the correct pure change of basis). Needs one A/B render to confirm which yaw reads "correct." **Gated to M4 start — not a wall now.** | code-hardening item 14; `precompute/core/ply_io.py:51-68` NOTE; decisions.md 2026-07-12 code-hardening entry |
 
 ## DECIDED
 

@@ -5,6 +5,32 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-12
+Hardening pass on the M0/M1 code — 15 confirmed silent-failure/diagnostic/structure
+fixes from the pre-arming review (`tasks/2026-07-12-code-hardening.md`). Tests **5 → 25**.
+- **Fail-closed stages (`-O`-safe).** Every pipeline-stage metric gate is now
+  `raise SystemExit`, not bare `assert` (asserts are stripped under `python -O`, which
+  would silently restore "exit 0 when broken"). `train_base` asserts `n_final>0`,
+  finite PSNR, `psnr>=--min-psnr` (default 15.0); `export` asserts no-NaN, unit normals,
+  non-negative albedo, and `schema.validate_ranges` (now a real consumer of `FIELD_RANGES`).
+- **Loud failures instead of silent-wrong.** `read_asset_ply` enforces the
+  `splat_relight_schema` header (rejects foreign/version-mismatched PLYs); distorted
+  (OPENCV) COLMAP models are rejected naming the `dense/sparse_txt` convention;
+  `run.py` rejects unknown flags, normalizes `--asset`, and gates its raw-dir check on
+  raw-reading stages only; `images.txt` parser fixed for empty-POINTS2D lines and
+  filenames with spaces.
+- **Faithful export.** Albedo is no longer clamped (pre-decompose base color legitimately
+  exceeds 1; live max 1.823); `FIELD_RANGES` albedo bound widened to `[0,4.0]` as a
+  garbage-net. M2/decompose will tighten it to `[0,1]` once albedo is true reflectance.
+- **Structure + tests.** quat→R / `SH_C0` consolidated into `core/gaussmath.py`; new
+  tests for the schema gate, channel-major `f_rest` ordering, colmap_io parsing, gaussmath
+  round-trips, and `shortest_axis_normals`. Godot tools: env-configurable output dirs,
+  `SHOT_SAVED`/exit only on verified save.
+- Item 14: the false `ply_io.py` GDGS-orientation NOTE corrected to measured reality (a
+  180°-about-Y net map: up-preserved, azimuth yaw-flipped — an M4 identity-vs-scatter-basis
+  inconsistency, seeded as DECISIONS **D3**). decisions.md entry + CLAUDE.md `--all-assets`
+  wording (item 15) are planner-lane, reconciled at the run's wrap-up.
+
 ## [0.2.0] — 2026-07-12
 - **`ingest` stage** — formalized the validated COLMAP recipe (`prototype/*.sh`) into
   `precompute/stages/ingest.py` and wired it as the first stage in `run.py`'s `STAGE_ORDER`,

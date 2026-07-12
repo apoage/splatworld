@@ -1,6 +1,20 @@
 # code-hardening — fix the confirmed findings from the pre-arming code review
 
-**Size/risk:** M / medium. **Status:** READY.
+> **STATUS (2026-07-12): SHIPPED as 0.3.0.** All 15 items' CODE landed (tests 5→25;
+> suite green; happy path + Godot smoke intact; OPENCV negative check rc=2). Verified by a
+> correctness+regression+flow panel + a focused fix-pass re-check (gates made `-O`-safe;
+> albedo clamp reverted to faithful export; raw-dir check stage-gated). Verdict:
+> `.dark-factory/verdicts/current.json`.
+> **Two doc-halves are PLANNER-lane follow-ups** (the lane guard forbids the armed factory
+> from writing docs/ + the architecture log): item 14's `docs/decisions.md` reconciliation
+> entry and item 15's `CLAUDE.md` `--all-assets` wording — both completed at the run's
+> wrap-up. Item-14 CODE is done (ply_io.py NOTE now accurate; no export change needed);
+> the forward decision is seeded as **DECISIONS D3**.
+> Non-blocking notes: two of 8 gates are unreachable defense-in-depth (left as-is); a stray
+> verifier run left the gitignored local `assets/built/pxl_144634/train_base.ply` stale
+> (400-step) — regenerate with `run.py --asset pxl_144634 --stages train_base` if re-exporting.
+
+**Size/risk:** M / medium. **Status:** SHIPPED (0.3.0); 2 doc-halves at wrap-up.
 
 ## Problem
 A 2026-07-12 multi-agent review of M0/M1 code confirmed a set of real defects — none break

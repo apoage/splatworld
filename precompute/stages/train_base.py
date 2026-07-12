@@ -23,12 +23,7 @@ import imageio.v2 as imageio
 
 from gsplat import rasterization, DefaultStrategy
 from precompute.core import colmap_io, ply_io
-
-SH_C0 = 0.28209479177387814
-
-
-def rgb2sh(rgb01):
-    return (rgb01 - 0.5) / SH_C0
+from precompute.core.gaussmath import SH_C0, rgb2sh  # noqa: F401  (SH_C0 kept for API parity)
 
 
 # --- tiny SSIM (11x11 gaussian) ----------------------------------------------
@@ -68,6 +63,8 @@ def main():
     ap.add_argument("--steps", type=int, default=7000)
     ap.add_argument("--sh-degree", type=int, default=3)
     ap.add_argument("--test-every", type=int, default=8)
+    ap.add_argument("--min-psnr", type=float, default=15.0,
+                    help="fail the stage if held-out PSNR falls below this (dB)")
     ap.add_argument("--gpu", type=int, default=0)
     args = ap.parse_args()
 
@@ -78,6 +75,13 @@ def main():
 
     # ---- load COLMAP model + images ----
     model = colmap_io.load_model(args.sparse)
+    # Guard: distortion params are dropped for non-pinhole models (colmap_io), so
+    # training on a distorted model uses silently-wrong intrinsics. Fail fast.
+    try:
+        colmap_io.assert_undistorted(model)
+    except ValueError as e:
+        print(f"[train_base] FATAL: {e}", flush=True)
+        raise SystemExit(2)
     all_imgs = model.images
     Ks, viewmats, gts, names = [], [], [], []
     for im in all_imgs:
@@ -190,17 +194,38 @@ def main():
             quats=params["quats"].detach().cpu().numpy(),
         )
     n_final = int(params["means"].shape[0])
+    psnr_finite = math.isfinite(psnr)
     metrics = {
         "stage": "train_base", "n_gaussians": n_final, "steps": args.steps,
         "sh_degree": args.sh_degree, "test_views": len(test_idx),
-        "psnr_heldout_db": round(psnr, 3), "scene_scale": round(scene_scale, 4),
+        # null (not NaN) keeps metrics.json valid strict JSON when no test views exist
+        "psnr_heldout_db": (round(psnr, 3) if psnr_finite else None),
+        "min_psnr_db": args.min_psnr,
+        "scene_scale": round(scene_scale, 4),
         "wall_time_s": round(time.time() - t0, 1), "image_wh": [W, H],
     }
     mpath = os.path.join(os.path.dirname(os.path.abspath(args.out)), "metrics_train_base.json")
     with open(mpath, "w") as f:
         json.dump(metrics, f, indent=2)
-    print(f"[train_base] DONE  N={n_final}  PSNR(heldout)={psnr:.2f} dB  -> {args.out}")
     print(f"[train_base] metrics -> {mpath}")
+
+    # ---- fail-closed metric gates: a metric that FAILS if the stage broke ----
+    # (CLAUDE.md invariant). raise SystemExit, NOT assert, so they survive `python -O`
+    # (matches the ingest stage's sys.exit convention).
+    if n_final <= 0:
+        raise SystemExit("[train_base] FATAL: produced 0 gaussians")
+    if len(test_idx) == 0:
+        raise SystemExit(
+            "[train_base] FATAL: no held-out test views — cannot validate re-render "
+            f"PSNR (got {n_imgs} images with --test-every {args.test_every}; "
+            "lower --test-every or add images)")
+    if not psnr_finite:
+        raise SystemExit("[train_base] FATAL: held-out PSNR is not finite (NaN/Inf)")
+    if psnr < args.min_psnr:
+        raise SystemExit(
+            f"[train_base] FATAL: held-out PSNR {psnr:.2f} dB < --min-psnr "
+            f"{args.min_psnr} dB (training did not converge / bad inputs)")
+    print(f"[train_base] DONE  N={n_final}  PSNR(heldout)={psnr:.2f} dB  -> {args.out}")
 
 
 if __name__ == "__main__":
