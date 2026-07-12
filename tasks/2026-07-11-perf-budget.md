@@ -13,11 +13,14 @@ be far lower. Two levers: densification control (train fewer) + a post-train pru
    configurable budget (e.g. 200–500k per middle-distance foliage block).
 2. **Floater prune** in `export`: drop Gaussians with opacity below a threshold and/or isolated
    ones far from the SfM point hull / with extreme scale (the pale peripheral blobs seen in
-   `scratchpad/m1_foliage_*.png`). Keep it a documented, metric'd pass.
+   `docs/img/m1_foliage_*.png`). Keep it a documented, metric'd pass.
 3. Re-run on `pxl_144634`; compare held-out PSNR vs count (find the knee).
 
-## Acceptance
-- `metrics_train_base.json` / `metrics_export.json` report final count under the chosen budget.
-- Held-out PSNR stays within a small dB drop of the uncapped baseline (21.71 dB) — record the
-  count-vs-PSNR tradeoff so we pick the budget with eyes open.
+## Acceptance (provisional numeric gates — judges check THESE)
+- `metrics_export.json` reports final count **≤ 500 000** on `pxl_144634`.
+- Held-out PSNR **≥ 20.7 dB** (≤ 1.0 dB drop from the 21.71 dB uncapped baseline in
+  `docs/decisions.md`).
+- A count-vs-PSNR tradeoff table (≥ 3 budget points, e.g. 200k/350k/500k) lands in the task's
+  validation doc — the FINAL per-asset budget is an owner call, seeded as DECISIONS **D2**;
+  the 500k gate above is provisional until D2 is decided.
 - No NaN/degenerate Gaussians after prune (existing export assertions still pass).

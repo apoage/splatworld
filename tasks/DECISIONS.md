@@ -8,7 +8,8 @@ scattering open questions across task files. Answered rows move to DECIDED with 
 
 | # | Decision | Recommendation | Context |
 |---|----------|----------------|---------|
-| D1 | Which inverse-rendering implementation to vendor for `decompose` (M2)? | Let me survey GS-IR / GaussianShader / R3DG (+ newer) for sm_86/cu124 buildability and gsplat-portability, then recommend the most portable — lean GS-IR-style per CLAUDE.md. Verify it builds on the 3090 before committing. | `tasks/2026-07-11-m2-decompose.md`; CLAUDE.md "Open items" |
+| D1 | Which inverse-rendering implementation to vendor for `decompose` (M2)? | Survey in progress (planner, 2026-07-12): GS-IR / GaussianShader / R3DG (+ newer) for sm_86/cu124 buildability and gsplat-portability — a concrete one-word-answerable recommendation lands here when it completes. Lean GS-IR-style per CLAUDE.md; build-verify on the 3090 is step 1 of the M2 task either way. | `tasks/2026-07-11-m2-decompose.md` |
+| D2 | Final per-asset Gaussian budget for foliage blocks? | Wait for the count-vs-PSNR tradeoff table from `tasks/2026-07-11-perf-budget.md`, then pick the knee. Until decided, the task's provisional gate applies: ≤ 500k @ ≥ 20.7 dB held-out. (Not a wall for the task itself — it PRODUCES the data for this call.) | `tasks/2026-07-11-perf-budget.md`; CLAUDE.md perf target |
 
 ## DECIDED
 

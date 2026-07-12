@@ -20,8 +20,10 @@ placeholders with a real inverse-rendering solve.
   importer in the same commit.
 
 ## Acceptance / verification (a metric that fails if it broke)
-- Golden test (`precompute/tests`): the ~50-Gaussian synthetic asset with known albedo+light —
-  `decompose` recovers albedo within tolerance. Run before ANY change to decompose.
+- **ADD the golden test** (`precompute/tests/test_decompose.py` — it does not exist yet):
+  build a ~50-Gaussian synthetic asset with KNOWN albedo rendered under a KNOWN directional
+  light; `decompose` must recover albedo within tolerance (mean abs error < 0.05 per channel).
+  Once added, run it before ANY further change to decompose.
 - `decompose` re-renders held-out views within a fixed dB budget of `train_base`'s PSNR
   (if it can't reproduce the inputs, the decomposition is wrong). Assert into `metrics.json`.
 - Attribute range/NaN checks on albedo/normal/rough.

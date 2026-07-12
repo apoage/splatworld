@@ -25,7 +25,7 @@
     "albedo is SH degree-0 ONLY — never bake higher SH orders into albedo (exports)",
     "all PLY byte read/write lives only in precompute/core/ply_io.py; a schema change bumps schema.SCHEMA_VERSION AND updates the Godot importer in the SAME commit",
     "the COLMAP->Godot coordinate conversion happens exactly once, in export; if an asset renders flipped/rotated the bug is in export, never patched Godot-side",
-    "never modify or delete raw source data: assets/raw/, datasets/, /media/lukas/gg/photoscan are read-only",
+    "never modify or delete SOURCE data: datasets/ and /media/lukas/gg/photoscan are read-only; assets/raw/<name>/ is the ingest WORKSPACE — stages may create derived outputs there (frames, colmap db/model) but never touch source clips or another asset's directory",
     "no per-frame neural networks at runtime — runtime shading is the cheap Godot compute pass only",
     "never edit the vendored plugin godot/addons/gdgs/ except via a diff recorded in docs/decisions.md",
     "every pipeline stage writes a metrics.json with a check that FAILS if the stage broke; no stage is done without one",
@@ -35,7 +35,6 @@
 
   "protected": [
     "/media/lukas/gg/photoscan",
-    "assets/raw",
     "datasets"
   ],
 
@@ -47,7 +46,7 @@
   "lanes": {
     "planner_owns": ["docs/", "lore/", "prototype/", ".claude/", ".dark-factory/"],
     "shared": ["tasks/"],
-    "implementer_doc_exceptions": ["handoff", "validation", "STATUS"]
+    "implementer_doc_exceptions": ["handoff", "validation", "status"]
   },
 
   "guards": {

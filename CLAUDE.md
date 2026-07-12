@@ -92,14 +92,16 @@ Keep our code in `godot/relight/`; record every diff to the plugin in `docs/deci
 
 ---
 
-## Hardware & environment (critical)
+## Hardware & environment (critical — actual, per DECISIONS D0)
 
-- Ubuntu server, **4× RTX 5090 = Blackwell sm_120**.
-- **Stable PyTorch wheels are compiled ≤ sm_90 and silently degrade or throw
-  "no kernel image" on sm_120.** Use CUDA 12.8+ and cu128 wheels:
-  `pip install torch --index-url https://download.pytorch.org/whl/cu128`.
-  Build CUDA extensions with `TORCH_CUDA_ARCH_LIST="12.0"` and `--no-build-isolation`.
-  Verify at env setup: `torch.cuda.get_device_capability() == (12, 0)` and a real matmul.
+- **All compute is Ampere sm_86 on CUDA 12.4 / cu124**: local dev = 1× RTX 3090; batch =
+  the trader 4×3090 box (verify GPUs idle first, low priority — see the
+  `reference-gpu-servers` memory entry; endpoint is private, never in this repo).
+- Build/JIT CUDA extensions with `TORCH_CUDA_ARCH_LIST="8.6"` and
+  `CUDA_HOME=$CONDA_PREFIX` (`run.py` sets both if unset). Full hard-won env recipe:
+  `docs/decisions.md` (2026-07-11) + `precompute/env.yml`.
+- A separate Blackwell 5090 burn-in box exists but is **leave-alone**; the original
+  sm_120/cu128 notes apply only if work ever moves there (see env.yml comments).
 - **Parallelism = one asset per GPU** via `CUDA_VISIBLE_DEVICES` round-robin in
   `run.py`. Never multi-GPU a single training job — assets are small (minutes each).
 - Python 3.10+, env pinned in `precompute/env.yml`. gsplat backend.
@@ -168,13 +170,13 @@ docs/decisions.md  # append-only log: every architecture change + plugin diff
 
 ## Commands (keep current as implemented)
 ```
-python precompute/run.py --asset assets/raw/<name> --stages all --gpu 0
-python precompute/run.py --all-assets --stages decompose,export        # round-robin 4 GPUs
-godot --path godot --headless --script relight/tools/smoke_test.gd
-pytest precompute/tests
+python precompute/run.py --asset <name> --stages all --gpu 0      # bare name under assets/raw/
+python precompute/run.py --all-assets --stages export --gpus 0,1,2,3   # round-robin
+~/godot/godot --path godot --headless --script res://relight/tools/smoke_test.gd
+conda run -n splat-relight python -m pytest precompute/tests -q
 ```
 
-## Open items (fill in on day one — ask the user)
-- [ ] Paths + description of the available photogrammetry datasets (poses included? image counts?)
-- [ ] Which inverse-rendering implementation to vendor for `decompose` (verify it builds on sm_120 first)
-- [ ] Godot version installed on the workstation; GDGS version pinned
+## Open items (day-one questions — all resolved; open questions live ONLY in tasks/DECISIONS.md)
+- [x] Datasets: described in `docs/decisions.md` (clips in `datasets/pixel4/`, no poses — fresh SfM per D0)
+- [x] Inverse-rendering implementation for `decompose` → tracked as DECISIONS **D1** (the open wall)
+- [x] Godot 4.7-stable; GDGS pinned @ `be61f8f` v2.2.0 (D0b; `godot/addons/gdgs/VENDORED_COMMIT.txt`)

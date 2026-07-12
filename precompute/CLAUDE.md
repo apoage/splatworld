@@ -17,7 +17,9 @@ scripts; each writes a `metrics.json`. Runs in the `splat-relight` conda env (cu
 - Run gsplat with `CUDA_HOME=$CONDA_PREFIX TORCH_CUDA_ARCH_LIST=8.6` (JIT compile). Full recipe: `docs/decisions.md`.
 - **albedo = SH degree-0 ONLY.** Never bake higher SH into albedo.
 - Schema change → bump `SCHEMA_VERSION` + update the Godot importer **in the same commit**. Reader/writer lives only in `ply_io.py`.
-- Never write `assets/raw/` or `/media/lukas/gg/photoscan` — read-only source data.
+- SOURCE data is read-only: `datasets/` and `/media/lukas/gg/photoscan` — never modify or
+  delete. `assets/raw/<name>/` is the ingest WORKSPACE: stages may create derived outputs
+  there (frames, COLMAP db/model), but never touch source clips or another asset's dir.
 - COLMAP runs in a SEPARATE `colmap` conda env (`conda run -n colmap ...`); GPU flags are `FeatureExtraction.use_gpu` / `FeatureMatching.use_gpu` on this COLMAP (4.1.0).
 - Every stage asserts a metric that would FAIL if it broke (count / NaN / re-render PSNR).
 

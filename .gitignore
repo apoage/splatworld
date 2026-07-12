@@ -29,6 +29,9 @@ godot/.godot/
 .dark-factory/run-*.jsonl
 .dark-factory/verdicts/
 
+# --- local Claude Code session state (settings/locks; never commit) ---
+.claude/
+
 # --- OS / editors ---
 .DS_Store
 *.swp

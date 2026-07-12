@@ -119,3 +119,64 @@ Follow-ups (not blockers): (a) 2.39M >> runtime budget (<=1.5M for the WHOLE car
 (c) formalize `stages/ingest.py` (frames+SfM+undistort) so `run.py` covers ingest;
 (d) extended `asset.ply` is not GDGS-readable — the relight runtime importer/compute
 pass is **M2**.
+
+## 2026-07-12 — Pre-arming review: workflow fixes + code findings seeded (planner)
+
+Multi-agent review (4 dimensions; findings hand-verified against source after the
+verifier fleet hit a usage limit) before arming the dark factory. All planner-lane
+fixes applied same day; code-lane findings were NOT fixed by the planner — they are
+seeded as `tasks/2026-07-12-code-hardening.md` for the factory (two-thread contract).
+
+**Contradiction fixed — assets/raw semantics.** Config + precompute/CLAUDE.md declared
+`assets/raw/` read-only, yet the ingest convention (run.py docstring, M1 practice, the
+queued ingest task) writes frames + COLMAP output to `assets/raw/<name>/`. Resolved:
+**source data = `datasets/` + `/media/lukas/gg/photoscan` (read-only, protected);
+`assets/raw/<name>/` = ingest workspace** (writable for derived outputs, still
+gitignored). Config `protected` list narrowed accordingly.
+
+**Config bug fixed.** `implementer_doc_exceptions` had `"STATUS"` uppercase; the
+plugin's `lane_guard.py` lowercases filenames before matching, so factory STATUS
+banners on task files would have been denied. Now `"status"`.
+
+**Ephemeral-pointer recovery.** The validated COLMAP/undistort/toolchain scripts and
+the M0/M1 screenshots lived only in the session scratchpad (dead for any other
+session). Recovered into the repo: `prototype/{run_colmap,undistort}_pxl144634.sh`,
+`prototype/setup_toolchain_v2.sh`, `docs/img/{m0_shot,m1_foliage_0..2}.png`. Task
+specs + lore now point at the repo copies. The `prototype/` scripts are the ingest
+recipe of record.
+
+**Docs corrected.** Root CLAUDE.md hardware section rewritten to actual env (sm_86 /
+cu124 per D0; Blackwell notes demoted to conditional), Commands block fixed
+(`--asset <name>` bare — run.py joins under assets/raw/ itself; conda-run pytest;
+`~/godot/godot`), stale day-one Open-items checked off. `.claude/` gitignored.
+
+**Task specs hardened** (an implementer with no session memory can now execute them):
+ingest got an input interface (`--video`, `pxl_<HHMMSS>` naming, named acceptance
+clip `PXL_20260711_131945488`), perf-budget got numeric gates (≤ 500k @ ≥ 20.7 dB;
+final budget = new DECISIONS **D2**), m2-decompose's golden test is correctly stated
+as TO ADD (mean abs albedo error < 0.05), data-release moved to "Parked — owner-gated"
+(needs `gh release`, forbidden by `allow_push: false`). New: `2026-07-12-code-hardening`
+(READY #2) and `recurring-quality-pass` (FILLER; owner mandate: keep space for code
+quality + structure).
+
+**Known open code issues** (in the hardening task, listed here for the record):
+train_base asserts nothing (exits 0 on NaN PSNR); `read_asset_ply` never checks the
+schema-version header it writes; OPENCV models accepted silently (distortion dropped);
+run.py drops unknown CLI args; render tools print SHOT_SAVED unconditionally into a
+dead scratchpad path; GDGS centering/−180° Z note in ply_io.py:57 points at a
+decisions entry that never existed (must be resolved before M4 world-space placement);
+quat→R triplicated; `--all-assets` is sequential, not parallel.
+
+**ARMING CHECKLIST (next session, owner present):**
+1. `dark-factory@apothecary` is installed **local-scope for /home/lukas/Trader only** —
+   it is NOT active in splatworld. Install/enable it for this project first
+   (plugin v0.2.0 from the apothecary marketplace); verify `/dark-factory` resolves.
+2. Tree must be committed (factory reads HEAD-adjacent state; verdict/commit gates
+   assume a clean start).
+3. Config is ready: hooks read `lanes`/`guards`/`paths.queue` (verified against
+   `hooks/*.py`); `commands.test` verified green (5/5). `paths.fixture` is null —
+   acceptable; flow-verifier falls back to task-file acceptance commands.
+4. Arm from the IMPLEMENTER session (`true # dark-factory-arm` per SKILL.md) — arming
+   binds the session id; the planner session stays disarmed.
+5. Smoke the guard: while armed, a planner-session code write should be denied, a
+   `git push` should be denied, a commit without a green fresh verdict should be denied.
