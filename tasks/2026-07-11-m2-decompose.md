@@ -1,7 +1,9 @@
 # M2 — `decompose`: inverse rendering for relightable attributes
 
 **Size/risk:** L / high (touches the schema contract + the whole relight thesis).
-**Status:** GATED on DECISIONS **D1** (which implementation to vendor). Do not start until D1 is DECIDED.
+**Status:** READY (gate opened 2026-07-12 — D1 DECIDED: **GI-GS**, hybrid vendor+port; see
+Notes + `docs/d1-survey-2026-07-12.md`). Step 1 = reference build-verify on the 3090 as
+private non-committed scaffolding.
 
 ## Problem
 `train_base` gives baked appearance (SH). The relight runtime needs per-Gaussian

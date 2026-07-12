@@ -181,3 +181,19 @@ quat→R triplicated; `--all-assets` is sequential, not parallel.
    binds the session id; the planner session stays disarmed.
 5. Smoke the guard: while armed, a planner-session code write should be denied, a
    `git push` should be denied, a commit without a green fresh verdict should be denied.
+
+## 2026-07-12 — D1 DECIDED: GI-GS · M2 unblocked · smoke-loop mandate
+
+Owner approved the survey recommendation ("ok, that seems alright"): **D1 = GI-GS**
+(github.com/stopaimme/GI-GS, MIT, ICLR 2025), hybrid vendor+port — vendor its MIT Python
+layer (losses/training/materials), re-host G-buffers on gsplat 1.5.3, pure-PyTorch env
+light, drop the indirect pass for v1. HARD RULES: never vendor its Inria-licensed
+rasterizer fork or nvdiffrast; everything we author stays Python/PyTorch (no new
+languages — owner asked, answered, accepted). Evidence: `docs/d1-survey-2026-07-12.md`.
+M2 moved GATED → READY (#5).
+
+Owner mandate: **"we should have a working automatic debugging loop"** →
+`tasks/2026-07-12-smoke-loop.md` (READY #3): `precompute/smoke.sh`, one-command
+end-to-end pipeline check (< 3 min, loud failures, negative-checked); once shipped the
+planner points `commands.build` at it so the factory's release ritual runs it before
+every commit. Depends on code-hardening items 1 + 10 (stages must be able to FAIL first).

@@ -4,8 +4,8 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-12** (pre-arming review: specs hardened, code-review findings seeded, quality
-filler added per owner mandate).
+**2026-07-12** (second pass: D1 DECIDED → M2 unblocked; smoke-loop seeded per owner mandate
+"working automatic debugging loop").
 
 ## Ready — take from the top
 
@@ -13,7 +13,9 @@ filler added per owner mandate).
 |---|------|------|------|
 | 1 | `tasks/2026-07-11-ingest-stage.md` | S–M | formalize the validated COLMAP recipe (`prototype/*.sh` = recipe of record) into `stages/ingest.py`; input interface + acceptance clip now specified |
 | 2 | `tasks/2026-07-12-code-hardening.md` | M | fix the confirmed 2026-07-12 review findings: silent-failure traps (train_base asserts nothing, schema version unchecked, OPENCV silently accepted), diagnostics, structure, contract tests |
-| 3 | `tasks/2026-07-11-perf-budget.md` | M | cut per-asset Gaussian count toward the runtime budget (provisional gates: ≤ 500k @ ≥ 20.7 dB); tradeoff table feeds DECISIONS **D2** |
+| 3 | `tasks/2026-07-12-smoke-loop.md` | S–M | `precompute/smoke.sh`: one-command end-to-end pipeline check (< 3 min, loud failures) — the automatic debugging loop's backbone; depends on #2 items 1+10 |
+| 4 | `tasks/2026-07-11-perf-budget.md` | M | cut per-asset Gaussian count toward the runtime budget (provisional gates: ≤ 500k @ ≥ 20.7 dB); tradeoff table feeds DECISIONS **D2** |
+| 5 | `tasks/2026-07-11-m2-decompose.md` | L | **M2** — GI-GS hybrid vendor+port (D1 DECIDED 2026-07-12); step 1 = private reference build-verify on the 3090; license exclusions in the task Notes are hard rules |
 
 ## Filler — anytime, parallel-safe
 
@@ -32,7 +34,6 @@ filler added per owner mandate).
 
 | Task | Gate |
 |------|------|
-| `tasks/2026-07-11-m2-decompose.md` | DECISIONS **D1** (which inverse-rendering impl to vendor) |
 | M3 — transmission (backlit grass/leaf glow + UI toggle) | M2 `decompose` shipped |
 | M4 — carpet (instanced blocks, 5–15 variants, hit 60fps@1080p) | M2 shipped + asset variants ready |
 | M5 — wind (shared noise field) + mode-B basis blend (stretch) | M4 shipped |
