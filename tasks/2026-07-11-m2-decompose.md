@@ -1,7 +1,17 @@
 # M2b — `decompose`: inverse rendering for relightable attributes (GI-GS port onto gsplat)
 
 **Size/risk:** L / high (touches the schema contract + the whole relight thesis).
-**Status:** READY — owner go-ahead given 2026-07-12 ("prep next run"); vendoring scope
+**Status:** IN PROGRESS — phased.
+> **PHASE A DONE (2026-07-12): reference build-verify PASSED.** GI-GS builds + trains on
+> sm_86/cu124/py3.11 (recovered albedo/normal/rough sane; PSNR 17.97→20.69 as the material
+> stage engaged) — D1's portability bet held. Full env recipe + the architecture the blind
+> port must reproduce (per-Gaussian params/activations, G-buffer channels, deferred split-sum
+> PBR, learnable HDR cubemap→SH, stage-1/2 losses, dropped SSR indirect pass) in
+> `docs/validation-m2b-phaseA-gigs-buildverify-2026-07-12.md`. Reference checkout lives in
+> gitignored `scaffold/` (zero tracked files; license guardrails verified — no Inria fork /
+> nvdiffrast / nvdiffrec source in the repo). No version bump (research artifact). **Next: Phase B.**
+
+Owner go-ahead given 2026-07-12 ("prep next run"); vendoring scope
 confirmed at D1 (hybrid vendor+port, partial reimplementation accepted). Work the phases IN
 ORDER; each phase is independently shippable — if a later phase stalls, banner what shipped
 and stop rather than forcing it.
