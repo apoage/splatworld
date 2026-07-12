@@ -7,3 +7,10 @@ Licensed under the Apache License, Version 2.0 (the "License"); see the LICENSE 
 This product bundles GDGS (Godot Gaussian Splatting), Copyright (c) ReconWorldLab,
 which is licensed under the MIT License. The vendored copy lives under
 godot/addons/gdgs/ with its upstream license at godot/addons/gdgs/LICENSE.upstream.
+
+This product bundles selected PBR shading functions from GI-GS
+(https://github.com/stopaimme/GI-GS), Copyright (c) 2024 stopaimme, licensed under
+the MIT License. The vendored subset lives under precompute/vendor/gigs/ with its
+upstream license and a per-file provenance NOTICE. GI-GS's license-restricted
+dependencies (the Inria diff-gaussian-rasterization fork, nvdiffrast, nvdiffrec)
+are NOT included; their roles are reimplemented on gsplat (Apache-2.0) and PyTorch.
