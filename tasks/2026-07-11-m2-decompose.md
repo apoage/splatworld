@@ -10,6 +10,17 @@
 > `docs/validation-m2b-phaseA-gigs-buildverify-2026-07-12.md`. Reference checkout lives in
 > gitignored `scaffold/` (zero tracked files; license guardrails verified — no Inria fork /
 > nvdiffrast / nvdiffrec source in the repo). No version bump (research artifact). **Next: Phase B.**
+>
+> **PHASE B DONE (2026-07-12): gsplat N-channel G-buffer + gradients PROVEN.** D1 risk #3
+> (assumed-but-untested) cleared: gsplat 1.5.3 renders the 8-channel feature G-buffer
+> (albedo 3 + normal 3 + rough 1 + metallic 1) + expected depth in ONE `rasterization()` call
+> and gradients flow to every per-Gaussian feature leaf. The API the port copies: `sh_degree=None`
+> (colors = raw N-D features, alpha-composited; `channel_chunk=32` auto-handles >3 ch) +
+> `render_mode="RGB+ED"` (depth = last channel → output `[C,H,W,9]`). No extra trick needed for
+> gradient flow. Reference test: `precompute/tests/test_gbuffer_smoke.py` (CUDA-only, skips w/o GPU;
+> ~1.5s, in the smoke fast-unit layer). Observed feature-grad norms ~5e-4..1e-2 (all non-None,
+> non-zero, finite). `pytest precompute/tests` → 30 passed; `smoke.sh` → SMOKE OK. No version bump
+> (test-only, no schema/runtime change). **Next: Phase C (port + golden test).**
 
 Owner go-ahead given 2026-07-12 ("prep next run"); vendoring scope
 confirmed at D1 (hybrid vendor+port, partial reimplementation accepted). Work the phases IN
