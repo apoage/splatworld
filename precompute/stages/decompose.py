@@ -334,6 +334,106 @@ def enforce_rerender_budget(psnr, psnr_finite, tb_psnr, min_psnr_drop, tb_metric
             "reproduce the inputs")
 
 
+def held_out_psnr(shaded, gt, mask):
+    """Per-view held-out PSNR, returned as (full_frame, masked).
+
+    MAJOR-A: the GATED value is the FULL-FRAME PSNR, computed EXACTLY like
+    train_base (`train_base.py`: mse over the WHOLE image, PSNR = -10 log10
+    max(mse,1e-10)) so the budget subtraction (decompose vs train_base - drop)
+    compares the SAME pixel set — a masked-vs-full mix false-passes small-foreground
+    scenes. The foreground-masked value is kept as a SEPARATE diagnostic (still
+    useful for foliage) and is NEVER gated; None when no pixel is covered.
+    shaded/gt are [H,W,3]; mask is the [H,W,1] alpha>TAU foreground."""
+    def _psnr(mse):
+        return -10.0 * math.log10(max(mse, 1e-10))
+    psnr_full = _psnr(((shaded.clamp(0, 1) - gt) ** 2).mean().item())
+    m = mask.expand_as(shaded)
+    if bool(m.any()):
+        psnr_masked = _psnr(((shaded[m].clamp(0, 1) - gt[m]) ** 2).mean().item())
+    else:
+        psnr_masked = None
+    return psnr_full, psnr_masked
+
+
+def read_verified_baseline_psnr(tb_metrics_path, n_gaussians_loaded):
+    """Read train_base's held-out PSNR from metrics_train_base.json — but ONLY after
+    verifying that json describes the SAME train_base.ply decompose actually loaded.
+
+    MINOR-C (the 48k-clobber class): a metrics_train_base.json claiming 2.39M
+    Gaussians beside a 48,023-Gaussian train_base.ply once faked a passing baseline.
+    So before trusting the baseline PSNR, assert its `n_gaussians` equals the loaded
+    Gaussian count; on mismatch REFUSE (SystemExit, survives python -O) — the baseline
+    is untrustworthy. Returns the baseline PSNR (or None if the file is absent / lacks
+    the field / is unreadable — enforce_rerender_budget then decides if that is fatal)."""
+    if not os.path.exists(tb_metrics_path):
+        return None
+    try:
+        tb = json.load(open(tb_metrics_path))
+    except Exception:
+        return None
+    tb_n = tb.get("n_gaussians")
+    if tb_n is not None and int(tb_n) != int(n_gaussians_loaded):
+        raise SystemExit(
+            f"[decompose] FATAL: train_base baseline mismatch — "
+            f"metrics_train_base.json n_gaussians={tb_n} but the loaded train_base.ply "
+            f"has {int(n_gaussians_loaded)} Gaussians; the baseline is untrustworthy "
+            "(48k-clobber class) — refusing to gate against it")
+    return tb.get("psnr_heldout_db")
+
+
+def budget_ok(psnr, psnr_finite, tb_psnr, min_psnr_drop):
+    """Metrics-json record of whether the held-out FULL-FRAME re-render is within
+    budget AND that this was verifiable. True only when the gate is active
+    (`min_psnr_drop is not None`), the baseline exists, the PSNR is finite, and
+    psnr >= tb_psnr - min_psnr_drop. None when it cannot be verified (gate disabled /
+    no baseline / non-finite). Bookkeeping only; the hard gate is
+    enforce_rerender_budget (which additionally REFUSES the unverifiable cases)."""
+    if min_psnr_drop is None or tb_psnr is None or not psnr_finite:
+        return None
+    return bool(psnr >= tb_psnr - min_psnr_drop)
+
+
+def finalize_decompose(*, out, env_out, metrics, gate_psnr, psnr_finite, tb_psnr,
+                       min_psnr_drop, tb_metrics_path, xyz, sh0, opacity, scales,
+                       quats, albedo, normal, rough, env_json):
+    """Run EVERY fail-closed gate, THEN — only if all pass — write the two CONSUMABLE
+    artifacts (decompose.ply + env_sh.json), in ONE tested place.
+
+    MAJOR-B (fail-closed): the artifacts must NOT exist on any gate failure, because
+    `export --from-decompose` has no budget check and would happily ship a sub-budget
+    asset (invariant #8). So the writes happen strictly AFTER the count / NaN /
+    unit-normal / albedo-range / frozen-albedo gates AND enforce_rerender_budget. All
+    gates raise SystemExit (survives python -O). The caller writes metrics FIRST, so a
+    gate-failed solve stays inspectable (incl. its `budget_ok` field)."""
+    N = metrics["n_gaussians"]
+    if int(N) <= 0:
+        raise SystemExit("[decompose] FATAL: 0 gaussians")
+    for nm_, st in (("albedo", metrics["albedo"]), ("rough", metrics["rough"])):
+        if st["nan"] or st["inf"]:
+            raise SystemExit(f"[decompose] FATAL: NaN/Inf in {nm_}")
+    if not (metrics["normal_unit_err"] < 1e-3):
+        raise SystemExit(f"[decompose] FATAL: normals not unit length (err {metrics['normal_unit_err']:.2e})")
+    if metrics["albedo"]["min"] < 0.0 or metrics["albedo"]["max"] > 1.0:
+        raise SystemExit("[decompose] FATAL: albedo out of [0,1] (should be sigmoid-bounded)")
+    # frozen-albedo guard: the regression gate for the GI-GS LR-ramp bug that pinned
+    # albedo LR to 0 (phase-A finding #6). A converged solve varies albedo per-Gaussian.
+    if not (metrics["albedo_std"] > 1e-3):
+        raise SystemExit(
+            f"[decompose] FATAL: albedo is ~constant across Gaussians (max per-channel "
+            f"std {metrics['albedo_std']:.2e}) -> albedo did not learn (LR-ramp / frozen-albedo regression)")
+    # held-out re-render budget gate — CLAUDE.md invariant #8. DEFAULT ON (the CLI
+    # defaults --min-psnr-drop to 1.5); rejects when it cannot verify (MINOR-3). Uses
+    # the FULL-FRAME PSNR (MAJOR-A).
+    enforce_rerender_budget(gate_psnr, psnr_finite, tb_psnr, min_psnr_drop, tb_metrics_path)
+
+    # ---- all gates passed: NOW write the consumable artifacts ----
+    ply_io.write_decompose_ply(
+        out, xyz=xyz, sh0=sh0, opacity=opacity, scales=scales, quats=quats,
+        albedo=albedo, normal=normal, rough=rough)
+    with open(env_out, "w") as f:
+        json.dump(env_json, f, indent=2)
+
+
 # ============================================================================
 # Driver
 # ============================================================================
@@ -392,6 +492,11 @@ def main():
     # ---- geometry (frozen, COLMAP frame) from train_base ----
     g = ply_io.read_standard_3dgs_ply(args.inp)
     N = g["xyz"].shape[0]
+    # baseline consistency (MINOR-C): verify metrics_train_base.json describes the
+    # SAME train_base.ply we just loaded BEFORE we ever trust its PSNR — fail fast
+    # (before the whole optimization) on the 48k-clobber divergence class.
+    tb_metrics_path = os.path.join(out_dir, "metrics_train_base.json")
+    tb_psnr = read_verified_baseline_psnr(tb_metrics_path, N)
     means = torch.tensor(g["xyz"], device=dev)
     quats = torch.tensor(g["rot"], device=dev)
     scales = torch.exp(torch.tensor(g["scale"], device=dev))
@@ -487,8 +592,10 @@ def main():
         rough_np = torch.sigmoid(_rough).cpu().numpy().reshape(-1).astype(np.float32)
         ambient_sh = env.export_ambient_sh()               # (9,3) PRE-flip
 
-    # ---- held-out re-render PSNR (recorded; gated only if --min-psnr-drop) ----
-    psnrs = []
+    # ---- held-out re-render PSNR ----
+    # MAJOR-A: the GATED PSNR is FULL-FRAME (matches train_base's pixel set EXACTLY);
+    # the foreground-masked value is kept as a separate diagnostic, never gated.
+    psnrs_full, psnrs_masked = [], []
     with torch.no_grad():
         albedo = torch.sigmoid(_albedo); normal = F.normalize(_normal, dim=-1); rough = torch.sigmoid(_rough)
         for idx in test_idx:
@@ -498,30 +605,15 @@ def main():
             am, nm, rm, _d, al = render_gbuffer(means, quats, scales, opacities, albedo, normal, rough, vm, K, W, H)
             vd = view_dirs_world(H, W, K, R_c2w)
             shaded, _, _ = pbr_shading_sh(env, F.normalize(nm, dim=-1), vd, am, rm * 0.96 + 0.04)
-            m = (al > ALPHA_TAU).expand_as(shaded)
-            if m.any():
-                mse = ((shaded[m].clamp(0, 1) - gt[m]) ** 2).mean().item()
-                psnrs.append(-10.0 * math.log10(max(mse, 1e-10)))
-    psnr = float(np.mean(psnrs)) if psnrs else float("nan")
+            pf, pm = held_out_psnr(shaded, gt, al > ALPHA_TAU)
+            psnrs_full.append(pf)
+            if pm is not None:
+                psnrs_masked.append(pm)
+    psnr = float(np.mean(psnrs_full)) if psnrs_full else float("nan")            # GATED (full-frame)
+    psnr_masked = float(np.mean(psnrs_masked)) if psnrs_masked else float("nan")  # diagnostic only
     psnr_finite = math.isfinite(psnr)
 
-    # ---- write decompose.ply (geometry PRE-flip + albedo/normal/rough) ----
-    ply_io.write_decompose_ply(
-        args.out, xyz=g["xyz"], sh0=sh0, opacity=g["opacity"], scales=g["scale"],
-        quats=g["rot"], albedo=albedo_np, normal=normal_np, rough=rough_np)
-
-    # ---- write env_sh.json (ambient SH, PRE-flip) ----
-    with open(env_out, "w") as f:
-        json.dump({
-            "stage": "decompose",
-            "sh_degree": sh_env.SH_DEGREE, "n_coeffs": sh_env.N_SH,
-            "frame": "colmap_pre_flip",
-            "note": "ambient SH coefficients c_lm=(A_l/pi)L_lm; runtime ambient_sh(N)=sum c_lm Y_lm(N); "
-                    "export flips COLMAP->Godot (core.sh_env.flip_env_sh_colmap_to_godot).",
-            "ambient_sh": ambient_sh.tolist(),
-        }, f, indent=2)
-
-    # ---- metrics ----
+    # ---- metrics (written BEFORE the gates so a failure stays inspectable) ----
     def stats(a):
         return {"min": float(np.min(a)), "max": float(np.max(a)),
                 "nan": int(np.isnan(a).sum()), "inf": int(np.isinf(a).sum())}
@@ -532,46 +624,40 @@ def main():
         "pbr_iteration": args.pbr_iteration, "image_wh": [W, H],
         "albedo": stats(albedo_np), "albedo_std": albedo_std,
         "rough": stats(rough_np), "normal_unit_err": normal_unit_err,
-        "psnr_heldout_db": (round(psnr, 3) if psnr_finite else None),
+        "psnr_heldout_db": (round(psnr, 3) if psnr_finite else None),                # GATED (full-frame)
+        "psnr_heldout_masked_db": (round(psnr_masked, 3) if math.isfinite(psnr_masked) else None),  # diagnostic
         "test_views": len(test_idx), "wall_time_s": round(time.time() - t0, 1),
     }
-    # optional phase-D budget bookkeeping
-    tb_metrics_path = os.path.join(out_dir, "metrics_train_base.json")
-    tb_psnr = None
-    if os.path.exists(tb_metrics_path):
-        try:
-            tb_psnr = json.load(open(tb_metrics_path)).get("psnr_heldout_db")
-        except Exception:
-            tb_psnr = None
+    # phase-D budget bookkeeping (tb_psnr verified against train_base.ply count, MINOR-C)
     metrics["train_base_psnr_db"] = tb_psnr
     metrics["min_psnr_drop"] = args.min_psnr_drop
+    metrics["budget_ok"] = budget_ok(psnr, psnr_finite, tb_psnr, args.min_psnr_drop)
     mpath = os.path.join(out_dir, "metrics_decompose.json")
     with open(mpath, "w") as f:
         json.dump(metrics, f, indent=2)
     print(f"[decompose] metrics -> {mpath}")
 
-    # ---- fail-closed gates (raise SystemExit so they survive python -O) ----
-    if int(N) <= 0:
-        raise SystemExit("[decompose] FATAL: 0 gaussians")
-    for nm_, st in (("albedo", metrics["albedo"]), ("rough", metrics["rough"])):
-        if st["nan"] or st["inf"]:
-            raise SystemExit(f"[decompose] FATAL: NaN/Inf in {nm_}")
-    if not (normal_unit_err < 1e-3):
-        raise SystemExit(f"[decompose] FATAL: normals not unit length (err {normal_unit_err:.2e})")
-    if metrics["albedo"]["min"] < 0.0 or metrics["albedo"]["max"] > 1.0:
-        raise SystemExit("[decompose] FATAL: albedo out of [0,1] (should be sigmoid-bounded)")
-    # frozen-albedo guard: the regression gate for the GI-GS LR-ramp bug that pinned
-    # albedo LR to 0 (phase-A finding #6). A converged solve varies albedo per-Gaussian.
-    if not (albedo_std > 1e-3):
-        raise SystemExit(
-            f"[decompose] FATAL: albedo is ~constant across Gaussians (max per-channel "
-            f"std {albedo_std:.2e}) -> albedo did not learn (LR-ramp / frozen-albedo regression)")
-    # held-out re-render budget gate — CLAUDE.md invariant #8. DEFAULT ON (the CLI
-    # defaults --min-psnr-drop to 1.5); rejects when it cannot verify (MINOR-3).
-    enforce_rerender_budget(psnr, psnr_finite, tb_psnr, args.min_psnr_drop, tb_metrics_path)
+    # ---- gates THEN write the consumable artifacts (MAJOR-B fail-closed order) ----
+    # decompose.ply + env_sh.json land ONLY after every gate passes, so a gate-failed
+    # solve leaves nothing for export --from-decompose (no budget check) to consume.
+    env_json = {
+        "stage": "decompose",
+        "sh_degree": sh_env.SH_DEGREE, "n_coeffs": sh_env.N_SH,
+        "frame": "colmap_pre_flip",
+        "note": "ambient SH coefficients c_lm=(A_l/pi)L_lm; runtime ambient_sh(N)=sum c_lm Y_lm(N); "
+                "export flips COLMAP->Godot (core.sh_env.flip_env_sh_colmap_to_godot).",
+        "ambient_sh": ambient_sh.tolist(),
+    }
+    finalize_decompose(
+        out=args.out, env_out=env_out, metrics=metrics, gate_psnr=psnr,
+        psnr_finite=psnr_finite, tb_psnr=tb_psnr, min_psnr_drop=args.min_psnr_drop,
+        tb_metrics_path=tb_metrics_path, xyz=g["xyz"], sh0=sh0, opacity=g["opacity"],
+        scales=g["scale"], quats=g["rot"], albedo=albedo_np, normal=normal_np,
+        rough=rough_np, env_json=env_json)
 
     print(f"[decompose] DONE  N={N}  albedo_std={albedo_std:.3f}  "
-          f"PSNR(heldout)={psnr:.2f} dB  -> {args.out}  env -> {env_out}")
+          f"PSNR(heldout,full)={psnr:.2f} dB  masked={psnr_masked:.2f} dB  "
+          f"-> {args.out}  env -> {env_out}")
 
 
 if __name__ == "__main__":

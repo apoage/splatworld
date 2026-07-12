@@ -119,6 +119,43 @@ def test_export_decompose_range_violation_fails_without_clobber(tmp_path, monkey
     assert not (tmp_path / "metrics_export.json").exists()           # no metrics written
 
 
+def test_neutral_export_byte_identical_and_allows_albedo_gt_1(tmp_path, monkeypatch):
+    """MINOR-D: two NEUTRAL exports (no --from-decompose) of the SAME train_base.ply are
+    byte-identical (the M1 neutral path is deterministic — fences the md5 that until now
+    lived only in a verdict rationale), AND the neutral path still PERMITS albedo > 1.0.
+    The decompose-path [0,1] albedo tightening must NOT leak into neutral, whose albedo is
+    baked SH-DC base color (generous FIELD_RANGES bound; the live asset peaks ~1.82)."""
+    import hashlib
+    n = 16
+    rng = np.random.default_rng(7)
+    xyz = rng.normal(size=(n, 3)).astype(np.float32)
+    # f_dc large enough that sh0_to_rgb(f_dc)=0.5+SH_C0*f_dc exceeds 1.0 (needs f_dc>~1.77)
+    # but stays under the generous 4.0 neutral bound -> exercises albedo>1 on the neutral path.
+    f_dc = np.full((n, 3), 5.0, np.float32)                 # albedo ~1.91
+    shN = np.zeros((n, 0, 3), np.float32)
+    opacity = _logit(np.full(n, 0.5, np.float64)).astype(np.float32)
+    scales = np.log(np.full((n, 3), 0.1, np.float32))
+    quats = np.tile(np.array([1.0, 0, 0, 0], np.float32), (n, 1))
+    inp = tmp_path / "train_base.ply"
+    ply_io.write_standard_3dgs_ply(str(inp), xyz, f_dc, shN, opacity, scales, quats)
+
+    def _export_to(out):
+        monkeypatch.setattr(sys, "argv", ["export", "--in", str(inp), "--out", str(out)])
+        export_mod.main()                                    # neutral: no --from-decompose
+
+    out1, out2 = tmp_path / "asset1.ply", tmp_path / "asset2.ply"
+    _export_to(out1)
+    _export_to(out2)
+
+    # the neutral path permitted albedo > 1 (export did NOT fail-closed on the [0,1] bound)
+    a = ply_io.read_asset_ply(str(out1))
+    assert float(a.albedo.max()) > 1.0, "neutral albedo must be allowed to exceed 1.0"
+    # byte-identical across two independent runs (deterministic; pins the M1 neutral md5)
+    h1 = hashlib.md5(out1.read_bytes()).hexdigest()
+    h2 = hashlib.md5(out2.read_bytes()).hexdigest()
+    assert h1 == h2, f"neutral export not byte-identical ({h1} != {h2})"
+
+
 def test_shortest_axis_normals_known():
     # (quat wxyz, scales_log, expected unit normal)
     cases = [

@@ -23,7 +23,9 @@ Two gates:
    frozen to isolate albedo. This is also the regression gate for the GI-GS
    frozen-albedo LR-ramp bug (phase-A finding #6).
 """
+import json
 import math
+import os
 
 import numpy as np
 import pytest
@@ -31,7 +33,7 @@ import torch
 import torch.nn.functional as F
 
 from precompute.stages import decompose as D
-from precompute.core import sh_env
+from precompute.core import ply_io, sh_env
 
 
 # ----------------------------------------------------------------------------
@@ -201,6 +203,112 @@ def test_frozen_albedo_guard_catches_colored_constant():
     assert D.albedo_variation(grey_const) < 1e-3             # grey degenerate also fires
     varying = np.random.default_rng(0).uniform(0.2, 0.8, (50, 3)).astype(np.float32)
     assert D.albedo_variation(varying) > 1e-3                # a real solve passes
+
+
+def test_gated_psnr_is_full_frame_not_masked():
+    """MAJOR-A: the GATED held-out PSNR must be FULL-FRAME (train_base's pixel set),
+    NOT foreground-masked. A perfect foreground over a WRONG background scores LOW
+    full-frame (background penalized) yet ~perfect masked — so subtracting a masked
+    decompose PSNR from a full-frame train_base baseline is not like-for-like and can
+    false-pass small-foreground scenes. held_out_psnr returns (full, masked); main()
+    gates on `full` (written as psnr_heldout_db) and only records `masked` as a
+    diagnostic (psnr_heldout_masked_db)."""
+    H = W = 8
+    gt = torch.zeros(H, W, 3)
+    shaded = torch.zeros(H, W, 3)
+    mask = torch.zeros(H, W, 1, dtype=torch.bool)
+    mask[:4, :4, 0] = True                            # small foreground; rest background
+    shaded[~mask.expand_as(shaded)] = 1.0             # foreground perfect, background maximally wrong
+
+    full, masked = D.held_out_psnr(shaded, gt, mask)
+    assert masked is not None
+    # foreground matches exactly -> masked PSNR is the capped max (mse floored at 1e-10)
+    assert masked == pytest.approx(100.0, abs=1e-6)
+    # full-frame is dragged DOWN by the wrong background -> finite, far below masked
+    assert math.isfinite(full)
+    assert full < masked - 40.0, f"full-frame PSNR {full} not penalized by the bad background"
+    # the full value matches train_base's exact formula over the WHOLE image
+    mse_full = ((shaded.clamp(0, 1) - gt) ** 2).mean().item()
+    assert full == pytest.approx(-10.0 * math.log10(max(mse_full, 1e-10)), abs=1e-6)
+
+
+def test_baseline_psnr_consistency_helper(tmp_path):
+    """MINOR-C: read_verified_baseline_psnr trusts metrics_train_base.json ONLY when
+    its n_gaussians matches the loaded train_base.ply count; a mismatch (the
+    48k-clobber class: a metrics json claiming 2.39M beside a 48k .ply) REFUSES. A
+    missing file returns None (the budget gate then decides)."""
+    p = tmp_path / "metrics_train_base.json"
+    p.write_text(json.dumps({"n_gaussians": 2000, "psnr_heldout_db": 27.5}))
+    # matching count -> returns the baseline PSNR
+    assert D.read_verified_baseline_psnr(str(p), 2000) == 27.5
+    # mismatched count -> refuse (untrustworthy baseline)
+    with pytest.raises(SystemExit):
+        D.read_verified_baseline_psnr(str(p), 48023)
+    # absent file -> None (not fatal here; a missing baseline is the budget gate's call)
+    assert D.read_verified_baseline_psnr(str(tmp_path / "nope.json"), 2000) is None
+
+
+def _good_finalize_kwargs(out_dir):
+    """Minimal valid inputs for finalize_decompose: an in-budget, all-gates-pass solve."""
+    n = 8
+    rng = np.random.default_rng(0)
+    xyz = rng.normal(size=(n, 3)).astype(np.float32)
+    sh0 = rng.normal(size=(n, 3)).astype(np.float32)
+    opacity = np.zeros(n, np.float32)
+    scales = np.log(np.full((n, 3), 0.1, np.float32))
+    quats = np.tile(np.array([1.0, 0, 0, 0], np.float32), (n, 1))
+    albedo = rng.uniform(0.2, 0.8, (n, 3)).astype(np.float32)          # varies -> frozen guard passes
+    normal = rng.normal(size=(n, 3)).astype(np.float32)
+    normal /= np.linalg.norm(normal, axis=1, keepdims=True)            # unit
+    rough = np.full(n, 0.5, np.float32)
+    metrics = {
+        "n_gaussians": n,
+        "albedo": {"min": float(albedo.min()), "max": float(albedo.max()), "nan": 0, "inf": 0},
+        "rough": {"min": 0.5, "max": 0.5, "nan": 0, "inf": 0},
+        "normal_unit_err": float(np.abs(np.linalg.norm(normal, axis=1) - 1.0).max()),
+        "albedo_std": D.albedo_variation(albedo),
+    }
+    return dict(
+        out=os.path.join(out_dir, "decompose.ply"),
+        env_out=os.path.join(out_dir, "env_sh.json"),
+        metrics=metrics, gate_psnr=28.0, psnr_finite=True, tb_psnr=27.0,
+        min_psnr_drop=1.5, tb_metrics_path="", xyz=xyz, sh0=sh0, opacity=opacity,
+        scales=scales, quats=quats, albedo=albedo, normal=normal, rough=rough,
+        env_json={"stage": "decompose", "ambient_sh": [[0.0, 0.0, 0.0]]},
+    )
+
+
+def test_finalize_writes_only_on_success(tmp_path):
+    """MAJOR-B: the CONSUMABLE decompose.ply + env_sh.json are written ONLY after every
+    gate passes. On success both land (and are a readable decompose ply). On a gate
+    failure (here: a sub-budget PSNR, the corruption probe's 19.89 dB case) the write
+    function raises BEFORE writing, so export --from-decompose (which has NO budget
+    check) finds nothing to ship — invariant #8 stays defended."""
+    ok_dir = tmp_path / "ok"; ok_dir.mkdir()
+    kw = _good_finalize_kwargs(str(ok_dir))
+    D.finalize_decompose(**kw)
+    assert os.path.exists(kw["out"]) and os.path.exists(kw["env_out"])
+    dec = ply_io.read_decompose_ply(kw["out"])                 # real, consumable ply
+    assert dec["albedo"].shape[0] == kw["metrics"]["n_gaussians"]
+
+    fail_dir = tmp_path / "fail"; fail_dir.mkdir()
+    kw2 = _good_finalize_kwargs(str(fail_dir))
+    kw2["gate_psnr"] = 19.89                                   # << tb_psnr(27.0) - 1.5 budget
+    with pytest.raises(SystemExit):
+        D.finalize_decompose(**kw2)
+    assert not os.path.exists(kw2["out"]), "gate-failed decompose.ply must NOT exist"
+    assert not os.path.exists(kw2["env_out"]), "gate-failed env_sh.json must NOT exist"
+
+
+def test_budget_ok_field_tristate():
+    """MAJOR-B bookkeeping: budget_ok is True only when verifiable AND within budget,
+    False when verifiable but below budget, None when unverifiable (gate off / no
+    baseline / non-finite)."""
+    assert D.budget_ok(28.0, True, 27.0, 1.5) is True         # 28.0 >= 27.0-1.5
+    assert D.budget_ok(19.89, True, 27.0, 1.5) is False        # below budget
+    assert D.budget_ok(28.0, True, 27.0, None) is None         # gate disabled
+    assert D.budget_ok(28.0, True, None, 1.5) is None          # no baseline
+    assert D.budget_ok(float("nan"), False, 27.0, 1.5) is None  # non-finite
 
 
 # ----------------------------------------------------------------------------
