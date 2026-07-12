@@ -49,5 +49,6 @@ scaffold/
 .DS_Store
 *.swp
 
-# local sample splats (CC0, not tracked)
+# local sample splats + built relight assets (heavy binaries, not tracked)
 godot/gs_assets/*.ply
+godot/gs_assets/*.relightply

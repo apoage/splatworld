@@ -1,9 +1,19 @@
 # M2a — relight runtime: extended-PLY importer + shading compute pass in Godot
 
+> **STATUS (2026-07-12): SHIPPED as 0.6.0.** Importer + one-seam relight compute pass +
+> `single_asset.tscn` (was missing → fixed the `--import` error) + two gates, all in
+> `godot/relight/` with GDGS touched at exactly one call. Verified by correctness+regression+
+> flow panel on the RTX 3090: render gate proves relit≠raw (|ΔL|=0.335), orbit changes shading
+> (|ΔL|=0.058), ambient floor (0.027≥0.01); cactus M0 gate + GPU byte-compare confirm the
+> OFF-path is byte-identical; pytest 29 + smoke OK. Verdict: `.dark-factory/verdicts/current.json`.
+> **Planner reconcile (at wrap-up):** fold the one-line GDGS diff (recorded in
+> `docs/validation-m2a-relight-runtime-2026-07-12.md`) into `docs/decisions.md` per invariant #6.
+> MINORs seeded to the quality-pass filler: data gate should verify material-buffer CONTENTS
+> (not just size); render gate could add an analytic-shading check. M4 latents noted (static
+> material state, unbounded materials[], mat3 normal for non-uniform scatter scale).
+
 **Size/risk:** M / medium (touches the vendored plugin at ONE insertion point).
-**Status:** READY — does NOT wait for decompose. M1's `export` already writes placeholder
-attributes (albedo=SH0, shortest-axis normals, rough=0.6, trans=0), which are sufficient to
-build and verify the entire runtime path on the existing `assets/built/pxl_144634/asset.ply`.
+**Status:** SHIPPED (0.6.0). Independent of decompose; verifies on the placeholder asset.
 When M2b lands, the same runtime relights real attributes with zero changes.
 
 **Lane:** `godot/` (+ shared `tasks/`). Nothing in `precompute/` changes.

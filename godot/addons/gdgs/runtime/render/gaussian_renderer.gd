@@ -3,6 +3,7 @@ extends RefCounted
 class_name GaussianRenderer
 
 const RenderingDeviceContext := preload("res://addons/gdgs/runtime/render/gaussian_rendering_device_context.gd")
+const RelightPass := preload("res://relight/relight_pass.gd") # splat-relight: relight compute pass
 const RADIX := 256
 const MAX_SORT_ELEMENTS_PER_SPLAT := 10
 
@@ -73,6 +74,8 @@ func _rasterize_state(state, point_count: int) -> void:
 	var compute_list: int = state.context.compute_list_begin()
 	state.pipelines["gsplat_projection"].call(state.context, compute_list, state.camera_push_constants)
 	state.context.compute_list_end()
+
+	RelightPass.run(state, point_count) # splat-relight: shade per-splat color before the sort
 
 	compute_list = state.context.compute_list_begin()
 	for radix_shift_pass in range(4):

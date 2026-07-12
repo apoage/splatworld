@@ -5,6 +5,25 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-12
+- **M2a — relight runtime in Godot** (`tasks/2026-07-12-m2-relight-runtime.md`): the visible
+  half of milestone M2. Extended-PLY importer + one shading compute pass + demo scene, built
+  entirely in `godot/relight/` with the vendored GDGS plugin touched at **exactly one seam**
+  (a `RelightPass.run(state, point_count)` call in `gaussian_renderer.gd` between the
+  projection and sort passes — writes the per-splat `culled_splats.color` the rasterizer
+  consumes; early-returns with no materials so standard splats are byte-identical).
+- `relight_ply_loader.gd` + `RelightGaussianResource` read `splat_relight_schema 1` (reusing
+  GDGS's binary reader/builder verbatim, no double-activation) into a std430 material buffer;
+  `relight.glsl` implements the CLAUDE.md shading model verbatim (direct + wrap-translucency,
+  inert at trans=0 until M3, + a flat ambient floor); `single_asset.tscn` (previously missing
+  → the `--import` error, now fixed) with an orbiting `DirectionalLight3D` and a raw/relit UI
+  toggle. No `precompute/` changes; verifies on the existing placeholder-attribute asset.
+- **Gates** (the factory can't see pixels): headless `relight_smoke.gd` (schema/ranges/NaN,
+  albedo bound [0,4]) + GPU `relight_render_gate.gd` on `DISPLAY=:0` — proves relit≠raw
+  (|ΔL|=0.335), light-orbit changes shading (|ΔL|=0.058), and an ambient luminance floor
+  (0.027 ≥ 0.01, no black shadows). Cactus M0 gate still PASSes. Verified by a
+  correctness+regression+flow panel (GPU byte-compare confirmed the OFF-path unchanged).
+
 ## [0.5.0] — 2026-07-12
 - **Gaussian-budget tooling** (`tasks/2026-07-11-perf-budget.md`) toward the ≤1.5M-whole-carpet
   target. `train_base` gains `CappedDefaultStrategy` (`--max-gaussians` hard cap — stops
