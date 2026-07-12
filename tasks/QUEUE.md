@@ -14,6 +14,7 @@ phase D → env-SH wiring → relight-orbit-video, strictly in order, each with 
 | 1 | `tasks/2026-07-11-m2-decompose.md` **→ phase D only** | M | **M2b phase D** — run `decompose` on real assets (`pxl_144634`/`pxl_131945`), confirm held-out re-render within the dB budget (gate built + default-ON), then `export --from-decompose` the real relightable asset. ⚠️ SCHEDULED real-data validation (not in-loop poll); convergence-uncertain on thin-leaf foliage → may need param tuning. **Owner call first:** env-SH sidecar → Godot `ambient_sh(N)` reader (see decisions.md 2026-07-12 M2 entry). Phases A/B/C DONE. |
 | 2 | `tasks/2026-07-12-env-sh-runtime.md` | S–M | **env-SH → runtime ambient** (D4 DECIDED YES). Requires phase D shipped first — same-run sequencing OK. Godot `ambient_sh(N)` reader; constants shared with `core/sh_env.py`; no schema change |
 | 3 | `tasks/2026-07-12-relight-orbit-video.md` | S–M | **demo video** (owner request): raw→relit cut + 360° light orbit on the phase-D asset → `docs/media/relight_orbit.{mp4,gif}` + README embed. Run finale; fallbacks defined if a predecessor stalls |
+| 4 | `tasks/2026-07-12-pixel5-variants.md` | M | **pixel5 variant build** (new walkaround clips, 2026-07-12): triage all 9 → build ≥5 budgeted variants (D2 provisional 500k cap) — the M4 variant shortlist. GPU-serial, runs last |
 
 **Shipped in the 2026-07-12 factory runs (banners on task files):** ingest-stage (v0.2.0),
 code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a relight-runtime
