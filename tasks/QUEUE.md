@@ -4,18 +4,17 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-12** (second pass: D1 DECIDED → M2 unblocked; smoke-loop seeded per owner mandate
-"working automatic debugging loop").
+**2026-07-12** (post-run: ingest/code-hardening/smoke-loop/perf-budget SHIPPED v0.2.0→v0.5.0;
+only M2 remains, held for owner go-ahead; D2 now data-backed, D3 seeded).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-11-ingest-stage.md` | S–M | formalize the validated COLMAP recipe (`prototype/*.sh` = recipe of record) into `stages/ingest.py`; input interface + acceptance clip now specified |
-| 2 | `tasks/2026-07-12-code-hardening.md` | M | fix the confirmed 2026-07-12 review findings: silent-failure traps (train_base asserts nothing, schema version unchecked, OPENCV silently accepted), diagnostics, structure, contract tests |
-| 3 | `tasks/2026-07-12-smoke-loop.md` | S–M | `precompute/smoke.sh`: one-command end-to-end pipeline check (< 3 min, loud failures) — the automatic debugging loop's backbone; depends on #2 items 1+10 |
-| 4 | `tasks/2026-07-11-perf-budget.md` | M | cut per-asset Gaussian count toward the runtime budget (provisional gates: ≤ 500k @ ≥ 20.7 dB); tradeoff table feeds DECISIONS **D2** |
-| 5 | `tasks/2026-07-11-m2-decompose.md` | L | **M2** — GI-GS hybrid vendor+port (D1 DECIDED 2026-07-12); step 1 = private reference build-verify on the 3090; license exclusions in the task Notes are hard rules |
+| 1 | `tasks/2026-07-11-m2-decompose.md` | L | **M2** — GI-GS hybrid vendor+port (D1 DECIDED). ⚠️ Milestone-scale/high-risk: touches the schema contract + relight thesis, front-loads a risky external CUDA build-verify (GI-GS on sm_86/cu124). The 2026-07-12 run STOPPED here by design — wants its own (ideally attended) session + owner confirmation of vendoring scope. Step 1 = private reference build-verify; license exclusions in the task Notes are hard rules |
+
+**Shipped in the 2026-07-12 factory run (banners on task files):** ingest-stage (v0.2.0),
+code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0). See `docs/2026-07-12-handoff.md`.
 
 ## Filler — anytime, parallel-safe
 
