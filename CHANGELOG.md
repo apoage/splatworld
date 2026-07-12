@@ -5,6 +5,29 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-12
+- **M2b Phase C — `decompose` stage** (`tasks/2026-07-11-m2-decompose.md`): the real
+  inverse-rendering solve that replaces M1's placeholder attributes. Ports GI-GS's
+  two-stage decomposition (geometry/normal → PBR material/env) onto the gsplat N-channel
+  G-buffer proven in phase B, with a **pure-PyTorch degree-2 SH environment light** replacing
+  the excluded nvdiffrast/nvdiffrec split-sum. Recovers per-Gaussian albedo (SH deg-0,
+  light-free) / normal / roughness + a scene env-SH. **No new CUDA; everything authored is
+  Python/PyTorch.**
+- **License:** only GI-GS's clean-MIT layer is vendored — `precompute/vendor/gigs/` = MIT
+  LICENSE + NOTICE + `pbr_math.py` (8 import-free functions, extracted verbatim). The Inria
+  `diff-gaussian-rasterization` fork, `nvdiffrast`, and `nvdiffrec` are NEVER copied
+  (reference build stays in gitignored `scaffold/`); verified no restricted code in the tree
+  or history.
+- **Golden test** (`test_decompose.py`): ~50-Gaussian synthetic scene, known albedo under a
+  known SH env, env DC pinned — decompose recovers albedo to **MAE 0.0010/channel** (<0.05).
+  Plus a depth→normal world-frame test and 3 fail-closed/guard tests (tests 30→37). All gates
+  are `-O`-safe; the held-out re-render **PSNR budget is default-ON** (invariant #8); the
+  frozen-albedo guard is per-channel; export gates run **before** the write (no clobber).
+- **Wiring:** `decompose` is between `train_base` and `export` in STAGE_ORDER; `export
+  --from-decompose` consumes real attributes (FIELD_RANGES albedo tightened to [0,1] on that
+  path) and writes a flipped env-SH sidecar, else keeps the M1 neutral path **byte-identical**.
+  Schema unchanged (SCHEMA_VERSION 1). Phase D (real-asset dB budget) is the remaining phase.
+
 ## [0.6.0] — 2026-07-12
 - **M2a — relight runtime in Godot** (`tasks/2026-07-12-m2-relight-runtime.md`): the visible
   half of milestone M2. Extended-PLY importer + one shading compute pass + demo scene, built

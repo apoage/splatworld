@@ -1,0 +1,59 @@
+NOTICE — precompute/vendor/gigs/
+================================
+
+This directory vendors a small, single-license subset of GI-GS.
+
+Upstream project
+----------------
+GI-GS: Global Illumination Decomposition on Gaussian Splatting for Inverse
+Rendering (ICLR 2025), arXiv:2410.02619.
+Source: https://github.com/stopaimme/GI-GS
+License: MIT — "Copyright (c) 2024 stopaimme" (see the LICENSE file here,
+copied verbatim from the upstream repository root).
+
+What is vendored (verbatim)
+---------------------------
+* LICENSE            — verbatim copy of the upstream MIT LICENSE.
+* pbr_math.py        — an EXACT extraction of 8 import-free helper functions from
+                       upstream `pbr/shade.py` (retyped one at a time, NOT copied
+                       wholesale then trimmed). These carry no restricted imports:
+                         - envBRDF_approx   (Lazarov 2013 analytic env-BRDF; this
+                                             replaces the restricted NVIDIA
+                                             brdf_256_256.bin split-sum LUT)
+                         - saturate_dot
+                         - aces_film        (ACES tone map)
+                         - linear_to_srgb
+                         - _rgb_to_srgb / rgb_to_srgb
+                         - _srgb_to_rgb / srgb_to_rgb
+
+That is the COMPLETE vendorable set.
+
+What is NOT vendored — reimplemented FRESH elsewhere (authored, never lifted)
+-----------------------------------------------------------------------------
+The following capabilities the decompose port needs are reimplemented from the
+paper / from scratch in the main tree (precompute/stages/decompose.py and
+precompute/core/sh_env.py), NOT copied from GI-GS — several upstream source files
+carry pasted Inria/GRAPHDECO headers despite the MIT repo, so they are
+reference-only:
+  * pbr_shading_sh          — deferred SH split-sum shading (GI-GS's pbr_shading
+                              is a cubemap / nvdiffrast `dr.texture` path; ours is
+                              a pure-torch degree-2 SH environment). Reuses the
+                              vendored envBRDF_approx.
+  * SHEnvLight              — degree-2 SH environment light (GI-GS uses a learnable
+                              HDR cubemap `CubemapLight` + nvdiffrec prefilters).
+  * material parameterization + activations, depth->normal, the L1/SSIM/TV losses,
+    the exponential LR schedule, and all SH basis / cosine-lobe (A_l) / coordinate
+    -flip constants.
+
+What is NEVER vendored (license walls — must not enter this repo in any form)
+-----------------------------------------------------------------------------
+  * submodules/diff-gaussian-rasterization/**  (Inria/GRAPHDECO non-commercial
+                                                fork; the G-buffer + screen-space
+                                                indirect CUDA kernels)
+  * submodules/nvdiffrast/**                    (NVIDIA Source Code License)
+  * submodules/simple-knn/**
+  * pbr/renderutils/**, pbr/brdf_256_256.bin    (NVIDIA nvdiffrec, all rights reserved)
+  * utils/sh_utils.py                           (PlenOctree BSD-2 — a 3rd license
+                                                family; SH constants are authored
+                                                fresh to keep this tree single-license)
+  * any build/lib.linux-*/ byte-duplicate of the above.

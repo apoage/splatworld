@@ -87,6 +87,38 @@ def test_export_empty_prune_fails_closed_without_clobber(tmp_path, monkeypatch):
     assert not (tmp_path / "metrics_export.json").exists()
 
 
+def test_export_decompose_range_violation_fails_without_clobber(tmp_path, monkeypatch):
+    # MINOR-6: on the decompose path albedo is real reflectance validated to [0,1]. An
+    # albedo > 1 must FAIL the FIELD_RANGES gate and exit nonzero BEFORE write_asset_ply
+    # runs — so a prior good asset.ply (sentinel) is never clobbered and no metrics land.
+    n = 8
+    rng = np.random.default_rng(2)
+    xyz = rng.normal(size=(n, 3)).astype(np.float32)
+    sh0 = rng.normal(size=(n, 3)).astype(np.float32)
+    opacity = np.zeros(n, np.float32)
+    scales = np.log(np.full((n, 3), 0.1, np.float32))
+    quats = np.tile(np.array([1.0, 0, 0, 0], np.float32), (n, 1))
+    normal = rng.normal(size=(n, 3)).astype(np.float32)
+    normal /= np.linalg.norm(normal, axis=1, keepdims=True)           # unit (pass normal gate)
+    albedo = np.full((n, 3), 1.5, np.float32)                         # > 1 -> range violation
+    rough = np.full(n, 0.5, np.float32)
+    dec = tmp_path / "decompose.ply"
+    ply_io.write_decompose_ply(str(dec), xyz, sh0, opacity, scales, quats, albedo, normal, rough)
+
+    out = tmp_path / "asset.ply"
+    sentinel = b"SENTINEL-do-not-clobber"
+    out.write_bytes(sentinel)
+
+    monkeypatch.setattr(sys, "argv",
+                        ["export", "--in", str(dec), "--out", str(out),
+                         "--from-decompose", str(dec)])
+    with pytest.raises(SystemExit):
+        export_mod.main()
+
+    assert out.read_bytes() == sentinel                              # not clobbered
+    assert not (tmp_path / "metrics_export.json").exists()           # no metrics written
+
+
 def test_shortest_axis_normals_known():
     # (quat wxyz, scales_log, expected unit normal)
     cases = [

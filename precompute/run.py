@@ -32,8 +32,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(REPO, "assets", "raw")
 BUILT = os.path.join(REPO, "assets", "built")
 
-# Stages implemented so far. decompose/label/transmission/bake_basis are M2+ TODO.
-STAGE_ORDER = ["ingest", "train_base", "export"]
+# Stages implemented so far. label/transmission/bake_basis are M2+ TODO.
+STAGE_ORDER = ["ingest", "train_base", "decompose", "export"]
 
 
 def _normalize_asset(name: str) -> str:
@@ -47,7 +47,7 @@ def _normalize_asset(name: str) -> str:
     return n.rstrip("/")
 
 
-def _cmd(stage, name, gpu, extra, built_root):
+def _cmd(stage, name, gpu, extra, built_root, with_decompose=False):
     raw = os.path.join(RAW, name)
     built = os.path.join(built_root, name)
     if stage == "ingest":
@@ -59,10 +59,23 @@ def _cmd(stage, name, gpu, extra, built_root):
                 "--images", os.path.join(raw, "colmap/dense/images"),
                 "--out", os.path.join(built, "train_base.ply"),
                 "--gpu", "0", *extra]          # CUDA_VISIBLE_DEVICES already pins the GPU
+    if stage == "decompose":
+        return [sys.executable, "-m", "precompute.stages.decompose",
+                "--in", os.path.join(built, "train_base.ply"),
+                "--sparse", os.path.join(raw, "colmap/dense/sparse_txt"),
+                "--images", os.path.join(raw, "colmap/dense/images"),
+                "--out", os.path.join(built, "decompose.ply"),
+                "--env-out", os.path.join(built, "env_sh.json"),
+                "--gpu", "0", *extra]
     if stage == "export":
+        # If decompose is part of THIS run, export consumes its solved attributes
+        # (M2 relightable asset); otherwise export stays on the M1 neutral path.
+        decompose_args = (["--from-decompose", os.path.join(built, "decompose.ply"),
+                           "--env-sh", os.path.join(built, "env_sh.json")]
+                          if with_decompose else [])
         return [sys.executable, "-m", "precompute.stages.export",
                 "--in", os.path.join(built, "train_base.ply"),
-                "--out", os.path.join(built, "asset.ply"), *extra]
+                "--out", os.path.join(built, "asset.ply"), *decompose_args, *extra]
     raise ValueError(f"unknown/unimplemented stage: {stage}")
 
 
@@ -71,8 +84,10 @@ def run_asset(name, stages, gpu, extra_by_stage, built_root):
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
     env.setdefault("CUDA_HOME", env.get("CONDA_PREFIX", ""))
     env.setdefault("TORCH_CUDA_ARCH_LIST", "8.6")
+    with_decompose = "decompose" in stages
     for stage in stages:
-        cmd = _cmd(stage, name, gpu, extra_by_stage.get(stage, []), built_root)
+        cmd = _cmd(stage, name, gpu, extra_by_stage.get(stage, []), built_root,
+                   with_decompose=with_decompose)
         print(f"\n=== [{name}] stage={stage} gpu={gpu} ===\n{' '.join(cmd)}", flush=True)
         t = time.time()
         r = subprocess.run(cmd, env=env, cwd=REPO)
@@ -95,6 +110,15 @@ def main():
                     help="train_base: fail if held-out PSNR falls below this (dB); "
                          "default = train_base's own floor. Used by smoke.sh for a "
                          "step-count-appropriate gate.")
+    # decompose knobs (M2b); omit = decompose defaults
+    ap.add_argument("--pbr-iteration", type=int,
+                    help="decompose: stage-1 (normal) iters; stage-2 (material) is the rest.")
+    ap.add_argument("--iterations", type=int,
+                    help="decompose: total optimization iterations.")
+    ap.add_argument("--min-psnr-drop", type=float,
+                    help="decompose: held-out re-render gate (FAIL if PSNR < train_base "
+                         "PSNR - this). Omitting it leaves decompose's default gate ON "
+                         "(1.5 dB, invariant #8); pass a large value to effectively disable.")
     # train_base densification / budget knobs (perf-budget); omit = uncapped default
     ap.add_argument("--max-gaussians", type=int,
                     help="train_base: HARD cap on the Gaussian count.")
@@ -149,6 +173,13 @@ def main():
         train_base_extra += ["--grow-grad2d", str(args.grow_grad2d)]
     if args.refine_stop_iter is not None:
         train_base_extra += ["--refine-stop-iter", str(args.refine_stop_iter)]
+    decompose_extra = []
+    if args.pbr_iteration is not None:
+        decompose_extra += ["--pbr-iteration", str(args.pbr_iteration)]
+    if args.iterations is not None:
+        decompose_extra += ["--iterations", str(args.iterations)]
+    if args.min_psnr_drop is not None:
+        decompose_extra += ["--min-psnr-drop", str(args.min_psnr_drop)]
     export_extra = []
     if args.prune_opacity is not None:
         export_extra += ["--prune-opacity", str(args.prune_opacity)]
@@ -158,7 +189,8 @@ def main():
         export_extra += ["--prune-isolation-std", str(args.prune_isolation_std)]
     if args.prune_isolation_k is not None:
         export_extra += ["--prune-isolation-k", str(args.prune_isolation_k)]
-    extra = {"ingest": ingest_extra, "train_base": train_base_extra, "export": export_extra}
+    extra = {"ingest": ingest_extra, "train_base": train_base_extra,
+             "decompose": decompose_extra, "export": export_extra}
 
     if args.all_assets:
         names = sorted(d for d in os.listdir(RAW)
@@ -173,9 +205,10 @@ def main():
 
     if not args.asset:
         sys.exit("specify --asset <name> or --all-assets")
-    # Only stages that READ raw (ingest/train_base) require the raw workspace;
-    # export-only (a built/ reader) must work on a checkout where raw was cleaned.
-    if any(s in ("ingest", "train_base") for s in stages):
+    # Only stages that READ raw (ingest/train_base/decompose) require the raw
+    # workspace; export-only (a built/ reader) must work on a checkout where raw
+    # was cleaned.
+    if any(s in ("ingest", "train_base", "decompose") for s in stages):
         raw_dir = os.path.join(RAW, args.asset)
         if not os.path.isdir(raw_dir):
             sys.exit(f"asset raw workspace not found: {raw_dir}\n"

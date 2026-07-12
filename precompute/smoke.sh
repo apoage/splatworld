@@ -101,6 +101,9 @@ run "$CONDA" run --no-capture-output -n "$ENV_NAME" \
     python -m pytest precompute/tests -q
 
 # --- stage 2: 400-step train_base + export (into gitignored scratch) ----------
+# decompose is deliberately EXCLUDED here (heavy inverse-render optimization; the
+# golden gate lives in test_decompose.py, run in stage 1). Without decompose in
+# --stages, export stays on the M1 neutral placeholder path (still a valid asset).
 STAGE="train_base+export"
 echo "=== smoke [2/3] $STAGE (steps=$SMOKE_STEPS min_psnr=$SMOKE_MIN_PSNR out=$BUILT_ROOT) ===" | tee -a "$LOG"
 run "$CONDA" run --no-capture-output -n "$ENV_NAME" \

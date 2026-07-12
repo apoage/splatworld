@@ -81,7 +81,7 @@ FIELD_RANGES = {
 }
 
 
-def validate_ranges(field_arrays: dict) -> list[str]:
+def validate_ranges(field_arrays: dict, albedo_max: float = 4.0) -> list[str]:
     """Check field arrays against FIELD_RANGES. Returns a list of human-readable
     violation messages (empty == all good).
 
@@ -90,12 +90,20 @@ def validate_ranges(field_arrays: dict) -> list[str]:
     fields in FIELD_RANGES but absent from the mapping are skipped. NaN/Inf is
     always a violation regardless of the declared bounds.
 
+    `albedo_max` tightens the albedo upper bound: the M1 neutral path keeps the
+    generous 4.0 (baked SH-DC appearance can exceed 1), but the decompose path
+    passes 1.0 because albedo there is real reflectance in [0,1].
+
     This is the consumer FIELD_RANGES always promised to have: export drives it and
     asserts the result, so an out-of-contract attribute fails the stage.
     """
     import numpy as np
+    ranges = dict(FIELD_RANGES)
+    for ch in ("albedo_r", "albedo_g", "albedo_b"):
+        lo, _ = ranges[ch]
+        ranges[ch] = (lo, albedo_max)
     problems: list[str] = []
-    for name, (lo, hi) in FIELD_RANGES.items():
+    for name, (lo, hi) in ranges.items():
         if name not in field_arrays:
             continue
         a = np.asarray(field_arrays[name])

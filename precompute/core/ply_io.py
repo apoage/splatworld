@@ -324,3 +324,69 @@ def write_standard_3dgs_ply(path, xyz, sh0, shN, opacity, scales, quats):
     with open(path, "wb") as f:
         f.write("\n".join(header).encode("ascii"))
         f.write(out.tobytes(order="C"))
+
+
+# --- decompose intermediate: write / read ------------------------------------
+# The decompose stage emits a standard-3DGS PLY (geometry PRE-flip, so it stays a
+# valid vanilla 3DGS file) PLUS the per-Gaussian material attributes it solved for
+# (albedo/normal/rough), which `export` consumes instead of its M1 placeholders.
+# This is an INTERMEDIATE pipeline artifact, NOT the shipped asset schema: it does
+# NOT bump SCHEMA_VERSION and does NOT touch the Godot importer (the built asset.ply
+# still comes only from write_asset_ply). It lives here because ALL PLY byte I/O
+# must (CLAUDE.md invariant). Extra columns are appended after the standard fields.
+_DECOMPOSE_EXTRA = ["albedo_r", "albedo_g", "albedo_b", "nx", "ny", "nz", "rough"]
+
+
+def write_decompose_ply(path, xyz, sh0, opacity, scales, quats, albedo, normal, rough):
+    """Write the decompose intermediate: standard 3DGS geometry (no f_rest) + the
+    solved albedo_r/g/b, nx/ny/nz, rough columns. All arrays PRE-flip (COLMAP frame).
+      xyz (N,3); sh0 (N,3) [SH DC carried from train_base]; opacity (N,) [logit];
+      scales (N,3) [log]; quats (N,4) [w,x,y,z]; albedo (N,3); normal (N,3) [unit];
+      rough (N,)."""
+    xyz = np.asarray(xyz, np.float32).reshape(-1, 3)
+    n = xyz.shape[0]
+    sh0 = np.asarray(sh0, np.float32).reshape(n, 3)
+    opacity = np.asarray(opacity, np.float32).reshape(n)
+    scales = np.asarray(scales, np.float32).reshape(n, 3)
+    quats = np.asarray(quats, np.float32).reshape(n, 4)
+    quats = quats / np.linalg.norm(quats, axis=1, keepdims=True)
+    albedo = np.asarray(albedo, np.float32).reshape(n, 3)
+    normal = np.asarray(normal, np.float32).reshape(n, 3)
+    rough = np.asarray(rough, np.float32).reshape(n)
+
+    names = ["x", "y", "z", "f_dc_0", "f_dc_1", "f_dc_2",
+             "opacity", "scale_0", "scale_1", "scale_2", "rot_0", "rot_1", "rot_2", "rot_3"]
+    names += _DECOMPOSE_EXTRA
+    dt = np.dtype([(nm, "<f4") for nm in names])
+    out = np.empty(n, dt)
+    out["x"], out["y"], out["z"] = xyz[:, 0], xyz[:, 1], xyz[:, 2]
+    out["f_dc_0"], out["f_dc_1"], out["f_dc_2"] = sh0[:, 0], sh0[:, 1], sh0[:, 2]
+    out["opacity"] = opacity
+    out["scale_0"], out["scale_1"], out["scale_2"] = scales[:, 0], scales[:, 1], scales[:, 2]
+    for i in range(4):
+        out[f"rot_{i}"] = quats[:, i]
+    out["albedo_r"], out["albedo_g"], out["albedo_b"] = albedo[:, 0], albedo[:, 1], albedo[:, 2]
+    out["nx"], out["ny"], out["nz"] = normal[:, 0], normal[:, 1], normal[:, 2]
+    out["rough"] = rough
+
+    header = ["ply", "format binary_little_endian 1.0", "comment splat_relight_decompose 1",
+              f"element vertex {n}"]
+    header += [f"property float {nm}" for nm in names] + ["end_header\n"]
+    with open(path, "wb") as f:
+        f.write("\n".join(header).encode("ascii"))
+        f.write(out.tobytes(order="C"))
+
+
+def read_decompose_ply(path: str) -> dict:
+    """Read the decompose intermediate. Returns read_standard_3dgs_ply's dict PLUS
+    'albedo' (N,3), 'normal' (N,3), 'rough' (N,). Raises if the material columns are
+    absent (i.e. the file is a plain 3DGS PLY, not a decompose output)."""
+    base = read_standard_3dgs_ply(path)
+    arr, names, _comments = _read_structured(path)
+    missing = set(_DECOMPOSE_EXTRA) - set(names)
+    if missing:
+        raise ValueError(f"{path}: not a decompose PLY, missing {sorted(missing)}")
+    base["albedo"] = np.stack([arr["albedo_r"], arr["albedo_g"], arr["albedo_b"]], -1).astype(np.float32)
+    base["normal"] = np.stack([arr["nx"], arr["ny"], arr["nz"]], -1).astype(np.float32)
+    base["rough"] = arr["rough"].astype(np.float32)
+    return base

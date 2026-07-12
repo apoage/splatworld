@@ -119,6 +119,15 @@ def main():
     ap.add_argument("--label", type=int, default=2, help="default label id (2=leaf)")
     ap.add_argument("--rough", type=float, default=0.6)
     ap.add_argument("--trans", type=float, default=0.0)
+    # --- M2 decompose path (optional). Omit BOTH to keep the M1 neutral path
+    # byte-identical (albedo=SH0, shortest-axis normal, constant rough).
+    ap.add_argument("--from-decompose", dest="from_decompose", default=None,
+                    help="decompose.ply with solved albedo/normal/rough (real "
+                         "reflectance). If set, read --in from this file INSTEAD of "
+                         "the train_base ply and use the solved attributes.")
+    ap.add_argument("--env-sh", dest="env_sh", default=None,
+                    help="env_sh.json from decompose (ambient SH, PRE-flip). Flipped "
+                         "COLMAP->Godot once here and emitted as a sidecar beside the asset.")
     # --- floater prune (perf-budget task) — ALL default OFF, so an unconfigured
     # export is byte-identical to before (does not silently alter other assets).
     ap.add_argument("--prune-opacity", type=float, default=0.0,
@@ -135,7 +144,12 @@ def main():
                     help="k for the isolation k-NN test (default 4).")
     args = ap.parse_args()
 
-    g = ply_io.read_standard_3dgs_ply(args.inp)
+    decompose_mode = args.from_decompose is not None
+    if decompose_mode:
+        # geometry + solved material from decompose (PRE-flip, COLMAP frame)
+        g = ply_io.read_decompose_ply(args.from_decompose)
+    else:
+        g = ply_io.read_standard_3dgs_ply(args.inp)
 
     # ---- floater prune (documented, metric'd; defaults keep everything) -------
     keep, prune_info = floater_prune_mask(
@@ -163,19 +177,29 @@ def main():
             f"[export] FATAL: prune removed all {prune_info['n_before']} gaussians; "
             "refusing to write an empty asset — loosen --prune-*")
 
-    # SH0 only. Faithful export: NO upper clamp — pre-decompose base color is baked
-    # SH-DC appearance, not true reflectance, so it can legitimately exceed 1 (the
-    # live asset peaks ~1.82). Only the original lower 0-clamp remains. validate_ranges
-    # below catches NaN / negative / absurd via a GENEROUS FIELD_RANGES bound; M2/
-    # decompose will tighten albedo to [0,1] once it becomes real reflectance.
-    albedo = np.clip(ply_io.sh0_to_rgb(g["f_dc"]), 0.0, None).astype(np.float32)
-    normal = shortest_axis_normals(g["scale"], g["rot"])
+    if decompose_mode:
+        # Real reflectance / refined normals / per-Gaussian roughness from decompose.
+        # albedo is true reflectance in [0,1]; lower-clamp only (NaN/negative guard).
+        albedo = np.clip(g["albedo"], 0.0, None).astype(np.float32)
+        normal = g["normal"].astype(np.float32)
+        rough_arr = np.clip(g["rough"], 0.0, 1.0).astype(np.float32)
+    else:
+        # SH0 only. Faithful export: NO upper clamp — pre-decompose base color is baked
+        # SH-DC appearance, not true reflectance, so it can legitimately exceed 1 (the
+        # live asset peaks ~1.82). Only the original lower 0-clamp remains. validate_ranges
+        # below catches NaN / negative / absurd via a GENEROUS FIELD_RANGES bound.
+        albedo = np.clip(ply_io.sh0_to_rgb(g["f_dc"]), 0.0, None).astype(np.float32)
+        normal = shortest_axis_normals(g["scale"], g["rot"])
+        rough_arr = np.full(n, args.rough, np.float32)
 
     # single COLMAP->Godot conversion (positions, normals, orientations)
     xyz_g, normal_g, rot_g = ply_io.colmap_to_godot(g["xyz"], normal, g["rot"])
-    # provisional prior: foliage/ground normals face up (+Y in Godot); decompose refines
-    flip = normal_g[:, 1] < 0
-    normal_g[flip] *= -1.0
+    if not decompose_mode:
+        # provisional prior for the PLACEHOLDER shortest-axis normal: face up (+Y in
+        # Godot). decompose normals are real (solved against the images) — do NOT
+        # apply this heuristic to them.
+        flip = normal_g[:, 1] < 0
+        normal_g[flip] *= -1.0
 
     asset = ply_io.AssetGaussians(
         xyz=xyz_g.astype(np.float32),
@@ -184,47 +208,76 @@ def main():
         opacity=g["opacity"].astype(np.float32),
         albedo=albedo,
         normal=normal_g.astype(np.float32),
-        rough=np.full(n, args.rough, np.float32),
+        rough=rough_arr,
         trans=np.full(n, args.trans, np.float32),
         label=np.full(n, args.label, np.uint8),
         basis=None,
     )
-    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    ply_io.write_asset_ply(args.out, asset)
-
-    # ---- metrics + validation (a metric that would fail if it broke) ----
+    # ---- metrics + validation computed from the IN-MEMORY asset ----
+    # ALL fail-closed gates run BEFORE any write, so a re-export that newly violates
+    # a contract exits nonzero WITHOUT clobbering a prior good asset.ply / metrics
+    # (same clobber-safety class as the empty-after-prune gate above).
     def stats(a):
         return {"min": float(np.min(a)), "max": float(np.max(a)),
                 "nan": int(np.isnan(a).sum()), "inf": int(np.isinf(a).sum())}
     metrics = {
         "stage": "export", "schema_version": schema.SCHEMA_VERSION, "n_gaussians": n,
+        "decompose_mode": decompose_mode,
         "albedo": stats(albedo), "normal_unit_err": float(
             np.abs(np.linalg.norm(asset.normal, axis=1) - 1.0).max()),
-        "rough": args.rough, "trans": args.trans, "label": args.label,
+        # neutral path: constant rough (scalar, unchanged from M1); decompose: per-Gaussian stats
+        "rough": (stats(rough_arr) if decompose_mode else args.rough),
+        "trans": args.trans, "label": args.label,
         "any_nan": bool(np.isnan(xyz_g).any() or np.isnan(albedo).any() or np.isnan(normal_g).any()),
         "prune": prune_info,
     }
-    mpath = os.path.join(os.path.dirname(os.path.abspath(args.out)), "metrics_export.json")
-    with open(mpath, "w") as f:
-        json.dump(metrics, f, indent=2)
 
     # fail-closed metric gates: the metric that FAILS if export broke (CLAUDE.md).
     # raise SystemExit, NOT assert, so they survive `python -O` (matches ingest).
-    # (the empty-after-prune gate ran earlier, before write, to avoid clobbering.)
     if metrics["any_nan"]:
         raise SystemExit("[export] FATAL: NaN in exported asset")
     if not (metrics["normal_unit_err"] < 1e-3):
         raise SystemExit("[export] FATAL: normals not unit length")
     if metrics["albedo"]["min"] < 0.0:
         raise SystemExit("[export] FATAL: negative albedo")
-    # FIELD_RANGES contract check (generous albedo bound, rough/trans in [0,1], no NaN/Inf)
+    # FIELD_RANGES contract check. Decompose albedo is real reflectance -> tighten the
+    # upper bound to [0,1]; the neutral placeholder path keeps the generous 4.0.
     range_problems = schema.validate_ranges({
         "albedo_r": asset.albedo[:, 0], "albedo_g": asset.albedo[:, 1], "albedo_b": asset.albedo[:, 2],
         "rough": asset.rough, "trans": asset.trans, "opacity": asset.opacity,
-    })
+    }, albedo_max=(1.0 if decompose_mode else 4.0))
     if range_problems:
         raise SystemExit("[export] FATAL: attribute range violations: " + "; ".join(range_problems))
-    print(f"[export] {n} gaussians -> {args.out}  (schema {schema.SCHEMA_VERSION})")
+
+    # ---- all gates passed: NOW write outputs (asset, env sidecar, metrics) ----
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    ply_io.write_asset_ply(args.out, asset)
+
+    # env-SH sidecar (decompose path only): flip COLMAP->Godot once, emit
+    if decompose_mode and args.env_sh is not None:
+        from precompute.core import sh_env
+        with open(args.env_sh) as f:
+            env_in = json.load(f)
+        amb = np.asarray(env_in["ambient_sh"], np.float64)          # (9,3) PRE-flip
+        amb_g = sh_env.flip_env_sh_colmap_to_godot(amb)             # Godot frame
+        env_sidecar = os.path.splitext(os.path.abspath(args.out))[0] + "_env_sh.json"
+        with open(env_sidecar, "w") as f:
+            json.dump({
+                "source": os.path.basename(args.env_sh),
+                "sh_degree": sh_env.SH_DEGREE, "n_coeffs": sh_env.N_SH,
+                "frame": "godot_post_flip",
+                "note": "ambient SH: runtime ambient_sh(N)=sum c_lm Y_lm(N); diffuse=albedo*ambient_sh(N). "
+                        "Godot ambient reader (follow-up) must use core.sh_env basis/A_l.",
+                "ambient_sh": amb_g.astype(float).tolist(),
+            }, f, indent=2)
+        metrics["env_sidecar"] = os.path.basename(env_sidecar)
+
+    mpath = os.path.join(os.path.dirname(os.path.abspath(args.out)), "metrics_export.json")
+    with open(mpath, "w") as f:
+        json.dump(metrics, f, indent=2)
+
+    print(f"[export] {n} gaussians -> {args.out}  (schema {schema.SCHEMA_VERSION}"
+          f"{', decompose' if decompose_mode else ''})")
     print(f"[export] albedo range [{metrics['albedo']['min']:.3f},{metrics['albedo']['max']:.3f}]  "
           f"normal_unit_err={metrics['normal_unit_err']:.2e}  metrics -> {mpath}")
 
