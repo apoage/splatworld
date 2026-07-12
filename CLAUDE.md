@@ -102,8 +102,11 @@ Keep our code in `godot/relight/`; record every diff to the plugin in `docs/deci
   `docs/decisions.md` (2026-07-11) + `precompute/env.yml`.
 - A separate Blackwell 5090 burn-in box exists but is **leave-alone**; the original
   sm_120/cu128 notes apply only if work ever moves there (see env.yml comments).
-- **Parallelism = one asset per GPU** via `CUDA_VISIBLE_DEVICES` round-robin in
-  `run.py`. Never multi-GPU a single training job — assets are small (minutes each).
+- **Parallelism model = one asset per GPU** via `CUDA_VISIBLE_DEVICES` (never multi-GPU a
+  single training job — assets are small, minutes each). **Current `run.py --all-assets` is
+  SEQUENTIAL GPU rotation** (assets processed one at a time, GPU index rotated), NOT yet true
+  concurrent one-process-per-GPU dispatch — that (a `subprocess.Popen` slot pool + per-GPU
+  idle check per the trader invariant) is a TODO (code-hardening item 15, documented not built).
 - Python 3.10+, env pinned in `precompute/env.yml`. gsplat backend.
 
 ## Coordinate systems (one conversion, one place)
@@ -171,7 +174,7 @@ docs/decisions.md  # append-only log: every architecture change + plugin diff
 ## Commands (keep current as implemented)
 ```
 python precompute/run.py --asset <name> --stages all --gpu 0      # bare name under assets/raw/
-python precompute/run.py --all-assets --stages export --gpus 0,1,2,3   # round-robin
+python precompute/run.py --all-assets --stages export --gpus 0,1,2,3   # SEQUENTIAL GPU rotation (parallel dispatch = TODO)
 ~/godot/godot --path godot --headless --script res://relight/tools/smoke_test.gd
 conda run -n splat-relight python -m pytest precompute/tests -q
 ```

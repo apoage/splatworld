@@ -5,7 +5,7 @@
   "commands": {
     "test": "~/miniconda3/bin/conda run --no-capture-output -n splat-relight python -m pytest precompute/tests -q",
     "lint": [],
-    "build": null,
+    "build": "SMOKE_REQUIRE_ASSET=1 bash precompute/smoke.sh",
     "ui_test": null,
     "ui_boot": null
   },

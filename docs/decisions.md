@@ -197,3 +197,37 @@ Owner mandate: **"we should have a working automatic debugging loop"** →
 end-to-end pipeline check (< 3 min, loud failures, negative-checked); once shipped the
 planner points `commands.build` at it so the factory's release ritual runs it before
 every commit. Depends on code-hardening items 1 + 10 (stages must be able to FAIL first).
+
+## 2026-07-12 — first armed factory run (v0.2.0–v0.5.0) + item-14 GDGS orientation reconciled
+
+First armed dark-factory run shipped 4 tasks: **v0.2.0** ingest stage, **v0.3.0**
+code-hardening (fail-closed `-O`-safe stage gates, tests 5→25), **v0.4.0** `smoke.sh`
+(commit-gate health check), **v0.5.0** perf-budget tooling + D2 sweep. Each verified by an
+adversarial subagent panel (never self-review). Run handoff: `docs/2026-07-12-handoff.md`.
+D2 is now data-backed (foliage ≤500k @ ≥20.7 dB is unachievable — owner sets the budget);
+D3 seeded (M4 orientation). Stopped before M2 (L/high, own session).
+
+**Item 14 — the `ply_io.py:57` NOTE was FALSE and is now reconciled.** It claimed GDGS
+centering + the default −180° Z correction were "reconciled at export time (M1) — see
+docs/decisions.md"; no such reconciliation or entry existed. Investigation of the live
+`pxl_144634` asset + vendored GDGS source (read-only):
+- **Centering** (`addons/gdgs/importers/builders/gaussian_resource_builder.gd`): the importer
+  subtracts the point-cloud centroid and *discards* it — a rigid translation. Absolute world
+  position is lost; the `GaussianSplatNode` transform is authoritative for placement. Benign
+  for M4 (carpet scatter sets node transforms anyway). Export cannot prevent it — no
+  compensation possible or needed.
+- **−180° Z correction** (`addons/gdgs/runtime/nodes/gaussian_splat_node.gd`): applied to a
+  node **only while its basis is identity**, and **skipped once a scatter/rotation basis is
+  set**. With our export matrix `diag(1,−1,−1)` (=180° about X) plus GDGS's default correction
+  on an identity node, the net COLMAP→render map is `diag(−1,1,−1)` (=**180° about Y**): **UP
+  preserved** (foliage upright — consistent with M0 occlusion + M1 coherent-3D renders) but
+  **azimuth yaw-flipped 180°**. Invisible under an orbit camera → never surfaced in M0/M1.
+
+**Decision:** the export conversion matrix is UNCHANGED — it is the correct pure change of
+basis ("decided — do not re-litigate"), load-bearing across schema/CLAUDE/ply_io, and per the
+invariant "if an asset renders flipped/rotated the bug is in export, never patched Godot-side"
+this is NOT a data bug. The real hazard is the **inconsistency**: in M4, identity-basis
+instances get the −180° Z correction while scatter-basis instances don't → 180°-about-Z
+disagreement. Resolution is a Godot-side node-setup rule (M4 always sets an explicit node
+basis so the conditional correction never fires), seeded as **DECISIONS D3** (gated to M4;
+needs one A/B render). The `ply_io.py` NOTE now states this measured reality.
