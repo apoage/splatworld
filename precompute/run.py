@@ -95,6 +95,22 @@ def main():
                     help="train_base: fail if held-out PSNR falls below this (dB); "
                          "default = train_base's own floor. Used by smoke.sh for a "
                          "step-count-appropriate gate.")
+    # train_base densification / budget knobs (perf-budget); omit = uncapped default
+    ap.add_argument("--max-gaussians", type=int,
+                    help="train_base: HARD cap on the Gaussian count.")
+    ap.add_argument("--grow-grad2d", type=float,
+                    help="train_base: DefaultStrategy.grow_grad2d override.")
+    ap.add_argument("--refine-stop-iter", type=int,
+                    help="train_base: DefaultStrategy.refine_stop_iter override.")
+    # export floater-prune knobs (perf-budget); omit = prune OFF (byte-unchanged)
+    ap.add_argument("--prune-opacity", type=float,
+                    help="export: drop Gaussians with sigmoid(opacity) below this.")
+    ap.add_argument("--prune-scale-std", type=float,
+                    help="export: drop blown-up blobs (log-max-scale > median+N*std).")
+    ap.add_argument("--prune-isolation-std", type=float,
+                    help="export: drop isolated splats (kNN dist > median+N*std).")
+    ap.add_argument("--prune-isolation-k", type=int,
+                    help="export: k for the isolation kNN test (default 4).")
     ap.add_argument("--out-root", default=None,
                     help="write built outputs under <out-root>/<name>/ instead of "
                          "assets/built/<name>/ (default). Lets smoke/CI runs land in a "
@@ -127,7 +143,22 @@ def main():
         train_base_extra += ["--steps", str(args.steps)]
     if args.min_psnr is not None:
         train_base_extra += ["--min-psnr", str(args.min_psnr)]
-    extra = {"ingest": ingest_extra, "train_base": train_base_extra}
+    if args.max_gaussians is not None:
+        train_base_extra += ["--max-gaussians", str(args.max_gaussians)]
+    if args.grow_grad2d is not None:
+        train_base_extra += ["--grow-grad2d", str(args.grow_grad2d)]
+    if args.refine_stop_iter is not None:
+        train_base_extra += ["--refine-stop-iter", str(args.refine_stop_iter)]
+    export_extra = []
+    if args.prune_opacity is not None:
+        export_extra += ["--prune-opacity", str(args.prune_opacity)]
+    if args.prune_scale_std is not None:
+        export_extra += ["--prune-scale-std", str(args.prune_scale_std)]
+    if args.prune_isolation_std is not None:
+        export_extra += ["--prune-isolation-std", str(args.prune_isolation_std)]
+    if args.prune_isolation_k is not None:
+        export_extra += ["--prune-isolation-k", str(args.prune_isolation_k)]
+    extra = {"ingest": ingest_extra, "train_base": train_base_extra, "export": export_extra}
 
     if args.all_assets:
         names = sorted(d for d in os.listdir(RAW)

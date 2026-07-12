@@ -5,6 +5,22 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-12
+- **Gaussian-budget tooling** (`tasks/2026-07-11-perf-budget.md`) toward the ≤1.5M-whole-carpet
+  target. `train_base` gains `CappedDefaultStrategy` (`--max-gaussians` hard cap — stops
+  densification growth + trims tail overshoot; uncapped path byte-identical to stock),
+  plus `--grow-grad2d`/`--refine-stop-iter`. `export` gains a documented, metric'd
+  `floater_prune_mask` (opacity / kNN-isolation / extreme-scale, all default OFF; pre/post
+  counts in metrics). Both add `-O`-safe gates; an all-pruned export now fails closed
+  BEFORE writing (no clobber of a prior asset). +4 prune tests (25→29 total).
+- **Count-vs-PSNR sweep on `pxl_144634`** → `docs/validation-perf-budget-2026-07-12.md`
+  (the data for DECISIONS D2): 200k→16.88 dB · 350k→18.91 dB (knee) · 500k→19.51 dB ·
+  uncapped 2.39M→21.71 dB. opacity-0.02 prune trims ~14% of splats for ~0 dB; isolation/scale
+  pruning is harmful for foliage and left off.
+- **Finding:** the provisional gate ≤500k @ ≥20.7 dB is physically **unachievable** for this
+  foliage (20.7 dB needs ~1.1–1.2M) — an honest outcome that feeds D2. The committed M1 asset
+  is deliberately left untouched (not re-baked to a sub-gate budget); D2 sets the final budget.
+
 ## [0.4.0] — 2026-07-12
 - **`precompute/smoke.sh`** — one-command end-to-end pipeline health check (owner mandate:
   "a working automatic debugging loop"). Three stages: `pytest` → 400-step

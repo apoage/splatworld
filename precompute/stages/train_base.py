@@ -21,9 +21,48 @@ import torch
 import torch.nn.functional as F
 import imageio.v2 as imageio
 
+from dataclasses import dataclass
+
 from gsplat import rasterization, DefaultStrategy
+from gsplat.strategy.ops import remove as _gs_remove
 from precompute.core import colmap_io, ply_io
 from precompute.core.gaussmath import SH_C0, rgb2sh  # noqa: F401  (SH_C0 kept for API parity)
+
+
+@dataclass
+class CappedDefaultStrategy(DefaultStrategy):
+    """DefaultStrategy + an optional HARD ceiling on the Gaussian count.
+
+    `max_gaussians=None` (the default) makes this behave EXACTLY like the stock
+    DefaultStrategy — same growth, same pruning, byte-for-byte the old baseline.
+
+    When a cap is set, densification is bounded two ways so the count can never
+    exceed it: (1) growth is skipped entirely once the count is at/over the cap,
+    and (2) if a single grow step would overshoot (dupli+split add in batches),
+    the surplus is trimmed back to the cap. In gsplat.strategy.ops the newly
+    created Gaussians all land in the TAIL region: duplicate appends copies at the
+    end, and split rebuilds as [untouched survivors, split children] — so the
+    surviving pre-cap Gaussians keep the front and every just-created one sits at
+    the tail. Trimming the tail therefore only ever drops just-created Gaussians
+    ("stop growing past the cap"), never a pre-existing optimized one. Pruning is
+    left untouched, so the population still churns (prune low-quality, regrow
+    high-gradient) at the budget instead of freezing.
+    """
+    max_gaussians: int | None = None
+
+    def _grow_gs(self, params, optimizers, state, step):
+        cap = self.max_gaussians
+        if cap is not None and len(params["means"]) >= cap:
+            return 0, 0
+        n_dupli, n_split = super()._grow_gs(params, optimizers, state, step)
+        if cap is not None:
+            n_now = len(params["means"])
+            if n_now > cap:
+                excess = n_now - cap
+                mask = torch.zeros(n_now, dtype=torch.bool, device=params["means"].device)
+                mask[n_now - excess:] = True          # drop the newest (tail) back to cap
+                _gs_remove(params=params, optimizers=optimizers, state=state, mask=mask)
+        return n_dupli, n_split
 
 
 # --- tiny SSIM (11x11 gaussian) ----------------------------------------------
@@ -65,6 +104,21 @@ def main():
     ap.add_argument("--test-every", type=int, default=8)
     ap.add_argument("--min-psnr", type=float, default=15.0,
                     help="fail the stage if held-out PSNR falls below this (dB)")
+    # --- densification / budget control (perf-budget task) --------------------
+    # Omit ALL three for the historical uncapped baseline behaviour (2.39M @ 7000
+    # steps on pxl_144634). Set --max-gaussians to target a runtime budget.
+    ap.add_argument("--max-gaussians", type=int, default=None,
+                    help="HARD cap on the Gaussian count: densification growth "
+                         "stops once hit (final count is guaranteed <= this). "
+                         "Omit for the uncapped default behaviour.")
+    ap.add_argument("--grow-grad2d", type=float, default=None,
+                    help="DefaultStrategy.grow_grad2d override (gsplat default "
+                         "0.0002). Raise it (e.g. 4e-4) to densify more "
+                         "selectively toward a budget. Omit to keep the default.")
+    ap.add_argument("--refine-stop-iter", type=int, default=None,
+                    help="DefaultStrategy.refine_stop_iter override (gsplat "
+                         "default 15000). Lower it to stop densifying earlier. "
+                         "Omit to keep the default.")
     ap.add_argument("--gpu", type=int, default=0)
     args = ap.parse_args()
 
@@ -132,7 +186,19 @@ def main():
     optimizers = {k: torch.optim.Adam([{"params": [params[k]], "lr": lr, "name": k}], eps=1e-15)
                   for k, lr in lrs.items()}
 
-    strategy = DefaultStrategy(verbose=False)
+    # CappedDefaultStrategy with max_gaussians=None is identical to the stock
+    # DefaultStrategy; grow_grad2d / refine_stop_iter keep gsplat defaults unless
+    # overridden. So omitting all three flags reproduces the uncapped baseline.
+    strat_kwargs = {"verbose": False, "max_gaussians": args.max_gaussians}
+    if args.grow_grad2d is not None:
+        strat_kwargs["grow_grad2d"] = args.grow_grad2d
+    if args.refine_stop_iter is not None:
+        strat_kwargs["refine_stop_iter"] = args.refine_stop_iter
+    strategy = CappedDefaultStrategy(**strat_kwargs)
+    if args.max_gaussians is not None:
+        print(f"[train_base] budget cap: max_gaussians={args.max_gaussians} "
+              f"grow_grad2d={strategy.grow_grad2d} refine_stop_iter={strategy.refine_stop_iter}",
+              flush=True)
     state = strategy.initialize_state(scene_scale=scene_scale)
     strategy.check_sanity(params, optimizers)
 
@@ -201,6 +267,10 @@ def main():
         # null (not NaN) keeps metrics.json valid strict JSON when no test views exist
         "psnr_heldout_db": (round(psnr, 3) if psnr_finite else None),
         "min_psnr_db": args.min_psnr,
+        # densification / budget knobs (null max_gaussians == uncapped baseline)
+        "max_gaussians": args.max_gaussians,
+        "grow_grad2d": strategy.grow_grad2d,
+        "refine_stop_iter": strategy.refine_stop_iter,
         "scene_scale": round(scene_scale, 4),
         "wall_time_s": round(time.time() - t0, 1), "image_wh": [W, H],
     }
@@ -214,6 +284,10 @@ def main():
     # (matches the ingest stage's sys.exit convention).
     if n_final <= 0:
         raise SystemExit("[train_base] FATAL: produced 0 gaussians")
+    if args.max_gaussians is not None and n_final > args.max_gaussians:
+        raise SystemExit(
+            f"[train_base] FATAL: final count {n_final} exceeds the hard cap "
+            f"--max-gaussians {args.max_gaussians} (densification cap leaked)")
     if len(test_idx) == 0:
         raise SystemExit(
             "[train_base] FATAL: no held-out test views — cannot validate re-render "

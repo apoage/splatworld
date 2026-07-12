@@ -1,6 +1,16 @@
 # perf-budget — cut per-asset Gaussian count toward the runtime budget
 
-**Size/risk:** M / medium. **Status:** READY.
+> **STATUS (2026-07-12): SHIPPED as 0.5.0.** Tooling (`--max-gaussians` cap +
+> `CappedDefaultStrategy`, `export` floater prune, +4 tests → 29) and the count-vs-PSNR
+> sweep are the durable deliverable; verified by correctness+flow panel over one fix cycle
+> (one MAJOR fixed: empty-after-prune clobber → guard now fires before the write).
+> **Provisional gate ≤500k @ ≥20.7 dB is UNACHIEVABLE** for `pxl_144634` (best ≤500k =
+> 19.51 dB; 20.7 needs ~1.1–1.2M) — an honest finding, not a failure. Committed asset left
+> untouched. Tradeoff table + recommendation → `docs/validation-perf-budget-2026-07-12.md`;
+> DECISIONS **D2** enriched with the data (owner sets the final budget). Verdict:
+> `.dark-factory/verdicts/current.json`.
+
+**Size/risk:** M / medium. **Status:** SHIPPED (0.5.0); final budget → owner (DECISIONS D2).
 
 ## Problem
 M1's `train_base` produced **2.39M gaussians** for one foliage asset. CLAUDE.md targets

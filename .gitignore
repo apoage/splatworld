@@ -30,6 +30,10 @@ godot/shots/
 # tracked assets/built (so a smoke run leaves the git tree clean) ---
 .smoke/
 
+# --- perf-budget sweep scratch: train_base/export budget-sweep outputs
+# (run.py --out-root .perf/<budget>), never tracked assets/built ---
+.perf/
+
 # --- dark-factory runtime (config/queue/decisions ARE tracked; these are not) ---
 .dark-factory/state.json
 .dark-factory/run-*.jsonl
