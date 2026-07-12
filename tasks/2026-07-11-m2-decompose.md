@@ -32,3 +32,9 @@ placeholders with a real inverse-rendering solve.
 ## Notes
 Inverse rendering assumes opaque microfacet surfaces → clean on ground/bark/dense clumps, messy
 on thin leaves (expected; the `trans` channel is the mitigation, that's M3, not a bug to chase).
+
+**D1 survey done (2026-07-12, evidence: `docs/d1-survey-2026-07-12.md`):** recommendation =
+**GI-GS** (MIT). If the owner approves, the vendoring rules from the survey apply: take GI-GS's
+MIT Python layer only; NEVER copy its Inria-licensed rasterizer fork or nvdiffrast into this
+repo (replace with gsplat N-channel G-buffers + a pure-PyTorch env light); drop the
+screen-space indirect pass for v1; record exclusions + attribution in NOTICE/decisions.md.
