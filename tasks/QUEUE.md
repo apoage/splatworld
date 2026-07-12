@@ -27,6 +27,13 @@ code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0). See `docs/20
   + core docstrings + README "Docs" section. Acceptance: a fresh reader reproduces M1 from
   the guide alone.
 
+## External — contributor lane (NOT factory work unless the owner reassigns)
+
+- `tasks/2026-07-12-jax-transmission.md` — M3 `transmission` stage implemented in **JAX**
+  (owner's friend). Phase 1 (fitting core + golden test, own `env-jax.yml`, file contract)
+  can start now; phase 2 (real assets) gated on M2b. The factory does NOT take this row;
+  if M3 arrives and the contribution hasn't, the planner re-decides.
+
 ## Parked — owner-gated (NOT factory work; the owner/planner executes these)
 
 - **data-release**: attach `datasets/pixel4/PXL_20260711_144634633.LS.mp4` (~37 MB) as a
