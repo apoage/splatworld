@@ -46,6 +46,7 @@ code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a religh
 
 | Task | Gate |
 |------|------|
+| `tasks/2026-07-12-env-sh-runtime.md` — recovered env light → Godot ambient term | DECISIONS **D4** + M2b phase D shipped |
 | M3 — transmission (backlit grass/leaf glow + UI toggle) | M2 `decompose` shipped |
 | M4 — carpet (instanced blocks, 5–15 variants, hit 60fps@1080p) | M2 shipped + asset variants ready |
 | M5 — wind (shared noise field) + mode-B basis blend (stretch) | M4 shipped |
