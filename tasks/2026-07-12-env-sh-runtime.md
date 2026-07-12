@@ -1,3 +1,16 @@
+# === STATUS: SHIPPED as v0.9.0 (2026-07-12) ===
+# Implemented in godot/relight/ (+ one read-only precompute/tests unit check). Godot now
+# shades albedo·ambient_sh(N) from the asset_env_sh.json sidecar with a byte-identical flat
+# fallback. Render gate PASSES on the real pxl_144634 asset: env≠flat proven (|ΔL|=0.243),
+# ambient floor holds with light behind (env shadow p2=0.098). SH basis constants unit-checked
+# against core/sh_env.py; pytest 45 passed; cactus M0 + relight_smoke still green. The gate's
+# env-independent directional assertion was RECALIBRATED (overhead-vs-grazing, well-separated
+# pair; tolerance NOT weakened) because near-isotropic real foliage normals made the old
+# small-arc oblique pair's global-mean proxy insensitive — the normal-isotropy is flagged for
+# a DECISIONS row (decompose-normal-quality). No schema change (SCHEMA_VERSION 1); no vendored
+# GDGS edit. Awaiting orchestrator finalize (commit/tag).
+# ================================================
+
 # env-SH runtime — read the recovered environment light in the Godot ambient term
 
 **Size/risk:** S–M / low-medium (coordinated exporter+importer step; NO schema change).

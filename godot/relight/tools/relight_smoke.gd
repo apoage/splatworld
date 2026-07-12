@@ -7,6 +7,7 @@ extends SceneTree
 # Overridable via env: SMOKE_ASSET, SMOKE_MIN_COUNT.
 
 const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
+const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
 const DEFAULT_ASSET := "res://gs_assets/pxl_144634.relightply"
 const DEFAULT_MIN_COUNT := 1000000    # pxl_144634 has 2,394,584 splats
@@ -146,6 +147,27 @@ func _initialize() -> void:
 			checksum += res.rough[si] + res.trans[si] + float(res.label[si])
 			checksum += res.point_data_float[si * FLOATS_PER_SPLAT] # centered pos.x
 	print("[relight-smoke] checksum=%.6f" % checksum)
+
+	# --- ambient env-SH sidecar (env-runtime data gate) ---------------------
+	# A sidecar next to the asset MUST parse to 9x3 finite coeffs; its ABSENCE is
+	# a valid flat-ambient fallback (placeholder assets), not a failure. The
+	# runtime shader evaluates ambient_sh(N) from exactly these coeffs — the
+	# constant/basis-order match against core.sh_env is checked by the pytest
+	# data gate (precompute/tests/test_godot_env_sh_constants.py).
+	if OS.get_environment(RelightEnvSH.DISABLE_ENV_VAR) == "1":
+		print("[relight-smoke] %s=1 -> env-SH sidecar check skipped" % RelightEnvSH.DISABLE_ENV_VAR)
+	else:
+		var sidecar := RelightEnvSH.sidecar_path(asset)
+		if FileAccess.file_exists(sidecar):
+			var coeffs := RelightEnvSH.load_coeffs(asset)
+			var want := RelightEnvSH.N_COEFFS * 3
+			if coeffs.size() != want:
+				problems.append("env-SH sidecar %s present but did not parse to %d finite coeffs" % [sidecar, want])
+			else:
+				print("[relight-smoke] env-SH sidecar OK: %d coeffs finite, DC=(%.4f,%.4f,%.4f)" % [
+					coeffs.size(), coeffs[0], coeffs[1], coeffs[2]])
+		else:
+			print("[relight-smoke] no env-SH sidecar (%s) -> flat ambient fallback (OK)" % sidecar)
 
 	if not problems.is_empty():
 		for p in problems:

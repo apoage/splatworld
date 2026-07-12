@@ -9,6 +9,7 @@ extends Node3D
 
 const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
+const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
 const ASSET_PATH := "res://gs_assets/pxl_144634.relightply"
 
@@ -36,6 +37,8 @@ func _ready() -> void:
 		return
 
 	RelightPass.set_materials(res.attr_data_byte, res.point_count)
+	# Recovered ambient env-SH (empty => flat ambient fallback, warned by the reader).
+	RelightPass.set_env_sh(RelightEnvSH.load_coeffs(ASSET_PATH))
 
 	_splat = GaussianSplatNode.new()
 	_splat.gaussian = res
@@ -58,8 +61,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	# Don't leave stale materials bound for whatever scene renders next.
+	# Don't leave stale materials / ambient bound for whatever scene renders next.
 	RelightPass.clear_materials()
+	RelightPass.clear_env_sh()
 
 
 func _process(delta: float) -> void:

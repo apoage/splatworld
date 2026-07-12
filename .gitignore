@@ -54,3 +54,5 @@ scaffold/
 # local sample splats + built relight assets (heavy binaries, not tracked)
 godot/gs_assets/*.ply
 godot/gs_assets/*.relightply
+# env-SH ambient sidecars mirrored next to gs_assets/*.relightply (derived, not tracked)
+godot/gs_assets/*_env_sh.json
