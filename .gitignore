@@ -18,6 +18,8 @@ assets/built/*/preview/
 assets/built/**/*.ply
 *.mp4
 *.MP4
+# exception: small committed demo clips (relight demo video, <10 MB)
+!docs/media/*.mp4
 
 # --- Godot ---
 godot/.godot/

@@ -4,14 +4,16 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-12** (post-M2-build: M2a SHIPPED v0.6.0; M2b phases A/B/C SHIPPED v0.7.0; only
-M2b **phase D** (real-asset dB budget) remains — scheduled real-data work + an owner call).
+**2026-07-12** (run #3 prep: phase D GO + D4 DECIDED YES + owner video request — Ready =
+phase D → env-SH wiring → relight-orbit-video, strictly in order, each with stall fallbacks).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
 | 1 | `tasks/2026-07-11-m2-decompose.md` **→ phase D only** | M | **M2b phase D** — run `decompose` on real assets (`pxl_144634`/`pxl_131945`), confirm held-out re-render within the dB budget (gate built + default-ON), then `export --from-decompose` the real relightable asset. ⚠️ SCHEDULED real-data validation (not in-loop poll); convergence-uncertain on thin-leaf foliage → may need param tuning. **Owner call first:** env-SH sidecar → Godot `ambient_sh(N)` reader (see decisions.md 2026-07-12 M2 entry). Phases A/B/C DONE. |
+| 2 | `tasks/2026-07-12-env-sh-runtime.md` | S–M | **env-SH → runtime ambient** (D4 DECIDED YES). Requires phase D shipped first — same-run sequencing OK. Godot `ambient_sh(N)` reader; constants shared with `core/sh_env.py`; no schema change |
+| 3 | `tasks/2026-07-12-relight-orbit-video.md` | S–M | **demo video** (owner request): raw→relit cut + 360° light orbit on the phase-D asset → `docs/media/relight_orbit.{mp4,gif}` + README embed. Run finale; fallbacks defined if a predecessor stalls |
 
 **Shipped in the 2026-07-12 factory runs (banners on task files):** ingest-stage (v0.2.0),
 code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a relight-runtime
@@ -46,7 +48,6 @@ code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a religh
 
 | Task | Gate |
 |------|------|
-| `tasks/2026-07-12-env-sh-runtime.md` — recovered env light → Godot ambient term | DECISIONS **D4** + M2b phase D shipped |
 | M3 — transmission (backlit grass/leaf glow + UI toggle) | M2 `decompose` shipped |
 | M4 — carpet (instanced blocks, 5–15 variants, hit 60fps@1080p) | M2 shipped + asset variants ready |
 | M5 — wind (shared noise field) + mode-B basis blend (stretch) | M4 shipped |
