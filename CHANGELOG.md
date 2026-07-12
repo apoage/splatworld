@@ -5,6 +5,23 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-12
+- **`ingest` stage** — formalized the validated COLMAP recipe (`prototype/*.sh`) into
+  `precompute/stages/ingest.py` and wired it as the first stage in `run.py`'s `STAGE_ORDER`,
+  so one command drives ingest→train_base→export end to end (video → frames → GPU-SIFT SfM →
+  sequential match → mapper → PINHOLE undistort → TXT model). Input: `--video` + `--asset`
+  (name auto-derived from the clip; clip auto-discovered under `datasets/` by anchored
+  `PXL_<date>_<HHMMSS>` token, ambiguity refused).
+- **Resumable + fail-closed.** Per-step completion sentinels (`.frames.done`/`.features.done`/
+  `.match.done`, each written only after its step exits 0) drive resume; a `model_complete`
+  short-circuit skips all SfM for model-only checkouts (needs neither the clip nor the colmap
+  env — the trader batch box). A forced re-extract invalidates all frame-derived state
+  (db/sparse/dense/sentinels) so it genuinely rebuilds rather than shipping a stale model.
+  `metrics_ingest.json` fails the stage (nonzero, `-O`-safe) on zero registration, non-finite
+  or ≥2.0 px reproj, or `dense/images ≠ registered_frames`.
+- Proven on the fresh "spider's-nest" clip `pxl_131945`: **145/145 frames registered @
+  0.6425 px** reproj → train_base **25.22 dB** held-out → export schema 1, end to end.
+
 ## [0.1.0] — 2026-07-11
 Foundational milestones, built before the factory was set up:
 - **M0** — GDGS render path in Godot 4.7 + bidirectional splat/mesh depth occlusion

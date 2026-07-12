@@ -23,14 +23,16 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(REPO, "assets", "raw")
 BUILT = os.path.join(REPO, "assets", "built")
 
-# Stages implemented so far. ingest is currently a validated shell recipe
-# (docs/decisions.md); decompose/label/transmission/bake_basis are M2+ TODO.
-STAGE_ORDER = ["train_base", "export"]
+# Stages implemented so far. decompose/label/transmission/bake_basis are M2+ TODO.
+STAGE_ORDER = ["ingest", "train_base", "export"]
 
 
 def _cmd(stage, name, gpu, extra):
     raw = os.path.join(RAW, name)
     built = os.path.join(BUILT, name)
+    if stage == "ingest":
+        return [sys.executable, "-m", "precompute.stages.ingest",
+                "--asset", name, "--gpu", "0", *extra]  # video discovered by token
     if stage == "train_base":
         return [sys.executable, "-m", "precompute.stages.train_base",
                 "--sparse", os.path.join(raw, "colmap/dense/sparse_txt"),
@@ -69,13 +71,21 @@ def main():
     ap.add_argument("--gpu", type=int, default=0)
     ap.add_argument("--gpus", default="0", help="comma list for --all-assets round-robin")
     ap.add_argument("--steps", type=int, help="train_base steps override")
+    ap.add_argument("--video", help="ingest: source clip (else discovered by asset token)")
+    ap.add_argument("--fps", type=int, help="ingest: frame extraction rate")
     args, unknown = ap.parse_known_args()
 
     stages = STAGE_ORDER if args.stages == "all" else args.stages.split(",")
     for s in stages:
         if s not in STAGE_ORDER:
             sys.exit(f"stage '{s}' not implemented yet (have: {STAGE_ORDER})")
-    extra = {"train_base": (["--steps", str(args.steps)] if args.steps else [])}
+    ingest_extra = []
+    if args.video:
+        ingest_extra += ["--video", args.video]
+    if args.fps:
+        ingest_extra += ["--fps", str(args.fps)]
+    extra = {"ingest": ingest_extra,
+             "train_base": (["--steps", str(args.steps)] if args.steps else [])}
 
     if args.all_assets:
         names = sorted(d for d in os.listdir(RAW)

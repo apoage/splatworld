@@ -1,6 +1,13 @@
 # ingest — formalize the validated COLMAP recipe into a stage
 
-**Size/risk:** S–M / low. **Status:** READY.
+> **STATUS (2026-07-12): SHIPPED as 0.2.0.** `precompute/stages/ingest.py` + `run.py` wiring.
+> Acceptance met on the fresh spider's-nest clip `pxl_131945` (145/145 @ 0.6425px → 25.22 dB) —
+> no fallback needed. 3 fix cycles hardened resume/skip against silent frame-truncation and
+> stale-reconstruction reuse; final data-loss verification clean. Two non-blocking legacy-migration
+> edges left as known limitations (changed-fps adoption on no-sentinel model-complete workspace;
+> ffmpeg-crash-mid-rebuild — both fail-safe). Verdict: `.dark-factory/verdicts/current.json`.
+
+**Size/risk:** S–M / low. **Status:** SHIPPED (0.2.0).
 
 ## Problem
 `ingest` (video → frames → COLMAP SfM → undistort → PINHOLE TXT model) was validated as a

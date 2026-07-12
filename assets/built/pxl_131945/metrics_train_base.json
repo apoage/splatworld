@@ -1,0 +1,14 @@
+{
+  "stage": "train_base",
+  "n_gaussians": 2075806,
+  "steps": 7000,
+  "sh_degree": 3,
+  "test_views": 19,
+  "psnr_heldout_db": 25.22,
+  "scene_scale": 5.7774,
+  "wall_time_s": 221.7,
+  "image_wh": [
+    1425,
+    1066
+  ]
+}
