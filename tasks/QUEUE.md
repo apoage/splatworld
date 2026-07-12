@@ -4,18 +4,18 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-12** (next-run prep: owner go-ahead for M2 GIVEN; M2 split into M2a runtime +
-M2b decompose — independent lanes, each shippable alone; docs-guide filler seeded).
+**2026-07-12** (post-M2-build: M2a SHIPPED v0.6.0; M2b phases A/B/C SHIPPED v0.7.0; only
+M2b **phase D** (real-asset dB budget) remains — scheduled real-data work + an owner call).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-12-m2-relight-runtime.md` | M | **M2a** — extended-PLY importer + relight compute pass + orbiting light in Godot. Independent of decompose: verifies on the EXISTING placeholder-attribute asset. Lane: `godot/`. Also fixes the broken `single_asset.tscn` |
-| 2 | `tasks/2026-07-11-m2-decompose.md` | L | **M2b** — GI-GS hybrid vendor+port onto gsplat (D1 DECIDED, go-ahead given). Phased A→D, each independently shippable; phase-A build-verify stall is a finding, not a run-sink. License guardrails are HARD rules (`scaffold/` gitignored). Lane: `precompute/` |
+| 1 | `tasks/2026-07-11-m2-decompose.md` **→ phase D only** | M | **M2b phase D** — run `decompose` on real assets (`pxl_144634`/`pxl_131945`), confirm held-out re-render within the dB budget (gate built + default-ON), then `export --from-decompose` the real relightable asset. ⚠️ SCHEDULED real-data validation (not in-loop poll); convergence-uncertain on thin-leaf foliage → may need param tuning. **Owner call first:** env-SH sidecar → Godot `ambient_sh(N)` reader (see decisions.md 2026-07-12 M2 entry). Phases A/B/C DONE. |
 
-**Shipped in the 2026-07-12 factory run (banners on task files):** ingest-stage (v0.2.0),
-code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0). See `docs/2026-07-12-handoff.md`.
+**Shipped in the 2026-07-12 factory runs (banners on task files):** ingest-stage (v0.2.0),
+code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a relight-runtime
+(v0.6.0)**, **M2b decompose A/B/C (v0.7.0)**. See `docs/2026-07-12-handoff.md` + `-handoff-2-M2.md`.
 
 ## Filler — anytime, parallel-safe
 

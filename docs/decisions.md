@@ -231,3 +231,38 @@ instances get the −180° Z correction while scatter-basis instances don't → 
 disagreement. Resolution is a Godot-side node-setup rule (M4 always sets an explicit node
 basis so the conditional correction never fires), seeded as **DECISIONS D3** (gated to M4;
 needs one A/B render). The `ply_io.py` NOTE now states this measured reality.
+
+## 2026-07-12 — M2 built (v0.6.0 M2a runtime + v0.7.0 M2b decompose A–C)
+
+Second armed run (after owner "green go"). Shipped the M2 milestone's buildable half.
+
+**M2a — relight runtime (v0.6.0).** GDGS render path + our relight compute pass; verified on
+the M1 placeholder asset. **VENDORED-PLUGIN DIFF (invariant #6 — recorded here):** the ONLY edit
+to `godot/addons/gdgs/` is in `runtime/render/gaussian_renderer.gd`, `_rasterize_state`, at the
+projection→sort seam: a `const RelightPass := preload("res://relight/relight_pass.gd")` + a
+`RelightPass.run(state, point_count)` call inserted after the projection pass's
+`compute_list_end()` and before the sort `compute_list_begin()`. It overwrites the per-splat
+`culled_splats.color.rgb` (preserving `.a`) — the sole color the rasterizer consumes — and
+`RelightPass.run` early-returns when no materials are registered, so standard/cactus splats are
+byte-identical (GPU byte-compare confirmed). Everything else lives in `godot/relight/`. Revertible
+by deleting that one call. Full diff + design: `docs/validation-m2a-relight-runtime-2026-07-12.md`.
+
+**M2b decompose — phases A–C.** A: GI-GS builds+trains on sm_86/cu124 (recipe + architecture in
+the phase-A validation doc). B: `test_gbuffer_smoke.py` proved gsplat renders an 8-ch feature
+G-buffer + depth with gradient flow (cleared D1 risk #3). C (v0.7.0): the port — `precompute/
+stages/decompose.py` (two-stage inverse solve on the gsplat G-buffer) + `core/sh_env.py` (pure-torch
+deg-2 SH env, the COLMAP→Godot SH flip) + `vendor/gigs/` (MIT-clean: LICENSE + NOTICE + 8 extracted
+import-free functions; NO Inria fork / nvdiffrast / nvdiffrec — verified across full history). Golden
+test converges (albedo MAE 0.001). Gates `-O`-safe; held-out re-render PSNR budget DEFAULT-ON
+(invariant #8); export FIELD_RANGES albedo [0,1] on the decompose path, [0,4] neutral. Schema
+UNCHANGED (SCHEMA_VERSION 1). Port plan + license triage: `docs/validation-m2b-phaseC-portplan-*.md`.
+
+**OPEN owner call (env-SH sidecar → runtime).** decompose emits `env_sh.json`; `export
+--from-decompose` writes a flipped env-SH sidecar. The M2a runtime still uses a flat ambient
+constant. Wiring the Godot `ambient_sh(N)` reader (sharing the `core/sh_env.py` basis/A_l/flip
+constants so it matches exactly) is a coordinated exporter+importer follow-up — treated like a
+schema change (both sides together, logged here) though it touches NO per-Gaussian PLY bytes.
+
+**Phase D (remaining):** real-asset (`pxl_144634`/`pxl_131945`) dB-budget validation +
+`export --from-decompose` on real data. Scheduled real-data work; convergence-uncertain on
+thin-leaf foliage (the `trans` channel / M3 is the mitigation). Handoff: `docs/2026-07-12-handoff-2-M2.md`.
