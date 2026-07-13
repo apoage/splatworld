@@ -24,8 +24,13 @@ code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a religh
 
 - `tasks/recurring-quality-pass.md` — **recurring** code-quality / structure / doc-drift sweep
   (owner mandate 2026-07-12). One bounded pass per pickup; banner with date; never "done".
-  First seeded slice: the broken `res://scenes/single_asset.tscn` red ERROR during
-  `godot --import` (flagged in the smoke-loop banner).
+  Seeded slices: (1) ~~broken `single_asset.tscn`~~ FIXED in v0.6.0; (2) **root-cause the
+  train_base.ply silent clobber** found in run #3 (a 48k init-only model overwrote the 2.39M
+  asset while metrics still claimed 2.39M — guarded now by a baseline consistency check, but
+  the writer is unidentified: suspect list = interrupted re-run, --steps smoke leftover
+  writing to tracked assets/built, or an out-root default regression; check shell history +
+  `.smoke/`/`.perf/` out-root code paths); (3) M2a MINORs (data gate should verify
+  material-buffer CONTENTS; render gate analytic-shading check).
 - `tasks/2026-07-12-docs-guide.md` — `docs/pipeline.md` walkthrough (clip → asset → Godot)
   + core docstrings + README "Docs" section. Acceptance: a fresh reader reproduces M1 from
   the guide alone.
