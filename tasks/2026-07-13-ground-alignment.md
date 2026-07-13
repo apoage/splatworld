@@ -16,8 +16,7 @@ Every asset (and the upcoming pixel5 variants) inherits a random tilt.
 (~276 KB, per-frame float records, quaternion-like) is almost certainly the EIS gyro stream,
 but in Google's undocumented format (NOT standard CAMM). Reverse-engineering it is OPTIONAL
 future work (would give true gravity); this task uses the camera-ring heuristic, which is
-~30 lines and expected within a few degrees on walkaround captures. Not representative in the viewer, the demo
-video, or any M4 scatter.
+~30 lines and expected within a few degrees on walkaround captures.
 
 ## Approach
 1. `core/colmap_io.py` (or a small `core/orient.py`): estimate world up from the camera rig —
