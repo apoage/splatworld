@@ -4,17 +4,15 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-12** (run #3 prep: phase D GO + D4 DECIDED YES + owner video request — Ready =
-phase D → env-SH wiring → relight-orbit-video, strictly in order, each with stall fallbacks).
+**2026-07-13** (owner viewer feedback: ground-alignment + normal-quality/D5-fix seeded READY;
+pixel5 re-gated on D2 + grounded export; M4 LOD vision recorded).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-11-m2-decompose.md` **→ phase D only** | M | **M2b phase D** — run `decompose` on real assets (`pxl_144634`/`pxl_131945`), confirm held-out re-render within the dB budget (gate built + default-ON), then `export --from-decompose` the real relightable asset. ⚠️ SCHEDULED real-data validation (not in-loop poll); convergence-uncertain on thin-leaf foliage → may need param tuning. **Owner call first:** env-SH sidecar → Godot `ambient_sh(N)` reader (see decisions.md 2026-07-12 M2 entry). Phases A/B/C DONE. |
-| 2 | `tasks/2026-07-12-env-sh-runtime.md` | S–M | **env-SH → runtime ambient** (D4 DECIDED YES). Requires phase D shipped first — same-run sequencing OK. Godot `ambient_sh(N)` reader; constants shared with `core/sh_env.py`; no schema change |
-| 3 | `tasks/2026-07-12-relight-orbit-video.md` | S–M | **demo video** (owner request): raw→relit cut + 360° light orbit on the phase-D asset → `docs/media/relight_orbit.{mp4,gif}` + README embed. Run finale; fallbacks defined if a predecessor stalls |
-| 4 | `tasks/2026-07-12-pixel5-variants.md` | M | **pixel5 variant build** (new walkaround clips, 2026-07-12): triage all 9 → build ≥5 budgeted variants (D2 provisional 500k cap) — the M4 variant shortlist. GPU-serial, runs last |
+| 1 | `tasks/2026-07-13-ground-alignment.md` | S–M | **ground-alignment** (owner report: asset renders tilted — SfM has no gravity; estimate up from the camera ring in export, rotate env-SH sidecar identically). Do FIRST so pixel5 variants come out grounded |
+| 2 | `tasks/2026-07-13-normal-quality.md` | M | **D5 DECIDED: fix** — sparkle diagnosis (raw-vs-relit-vs-pruned attribution) then normal anisotropy/smoothing/confidence-clamp in decompose; M3 prerequisite |
 
 **Shipped in the 2026-07-12 factory runs (banners on task files):** ingest-stage (v0.2.0),
 code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a relight-runtime
@@ -54,8 +52,9 @@ code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a religh
 
 | Task | Gate |
 |------|------|
+| `tasks/2026-07-12-pixel5-variants.md` — triage + build ≥5 budgeted variants (M4 shortlist) | DECISIONS **D2** (final foliage budget) + ground-alignment shipped |
 | M3 — transmission (backlit grass/leaf glow + UI toggle) | M2 `decompose` shipped |
-| M4 — carpet (instanced blocks, 5–15 variants, hit 60fps@1080p) | M2 shipped + asset variants ready |
+| M4 — carpet (instanced blocks, 5–15 variants, hit 60fps@1080p). **Owner vision (2026-07-13): whole-scene coverage with distance-based splat decay (LOD) — challenges hero million-poly models; foliage "brushes". LOD = M4 stretch row when the gate opens** | M2 shipped ✓ + asset variants ready (pixel5, gated D2) |
 | M5 — wind (shared noise field) + mode-B basis blend (stretch) | M4 shipped |
 
 ## Grooming rules
