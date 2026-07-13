@@ -6,10 +6,17 @@ invariant applies). **Status:** READY.
 **Lane:** `precompute/` (export + a colmap_io helper).
 
 ## Problem (owner, 2026-07-13, from the interactive viewer)
-The asset renders ~"120°/90°" tilted — the gravel path is not down. Root cause: SfM does not
-recover gravity; COLMAP's world frame is gauge-arbitrary, and export's COLMAP→Godot
-`diag(1,-1,-1)` is a pure axis relabel — nothing ever estimates "up." Every asset (and the
-upcoming pixel5 variants) inherits a random tilt. Not representative in the viewer, the demo
+The asset renders ~"120°/90°" tilted — the gravel path is not down. Root cause (owner's
+framing, correct): the phone's g-sensor knew "down" at capture time, but **no usable IMU
+data reaches the pipeline**, so orientation is a guess. SfM's world frame is gauge-arbitrary
+and export's COLMAP→Godot `diag(1,-1,-1)` is a pure axis relabel — nothing estimates "up."
+Every asset (and the upcoming pixel5 variants) inherits a random tilt.
+
+**Probe result (2026-07-13):** the Pixel clips DO embed motion data — mp4 `mett` track 3
+(~276 KB, per-frame float records, quaternion-like) is almost certainly the EIS gyro stream,
+but in Google's undocumented format (NOT standard CAMM). Reverse-engineering it is OPTIONAL
+future work (would give true gravity); this task uses the camera-ring heuristic, which is
+~30 lines and expected within a few degrees on walkaround captures. Not representative in the viewer, the demo
 video, or any M4 scatter.
 
 ## Approach

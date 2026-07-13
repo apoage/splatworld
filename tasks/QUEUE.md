@@ -42,7 +42,9 @@ code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a religh
 
 ## Parked — owner-gated (NOT factory work; the owner/planner executes these)
 
-- **data-release**: attach `datasets/pixel4/PXL_20260711_144634633.LS.mp4` (~37 MB) as a
+- **data-release**: ⚠️ **clips embed GPS location + device tags — STRIP metadata
+  (`ffmpeg -map_metadata -1 -c copy`, and exiftool the 4K JPG) before ANY public upload.**
+  Attach `datasets/pixel4/PXL_20260711_144634633.LS.mp4` (~37 MB) as a
   GitHub Release asset + a README "Data" note, so M1 is reproducible. Deferred by owner;
   requires a remote write (`gh release`), which the factory's `allow_push: false` guard
   forbids by design. Data excluded from git for SIZE only (footage is the owner's; cactus
