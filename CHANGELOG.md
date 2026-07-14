@@ -5,6 +5,28 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-07-14
+- **normal-quality DIAGNOSIS (`tasks/2026-07-13-normal-quality.md`, D5 — STEP 1 of 2, fix NOT included).**
+  Attributes the orbit "sparkle" the owner flagged. **Verdict: SHADING class = spatial neighbour-normal
+  incoherence** from the near-isotropic decompose normals. Sort/aliasing RULED OUT (a RAW baked orbit is
+  temporally flat, 0.135 ×1000 → renderer is deterministic, not a GDGS-side sort/AA issue → no owner/GDGS
+  decision needed); floaters RULED OUT (opacity-0.02 prune moved the metric ~0%).
+- **New render-free measurement tooling** — `precompute/tools/gaussian_twinkle.py`: a quantization-free,
+  float, per-Gaussian **neighbour-shimmer** metric (std over the orbit of each Gaussian's local shading
+  contrast vs its k-NN), replicating `relight.glsl` + the `render_orbit` light path in numpy (no GPU).
+  Baseline **shimmer = 197.53 (×1000)**, frame-count-stable, and normal-attributable (r=+0.53 vs normal
+  noise, monotonic across noise deciles; a numpy k-NN smoothing preview drops it −75% while appearance
+  holds). Superseded a first screen-space metric that was confounded by **8-bit PNG quantization** (it
+  measured quantization of the smooth relight ramp, not twinkle — caught by adversarial verification).
+  `godot/relight/tools/render_sparkle.gd` (single-mode orbit dumper) + `sparkle_metric.py` retained for
+  the qualitative RAW-flatness (sort/aliasing) check. Frame-guard refuses an exported `asset.ply`
+  (COLMAP-frame `decompose.ply` only). Suite 76→78.
+- **Step 2 (the fix) is seeded, not built** — it is the expensive-real-data unit. Candidate first move:
+  export-time k-NN normal smoothing (or a decompose-side neighbour regularizer). **Corrected gate:**
+  `shimmer ≤ 98.8` is *necessary but not sufficient* (gameable by over-smoothing garbage), so Step 2
+  MUST also validate held-out re-render PSNR (≤1.5 dB) on the smoothed/shipped normals **and** an
+  anti-over-smoothing guard. Full analysis: `docs/validation-normal-quality-diagnosis-2026-07-14.md`.
+
 ## [0.11.0] — 2026-07-14
 - **ground-alignment stage** (`tasks/2026-07-13-ground-alignment.md`, owner viewer feedback: assets
   render tilted because SfM has no gravity). `export` now estimates world-up from the camera rig

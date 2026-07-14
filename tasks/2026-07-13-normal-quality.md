@@ -1,3 +1,14 @@
+> **STATUS (2026-07-14): STEP 1 (diagnosis) SHIPPED as v0.12.0 — STEP 2 (the fix) REMAINING + seeded.**
+> Verdict: the orbit sparkle is SHADING class = **spatial neighbour-normal incoherence** (noisy decompose
+> normals). Sort/aliasing ruled out (RAW orbit temporally flat), floaters ruled out (prune ~0 effect). New
+> render-free per-Gaussian **neighbour-shimmer** metric (`precompute/tools/gaussian_twinkle.py`), baseline
+> **197.53 ×1000**; an 8-bit-quantization confound in a first screen metric was caught + fixed by adversarial
+> verification. **Step 2 (unbuilt, expensive-real-data):** export-time k-NN normal smoothing (numpy preview
+> −75% shimmer, appearance-stable) or a decompose-side neighbour regularizer. **Corrected gate:** `shimmer ≤
+> 98.8` is necessary-NOT-sufficient (gameable by over-smoothing) → MUST also pass held-out re-render PSNR
+> ≤1.5 dB on the smoothed/SHIPPED normals + an anti-over-smoothing guard. Details:
+> `docs/validation-normal-quality-diagnosis-2026-07-14.md`.
+
 # normal-quality — diagnose the sparkle, fix the near-isotropic normals (DECISIONS D5)
 
 **Size/risk:** M / medium-high (touches the decompose solve — golden + budget gates guard it).
