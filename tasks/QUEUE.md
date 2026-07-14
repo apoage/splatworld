@@ -4,14 +4,15 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-13** (owner viewer feedback: ground-alignment + normal-quality/D5-fix seeded READY;
-pixel5 re-gated on D2 + grounded export; M4 LOD vision recorded).
+**2026-07-14** (post run #4 reconcile: lighting-stability seeded READY #2 (owner request);
+unreal-port parked ON HOLD; lighting-lab viewer shipped planner-side).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
 | 1 | `tasks/2026-07-13-normal-quality.md` **(STEP 2 only)** | M | **D5 fix — step 1 diagnosis SHIPPED v0.12.0.** Sparkle = spatial neighbour-normal incoherence (not sort/aliasing, not floaters). STEP 2 = the fix: export-time k-NN normal smoothing (numpy preview −75% shimmer, appearance-stable) OR a decompose-side neighbour regularizer. **Expensive-real-data:** MUST re-render/re-decompose and validate held-out PSNR ≤1.5 dB on the smoothed/shipped normals — the `shimmer ≤ 98.8` gate (`precompute/tools/gaussian_twinkle.py`) is necessary-NOT-sufficient (gameable by over-smoothing), pair with an anti-over-smoothing guard. Details: `docs/validation-normal-quality-diagnosis-2026-07-14.md`. M3 prerequisite |
+| 2 | `tasks/2026-07-14-lighting-stability.md` | M | **lighting-engine stability harness** (owner request 2026-07-14): condition-matrix renders (elevation × azimuth × energy × ambient × color) × modes with hard asserts — raw-mode light-leak invariance, energy linearity, 360° azimuth return, elevation smoothness, ambient floor, trans inertness — plus a Godot-lit reference sphere cross-checking our pass against the engine's own lighting model. Shimmer numbers recorded as baselines only (the reduction gate stays with row 1). Needs DISPLAY=:0 |
 
 **Shipped in the 2026-07-12 factory runs (banners on task files):** ingest-stage (v0.2.0),
 code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a relight-runtime
@@ -44,6 +45,11 @@ normal-quality diagnosis / D5 step 1 (v0.12.0) — `docs/2026-07-14-handoff-4-ru
 
 ## Parked — owner-gated (NOT factory work; the owner/planner executes these)
 
+- **unreal-port (ON HOLD, owner 2026-07-14)**: future Unreal Engine implementation of the
+  relight runtime, positioned as an **Epic MegaGrants candidate** (owner: "why not eventually").
+  No work, no research until the owner reopens. The runtime contract is engine-agnostic by
+  design (extended PLY + one compute shading pass); Godot stays the demo host. When reopened:
+  M4 carpet footage is the natural centerpiece of a MegaGrants application.
 - **data-release**: ⚠️ **clips embed GPS location + device tags — STRIP metadata
   (`ffmpeg -map_metadata -1 -c copy`, and exiftool the 4K JPG) before ANY public upload.**
   Attach `datasets/pixel4/PXL_20260711_144634633.LS.mp4` (~37 MB) as a
