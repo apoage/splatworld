@@ -161,7 +161,9 @@ func _hold_light(condition: String) -> void:
 
 func _refresh_hud() -> void:
 	_set_status(
-		"sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
+		"mode=%s%s  sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
+			"relit" if _mode == RelightPass.MODE_RELIT else "RAW ALBEDO",
+			"+trans" if _trans_on else "",
 			roundi(wrapf(rad_to_deg(_sun_az), 0.0, 360.0)), roundi(rad_to_deg(_sun_el)),
 			_energy, _amb, _wrap, _condition,
 		]

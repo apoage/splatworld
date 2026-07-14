@@ -11,7 +11,7 @@ unreal-port parked ON HOLD; lighting-lab viewer shipped planner-side).
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-13-normal-quality.md` **(STEP 2 only)** | M | **D5 fix — step 1 diagnosis SHIPPED v0.12.0.** Sparkle = spatial neighbour-normal incoherence (not sort/aliasing, not floaters). STEP 2 = the fix: export-time k-NN normal smoothing (numpy preview −75% shimmer, appearance-stable) OR a decompose-side neighbour regularizer. **Expensive-real-data:** MUST re-render/re-decompose and validate held-out PSNR ≤1.5 dB on the smoothed/shipped normals — the `shimmer ≤ 98.8` gate (`precompute/tools/gaussian_twinkle.py`) is necessary-NOT-sufficient (gameable by over-smoothing), pair with an anti-over-smoothing guard. Details: `docs/validation-normal-quality-diagnosis-2026-07-14.md`. M3 prerequisite |
+| 1 | `tasks/2026-07-13-normal-quality.md` **(STEP 2 only)** | M | **D5 fix — step 1 diagnosis SHIPPED v0.12.0.** Sparkle = spatial neighbour-normal incoherence (not sort/aliasing, not floaters). STEP 2 = the fix: export-time k-NN normal smoothing (numpy preview −75% shimmer, appearance-stable) OR a decompose-side neighbour regularizer. **Expensive-real-data:** MUST re-render/re-decompose and validate held-out PSNR ≤1.5 dB on the smoothed/shipped normals — the `shimmer ≤ 98.8` gate (`precompute/tools/gaussian_twinkle.py`) is necessary-NOT-sufficient (gameable by over-smoothing), pair with an anti-over-smoothing guard. Details: `docs/validation-normal-quality-diagnosis-2026-07-14.md`. M3 prerequisite. **Owner GO 2026-07-14** ("excited on that") |
 | 2 | `tasks/2026-07-14-lighting-stability.md` | M | **lighting-engine stability harness** (owner request 2026-07-14): condition-matrix renders (elevation × azimuth × energy × ambient × color) × modes with hard asserts — raw-mode light-leak invariance, energy linearity, 360° azimuth return, elevation smoothness, ambient floor, trans inertness — plus a Godot-lit reference sphere cross-checking our pass against the engine's own lighting model. Shimmer numbers recorded as baselines only (the reduction gate stays with row 1). Needs DISPLAY=:0 |
 
 **Shipped in the 2026-07-12 factory runs (banners on task files):** ingest-stage (v0.2.0),
@@ -31,7 +31,13 @@ normal-quality diagnosis / D5 step 1 (v0.12.0) — `docs/2026-07-14-handoff-4-ru
   the writer is unidentified: suspect list = interrupted re-run, --steps smoke leftover
   writing to tracked assets/built, or an out-root default regression; check shell history +
   `.smoke/`/`.perf/` out-root code paths); (3) M2a MINORs (data gate should verify
-  material-buffer CONTENTS; render gate analytic-shading check).
+  material-buffer CONTENTS; render gate analytic-shading check); (4) **neutralize GDGS's
+  conditional −180° Z node default in every `.relightply`-loading tool** (render_orbit,
+  render_sparkle, relight_render_gate, render_probe if applicable — NOT render_foliage, which
+  renders vanilla plys and needs the correction): set `transform = Transform3D.IDENTITY`
+  AFTER `add_child`, per the D3 rule; `relight_controller.gd` already fixed 2026-07-14 (the
+  correction flipped the grounded asset upside down — owner report). MUST land before any
+  demo/gif regen on grounded assets.
 - `tasks/2026-07-12-docs-guide.md` — `docs/pipeline.md` walkthrough (clip → asset → Godot)
   + core docstrings + README "Docs" section. Acceptance: a fresh reader reproduces M1 from
   the guide alone.
@@ -62,7 +68,7 @@ normal-quality diagnosis / D5 step 1 (v0.12.0) — `docs/2026-07-14-handoff-4-ru
 
 | Task | Gate |
 |------|------|
-| `tasks/2026-07-12-pixel5-variants.md` — triage + build ≥5 budgeted variants (M4 shortlist) | DECISIONS **D2** (final foliage budget) + ground-alignment shipped |
+| `tasks/2026-07-12-pixel5-variants.md` — triage + build ≥5 budgeted variants (M4 shortlist). Budget per **D2 DECIDED 2026-07-14**: 500k cap + opacity-0.02 prune | ~~D2~~ ✓ + owner eyeball confirming the grounded asset reads level in the fixed viewer (ground-alignment shipped v0.11.0; the 180° flip was the GDGS node default, fixed 2026-07-14) |
 | M3 — transmission (backlit grass/leaf glow + UI toggle) | M2 `decompose` shipped |
 | M4 — carpet (instanced blocks, 5–15 variants, hit 60fps@1080p). **Owner vision (2026-07-13): whole-scene coverage with distance-based splat decay (LOD) — challenges hero million-poly models; foliage "brushes". LOD = M4 stretch row when the gate opens** | M2 shipped ✓ + asset variants ready (pixel5, gated D2) |
 | M5 — wind (shared noise field) + mode-B basis blend (stretch) | M4 shipped |

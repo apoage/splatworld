@@ -15,8 +15,14 @@ plugin, plus our relight compute pass (M2+). Requires the Forward+ backend.
   radix-sort sizing). Any GDGS re-vendor must reapply it — see `docs/decisions.md`.
 - GDGS imports `.ply` / `.compressed.ply` / `.splat` / `.sog` → a `GaussianResource`
   (`point_count`, `aabb`). Node = `GaussianSplatNode` with an `@export var gaussian`.
-- GDGS **centers** imported data and applies a default **−180° Z correction** to new nodes.
-  Reconcile at export time — never patch it Godot-side (bug is always in export).
+- GDGS **centers** imported data and applies a **conditional −180° Z correction** to new
+  nodes (`gaussian_splat_node.gd::_apply_default_orientation_if_needed` — fires in
+  `_enter_tree` ONLY if the node transform is ≈identity; meant for raw y-down 3DGS plys).
+  Our `.relightply` is already Godot-convention, so every relight code path MUST set
+  `transform = Transform3D.IDENTITY` AFTER `add_child` to suppress it (D3 rule; controller
+  fixed 2026-07-14 after the grounded asset rendered upside down). This is node-side scene
+  setup, not a plugin patch — the export matrix stays the ONE data conversion; a wrong-DATA
+  orientation is still always export's bug.
 - Standard 3DGS `.ply` is GDGS-readable; our **extended schema is NOT** (needs the M2 relight
   importer / compute pass to consume albedo/normal/rough/trans).
 - `--headless` uses the dummy renderer (no GPU) → good only for data gates (`smoke_test.gd`).

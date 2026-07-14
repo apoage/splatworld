@@ -43,6 +43,11 @@ func _ready() -> void:
 	_splat = GaussianSplatNode.new()
 	_splat.gaussian = res
 	add_child(_splat)
+	# Our .relightply is already Godot-convention (export owns the ONE conversion);
+	# GDGS's default -PI Z model-orientation correction is meant for raw y-down 3DGS
+	# plys and would flip a grounded asset upside down. It is applied in _enter_tree
+	# only when the transform is identity-ish, so reset AFTER add_child.
+	_splat.transform = Transform3D.IDENTITY
 
 	var ab: AABB = res.aabb
 	var center := ab.position + ab.size * 0.5

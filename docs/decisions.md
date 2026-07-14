@@ -266,3 +266,33 @@ schema change (both sides together, logged here) though it touches NO per-Gaussi
 **Phase D (remaining):** real-asset (`pxl_144634`/`pxl_131945`) dB-budget validation +
 `export --from-decompose` on real data. Scheduled real-data work; convergence-uncertain on
 thin-leaf foliage (the `trans` channel / M3 is the mitigation). Handoff: `docs/2026-07-12-handoff-2-M2.md`.
+
+---
+
+## 2026-07-14 — planner: viewer orientation fix (D3 rule applied early), saturation refuted, D2 decided
+
+**Grounded asset rendered "180° upside down" (owner eyeball) — cause was NOT export.**
+v0.11.0's alignment math verified clean; the flip was GDGS's *conditional* −180° Z
+model-orientation correction (`gaussian_splat_node.gd::_apply_default_orientation_if_needed`,
+fires in `_enter_tree` when the node transform ≈ identity — a convenience for raw y-down 3DGS
+plys). Pre-alignment the gauge-random orientation masked it; grounding exposed it. Fix per the
+D3 row's own rule: `relight_controller.gd` sets `transform = Transform3D.IDENTITY` AFTER
+`add_child` (node-side scene setup, not a plugin patch; the export matrix remains the ONE data
+conversion). Remaining `.relightply` tools (render_orbit/render_sparkle/relight_render_gate/
+render_probe) = quality-pass slice #4; MUST land before demo/gif regen. `godot/CLAUDE.md`
+gotcha rewritten to capture the conditionality.
+
+**"Deshaded looks very saturated" (owner) — REFUTED by data.** Albedo vs baked SH0 on
+pxl_144634 (N=2,405,519 both): mean saturation 0.275 vs 0.396 (p95 0.618 vs 1.000; S>0.5
+population 13.1% vs 21.1%, wider on visible splats); clipping 0.00% vs 10.96%; luma ratio
+0.945 (albedo slightly dimmer). Env-SH DC is bright + green-tinted (shading multiplier
+0.718/0.844/0.637) — the green cast moved out of albedo into the light estimate, as it should.
+Albedo is *less* saturated than baked; the impression likely came from the upside-down render
+(env pairing visually wrong) or the raw/relit toggle state. Viewer HUD now shows the active
+mode. Analysis script: scratchpad (ephemeral); numbers preserved here.
+
+**D2 DECIDED (owner):** option (a) — 500k cap + opacity-0.02 prune. **normal-quality step 2:
+owner GO** as scoped (corrected triple gate). **Lighting-lab viewer** shipped planner-side in
+`orbit_viewer.gd` (presets/day-cycle/manual sun/live energy-ambient-wrap); systematic harness
+seeded as `tasks/2026-07-14-lighting-stability.md` (Ready #2). **unreal-port** parked ON HOLD
+(Epic MegaGrants candidate). Run #4 reconciled + pushed (tags v0.11.0/v0.12.0).
