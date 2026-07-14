@@ -19,7 +19,7 @@ import numpy as np
 from . import schema
 # SH degree-0 helpers live in gaussmath (single home); re-exported here so the
 # long-standing `ply_io.sh0_to_rgb` / `ply_io.SH_C0` call sites keep working.
-from .gaussmath import SH_C0, sh0_to_rgb, rgb2sh  # noqa: F401
+from .gaussmath import SH_C0, sh0_to_rgb, rgb2sh, rotmat_to_quat  # noqa: F401
 
 # --- PLY <-> numpy type maps --------------------------------------------------
 _PLY_TO_NP = {
@@ -49,8 +49,15 @@ def _ply_prop_name(np_type: str) -> str:
 #   * covariance rotation quaternions transform cleanly by left-multiplying with
 #     the quaternion of M (a reflection, det=-1, could not). q(M) = (w=0,x=1,y=0,z=0).
 # NOTE (verified 2026-07-12, see docs/decisions.md for the full analysis):
-# This matrix is the PURE COLMAP->Godot change of basis and is the ONLY conversion
-# applied to exported data. GDGS layers two of its own transforms at IMPORT/NODE
+# This matrix is the PURE COLMAP->Godot change of basis. Since 2026-07-13 the
+# single exported conversion is C = M @ R_align, where R_align (ground-alignment,
+# core/orient.py) is a proper rotation in the COLMAP frame that carries the
+# estimated world-up onto Godot +Y. The invariant is intact: still exactly ONE
+# transform, composed here and applied once in `export`. R_align=None reproduces
+# the pure M path byte-for-byte (the `--no-align` export). The env-SH sidecar is
+# rotated by the SAME C (core/sh_env.rotate_env_sh) so the light rotates with the
+# asset; the M-only sign flip (sh_env.flip_env_sh_colmap_to_godot) is kept for the
+# no-align path. GDGS layers two of its own transforms at IMPORT/NODE
 # time that we do NOT (and mostly cannot) compensate for here:
 #   * centering: the importer subtracts the point-cloud centroid and discards it
 #     (gaussian_resource_builder.gd) — a rigid translation. The asset's absolute
@@ -82,13 +89,28 @@ def _quat_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     ], axis=-1)
 
 
-def colmap_to_godot(xyz: np.ndarray, normal: np.ndarray | None, rot_wxyz: np.ndarray | None):
-    """Apply M once. Returns (xyz', normal', rot') with the same shapes given."""
-    xyz_g = xyz @ COLMAP_TO_GODOT.T
-    normal_g = None if normal is None else (normal @ COLMAP_TO_GODOT.T)
+def colmap_to_godot(xyz: np.ndarray, normal: np.ndarray | None, rot_wxyz: np.ndarray | None,
+                    R_align: np.ndarray | None = None):
+    """Apply the single COLMAP->Godot conversion once. Returns (xyz', normal',
+    rot') with the same shapes given.
+
+    R_align (3x3 proper rotation in the COLMAP frame, from core/orient.py) is
+    composed into the conversion: C = M @ R_align. R_align=None (default) is the
+    pure axis-relabel path and is byte-identical to the pre-alignment export — it
+    uses the exact prior constants (COLMAP_TO_GODOT, _Q_M), not C=M@I."""
+    if R_align is None:
+        C = COLMAP_TO_GODOT               # float32; exact prior path
+        q_conv = _Q_M                     # float32; (w,x,y,z) of 180deg about X
+    else:
+        R_align = np.asarray(R_align, dtype=np.float64).reshape(3, 3)
+        C64 = COLMAP_TO_GODOT.astype(np.float64) @ R_align   # det = +1
+        q_conv = rotmat_to_quat(C64).astype(np.float32)      # quaternion OF the full C
+        C = C64.astype(np.float32)
+    xyz_g = xyz @ C.T
+    normal_g = None if normal is None else (normal @ C.T)
     rot_g = None
     if rot_wxyz is not None:
-        q = np.broadcast_to(_Q_M, rot_wxyz.shape)
+        q = np.broadcast_to(q_conv, rot_wxyz.shape)
         rot_g = _quat_mul(q, rot_wxyz)
     return xyz_g, normal_g, rot_g
 

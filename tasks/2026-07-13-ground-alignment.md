@@ -1,3 +1,13 @@
+> **STATUS (2026-07-14): SHIPPED as v0.11.0** — `export` estimates world-up from the
+> camera ring and composes it into the single COLMAP→Godot conversion; env-SH sidecar
+> rotates identically (real deg-2 SH rotation). Golden tests + real-asset metric
+> (`ring_normal_dot_up`) + fail-closed gates + suspect telemetry all in; 3 adversarial
+> verification rounds (SH-math/regression/security clean; every MAJOR/MINOR fixed).
+> **OPEN owner call (seeded to DECISIONS):** pxl_144634 flags `alignment_suspect=true`
+> (plane-normal vs camera-up disagree 43.5°) — whether it reads level is your eyeball;
+> both candidate ups are recorded in metrics. **Deferred (owner-eyeball-gated):** demo/gif
+> regeneration on the grounded asset + `godot/gs_assets` re-mirror.
+
 # ground-alignment — orient assets so the ground reads as ground (owner report)
 
 **Size/risk:** S–M / medium (touches export's coordinate contract — the one-conversion

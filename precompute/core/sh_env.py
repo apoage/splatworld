@@ -94,9 +94,52 @@ def sh_basis_torch(dirs):
 
 
 def flip_env_sh_colmap_to_godot(coeffs: np.ndarray) -> np.ndarray:
-    """Apply the COLMAP->Godot flip to SH env coefficients. coeffs (9,3) -> (9,3).
+    """Apply the pure COLMAP->Godot axis-flip to SH env coefficients. (9,3)->(9,3).
 
-    Works for either raw radiance L_lm or the folded ambient c_lm — the sign
-    pattern depends only on the basis, not the A_l/pi folding."""
+    Valid ONLY because M=diag(1,-1,-1) is a pure axis relabel, so every real-SH
+    basis monomial merely flips sign (COLMAP_GODOT_SH_SIGNS). A GENERAL rotation
+    (e.g. the ground-alignment R_align composed into the conversion) does NOT
+    reduce to sign flips — use `rotate_env_sh` / `sh_rotation_matrix` for that.
+    This sign path is retained so the no-align export stays byte/numerically
+    identical to before. Works for raw radiance L_lm or folded ambient c_lm alike
+    (the pattern depends only on the basis, not the A_l/pi folding)."""
     c = np.asarray(coeffs, dtype=np.float64).reshape(N_SH, -1)
     return (c * COLMAP_GODOT_SH_SIGNS[:, None]).astype(np.float32)
+
+
+def _sample_dirs(n: int = 512) -> np.ndarray:
+    """`n` well-distributed unit directions (Fibonacci sphere) for the numerical
+    SH-rotation fit. n >> 9 keeps the least-squares system well-conditioned."""
+    i = np.arange(n, dtype=np.float64) + 0.5
+    z = 1.0 - 2.0 * i / n
+    r = np.sqrt(np.clip(1.0 - z * z, 0.0, 1.0))
+    phi = np.pi * (1.0 + np.sqrt(5.0)) * i     # golden-angle azimuth
+    return np.stack([r * np.cos(phi), r * np.sin(phi), z], axis=-1)
+
+
+def sh_rotation_matrix(R: np.ndarray) -> np.ndarray:
+    """Real degree-2 SH rotation matrix (9x9) for a 3x3 proper rotation R applied
+    to the WORLD (both asset geometry and the environment together).
+
+    Coefficients transform as c' = Rot @ c, matching E'(d) = E(R^-1 d): rotating a
+    Gaussian's normal by R and its ambient env by this matrix leaves the recovered
+    irradiance E(N)=sum c_lm Y_lm(N) physically unchanged (the relit appearance is
+    invariant up to the camera). Recovered numerically by least squares from the
+    identity  sh_basis(d) @ Rot = sh_basis(R^-1 d)  over many directions
+    (`dirs @ R` = R^T d = R^-1 d for orthonormal R). Block-diagonal (1+3+5) in exact
+    arithmetic; the fit recovers it to ~1e-12. For a pure axis flip (R=M) this
+    equals diag(COLMAP_GODOT_SH_SIGNS)."""
+    R = np.asarray(R, dtype=np.float64).reshape(3, 3)
+    dirs = _sample_dirs(512)
+    b = sh_basis_np(dirs)                       # (M,9)  = Y_l(d)
+    b_rot = sh_basis_np(dirs @ R)               # (M,9)  = Y_l(R^-1 d)
+    rot, *_ = np.linalg.lstsq(b, b_rot, rcond=None)
+    return rot
+
+
+def rotate_env_sh(coeffs: np.ndarray, R: np.ndarray) -> np.ndarray:
+    """Rotate degree-2 SH env coeffs (9,C) by a 3x3 proper world rotation R.
+    c' = sh_rotation_matrix(R) @ c, applied per colour channel."""
+    rot = sh_rotation_matrix(R)
+    c = np.asarray(coeffs, dtype=np.float64).reshape(N_SH, -1)
+    return (rot @ c).astype(np.float32)

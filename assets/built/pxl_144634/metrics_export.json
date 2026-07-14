@@ -9,7 +9,7 @@
     "nan": 0,
     "inf": 0
   },
-  "normal_unit_err": 1.7881393432617188e-07,
+  "normal_unit_err": 2.384185791015625e-07,
   "rough": {
     "min": 0.03990549594163895,
     "max": 0.9618956446647644,
@@ -33,6 +33,38 @@
       "prune_isolation_std": null,
       "isolation_k": 4
     }
+  },
+  "ring_normal_dot_up": 1.0,
+  "alignment": {
+    "enabled": true,
+    "sparse": "/home/lukas/splatworld/assets/raw/pxl_144634/colmap/dense/sparse_txt",
+    "ring_normal_dot_up": 1.0,
+    "ring_normal_godot": [
+      -4.6007382274799535e-09,
+      1.0,
+      -1.5687963314998635e-09
+    ],
+    "up_camera_disagreement_deg": 43.54943227231908,
+    "alignment_suspect": true,
+    "method": "plane_fit",
+    "confidence": 0.7204081475546501,
+    "plane_residual_rms": 0.3601734940084199,
+    "up_colmap": [
+      0.5115411216151446,
+      -0.573641844801526,
+      -0.639734878515641
+    ],
+    "mean_camera_up_colmap": [
+      -0.009115896311914496,
+      -0.9601746926224214,
+      -0.27925160712495256
+    ],
+    "n_cameras": 204,
+    "singular_values": [
+      49.545010920036844,
+      18.399343234238923,
+      5.144306458638676
+    ]
   },
   "env_sidecar": "asset_env_sh.json"
 }

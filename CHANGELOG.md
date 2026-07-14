@@ -5,6 +5,35 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-07-14
+- **ground-alignment stage** (`tasks/2026-07-13-ground-alignment.md`, owner viewer feedback: assets
+  render tilted because SfM has no gravity). `export` now estimates world-up from the camera rig
+  (LS plane fit through camera centers via new `core/orient.py`; sign from the mean camera up-vector;
+  degenerate/collinear fallback to camera-up; confidence + residual emitted) and composes that
+  rotation INTO the single COLMAP→Godot conversion — still exactly ONE transform in ONE place
+  (`C = M @ R_align` in `ply_io.colmap_to_godot`). New `--sparse` input, `--no-align` (byte-identical
+  A/B), `--strict-align` (opt-in fail-closed on doubt).
+- **env-SH sidecar rotates IDENTICALLY with the asset** — added a real degree-2 SH rotation
+  (`core/sh_env.sh_rotation_matrix`/`rotate_env_sh`, built from the sampling identity, block-diagonal
+  1+3+5) composed with the same `C`, so a grounded asset is never lit from the wrong side. Physical
+  invariance verified to <1e-9 (rotating asset+env together leaves the relit result invariant).
+  `flip_env_sh_colmap_to_godot` retained for the `--no-align` path (numerically identical to before).
+- **Fail-closed hardening (from the adversarial panel):** env-SH sidecar is now loaded, rotated, and
+  validated (shape/NaN/Inf/magnitude) BEFORE any write — a bad `--env-sh` can no longer clobber a
+  prior good `asset.ply`. `ring_normal_dot_up` is computed through the real conversion (catches a
+  C-matrix transform regression) and fail-closes on the aligned path (`< 0.98` → `SystemExit`).
+  Sidecar reconciliation: a run that writes no sidecar deletes any stale `<out>_env_sh.json`, so
+  `asset.ply` and its sidecar can never disagree on frame. Aligned decompose export requires `--env-sh`.
+- **Suspect-alignment telemetry:** `metrics_export.alignment` now records `up_camera_disagreement_deg`,
+  both candidate ups (`up_colmap` plane-normal + `mean_camera_up_colmap`), confidence, residual, and
+  `alignment_suspect`; a LOUD stderr warning fires when suspect (degenerate OR confidence<0.5 OR
+  disagreement>25°). **pxl_144634 flags suspect (43.5° plane-vs-camera-up split) — the physical
+  "does the ground read level" call is the owner's eyeball** (seeded to DECISIONS; both cues recorded
+  so it can be revisited without re-running decompose). pxl_131945 not suspect (22.0°). SCHEMA_VERSION
+  unchanged (1). Suite 45→76. Validation: `docs/validation-ground-alignment-2026-07-14.md`.
+- **Deferred (owner-eyeball-gated):** demo video + README gif regeneration on the grounded asset (and
+  re-mirroring `godot/gs_assets`) — premature until the alignment is confirmed correct on pxl_144634.
+
 ## [0.10.0] — 2026-07-12
 - **relight-orbit demo video** (`tasks/2026-07-12-relight-orbit-video.md`, owner request — the
   run finale): the M2 relighting, finally SEEN moving. New `godot/relight/tools/render_orbit.gd`

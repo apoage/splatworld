@@ -43,3 +43,42 @@ def quat_to_rotmat(quat_wxyz: np.ndarray) -> np.ndarray:
     R[..., 1, 0] = 2 * (x * y + w * z); R[..., 1, 1] = 1 - 2 * (x * x + z * z); R[..., 1, 2] = 2 * (y * z - w * x)
     R[..., 2, 0] = 2 * (x * z - w * y); R[..., 2, 1] = 2 * (y * z + w * x); R[..., 2, 2] = 1 - 2 * (x * x + y * y)
     return R
+
+
+def rotmat_to_quat(R: np.ndarray) -> np.ndarray:
+    """Proper rotation matrix (3,3) -> unit quaternion (w,x,y,z). Inverse of
+    quat_to_rotmat (up to the q/-q double cover).
+
+    Uses the branchy Shepperd form so it stays numerically stable when the trace
+    is negative — e.g. a 180deg turn like M=diag(1,-1,-1), where the naive
+    trace-only formula divides by ~0. Assumes det(R)=+1. Float64.
+    """
+    R = np.asarray(R, dtype=np.float64).reshape(3, 3)
+    m00, m11, m22 = R[0, 0], R[1, 1], R[2, 2]
+    tr = m00 + m11 + m22
+    if tr > 0.0:
+        s = np.sqrt(tr + 1.0) * 2.0                       # s = 4*w
+        w = 0.25 * s
+        x = (R[2, 1] - R[1, 2]) / s
+        y = (R[0, 2] - R[2, 0]) / s
+        z = (R[1, 0] - R[0, 1]) / s
+    elif m00 > m11 and m00 > m22:
+        s = np.sqrt(1.0 + m00 - m11 - m22) * 2.0          # s = 4*x
+        w = (R[2, 1] - R[1, 2]) / s
+        x = 0.25 * s
+        y = (R[0, 1] + R[1, 0]) / s
+        z = (R[0, 2] + R[2, 0]) / s
+    elif m11 > m22:
+        s = np.sqrt(1.0 + m11 - m00 - m22) * 2.0          # s = 4*y
+        w = (R[0, 2] - R[2, 0]) / s
+        x = (R[0, 1] + R[1, 0]) / s
+        y = 0.25 * s
+        z = (R[1, 2] + R[2, 1]) / s
+    else:
+        s = np.sqrt(1.0 + m22 - m00 - m11) * 2.0          # s = 4*z
+        w = (R[1, 0] - R[0, 1]) / s
+        x = (R[0, 2] + R[2, 0]) / s
+        y = (R[1, 2] + R[2, 1]) / s
+        z = 0.25 * s
+    q = np.array([w, x, y, z], dtype=np.float64)
+    return q / np.clip(np.linalg.norm(q), 1e-12, None)
