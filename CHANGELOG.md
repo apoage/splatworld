@@ -5,6 +5,33 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-07-15
+- **normal-quality FIX (`tasks/2026-07-13-normal-quality.md`, D5 — STEP 2 of 2).** k-NN normal
+  smoothing that removes the orbit "sparkle" step 1 attributed to spatial neighbour-normal
+  incoherence. Folded into `decompose` (not export) so decompose's own fail-closed held-out
+  re-render PSNR gate (invariant #8) validates the SHIPPED normals — no new renderer, no
+  duplicated gate. Opt-in `--smooth-normals-iters` (default **0 = exact no-op**, a normal run
+  stays byte-identical) / `--smooth-normals-knn` (default 8).
+- **New `precompute/core/normals.py`** — `smooth_normals_knn` (average each unit normal over its
+  self+k-NN neighbourhood + renormalize, iterated; byte-for-byte the step-1 `gaussian_twinkle.py`
+  preview transform), `local_coherence` (over-smoothing tripwire), `knn_indices`,
+  `mean_normal_norm`. numpy+scipy, CPU, chunked; rigid-equivariant so export's single
+  COLMAP→Godot rotation is unaffected.
+- **Validated on a real re-decompose of `pxl_144634`** (`--smooth-normals-iters 2`): held-out
+  PSNR **21.572 dB, −0.11 dB** vs train_base (≤1.5 dB budget ✓, `budget_ok:true`); neighbour
+  shimmer on the shipped normals **48.77 ×1000, −75.3%** vs the 197.53 baseline (≤98.8 ✓); local
+  coherence **0.579→0.922** without saturating the 0.985 over-smoothing ceiling
+  (`over_smooth_suspect:false`); appearance preserved (unsmoothed decompose was 21.639 dB → cost
+  0.067 dB), albedo untouched, normals unit. Reproduces the step-1 numpy preview exactly on a
+  genuine re-solve. Full analysis: `docs/validation-normal-quality-step2-2026-07-15.md`.
+- **Corrected gate satisfied** (per step 1): `shimmer ≤ 98.8` is *necessary-not-sufficient*
+  (gameable by over-smoothing) → paired with the load-bearing held-out re-render PSNR ≤1.5 dB on
+  the smoothed/shipped normals + an anti-over-smoothing coherence tripwire. Suite 78→88 (+10).
+- **Rollout deferred** (recurring-quality-pass slice 5, now unblocked): the fix is default-off, so
+  the built/mirrored `pxl_144634.relightply` the viewer loads is unchanged; re-shipping the built +
+  mirrored assets with smoothed normals (+ `pxl_131945`, + demo/gif regen) is the next unit. The
+  validated smoothed decompose is preserved at `.perf/normalsmooth/pxl_144634/`.
+
 ## [0.12.0] — 2026-07-14
 - **normal-quality DIAGNOSIS (`tasks/2026-07-13-normal-quality.md`, D5 — STEP 1 of 2, fix NOT included).**
   Attributes the orbit "sparkle" the owner flagged. **Verdict: SHADING class = spatial neighbour-normal

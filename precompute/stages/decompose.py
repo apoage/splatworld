@@ -48,7 +48,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from precompute.core import colmap_io, ply_io, sh_env
+from precompute.core import colmap_io, normals as normals_mod, ply_io, sh_env
 from precompute.stages.export import shortest_axis_normals
 from precompute.vendor.gigs.pbr_math import envBRDF_approx, saturate_dot
 
@@ -479,6 +479,14 @@ def main():
                          f"decompose PSNR < train_base PSNR - this (dB). DEFAULT "
                          f"{DEFAULT_MIN_PSNR_DROP}, gate ALWAYS ON in the shipped stage; "
                          "pass a large value to ~disable for experiments.")
+    ap.add_argument("--smooth-normals-iters", type=int, default=0,
+                    help="normal-quality D5 fix (task 2026-07-13): k-NN smooth the FINAL "
+                         "per-Gaussian normals this many times, applied BEFORE the held-out "
+                         "PSNR gate + decompose.ply write so the re-render budget (invariant "
+                         "#8) validates the smoothed normals. DEFAULT 0 = OFF (byte-identical "
+                         "to no smoothing). See docs/validation-normal-quality-diagnosis-2026-07-14.md.")
+    ap.add_argument("--smooth-normals-knn", type=int, default=8,
+                    help="k for --smooth-normals-iters (default 8, matches the diagnosis preview).")
     ap.add_argument("--gpu", type=int, default=0)
     args = ap.parse_args()
 
@@ -592,12 +600,48 @@ def main():
         rough_np = torch.sigmoid(_rough).cpu().numpy().reshape(-1).astype(np.float32)
         ambient_sh = env.export_ambient_sh()               # (9,3) PRE-flip
 
+    # ---- D5 normal-quality fix: optional k-NN normal smooth (task 2026-07-13, step 2) ----
+    # Applied to the FINAL normals (COLMAP frame; smoothing is rigid-equivariant so the
+    # single export COLMAP->Godot rotation still holds) BEFORE the held-out PSNR eval below
+    # AND the decompose.ply write, so decompose's own re-render budget gate (invariant #8)
+    # is the load-bearing appearance guard on the SHIPPED normals. iters=0 (default) is an
+    # exact no-op -> a normal run is byte-identical. Coherence is a cheap over-smoothing
+    # TRIPWIRE only (necessary-not-sufficient; a flat ground asset legitimately saturates it);
+    # PSNR is the fail-closed guard. Shimmer (<=98.8) is checked separately via gaussian_twinkle.
+    smooth_info = {"iters": int(args.smooth_normals_iters), "knn": int(args.smooth_normals_knn)}
+    OVER_SMOOTH_COH = 0.985
+    if args.smooth_normals_iters > 0:
+        knn_idx = normals_mod.knn_indices(g["xyz"], args.smooth_normals_knn)
+        coh_before = float(normals_mod.local_coherence(g["xyz"], normal_np, idx=knn_idx).mean())
+        mnn_before = normals_mod.mean_normal_norm(normal_np)
+        normal_np = normals_mod.smooth_normals_knn(
+            g["xyz"], normal_np, k=args.smooth_normals_knn,
+            iters=args.smooth_normals_iters, idx=knn_idx)
+        coh_after = float(normals_mod.local_coherence(g["xyz"], normal_np, idx=knn_idx).mean())
+        mnn_after = normals_mod.mean_normal_norm(normal_np)
+        over_smooth = bool(coh_after >= OVER_SMOOTH_COH)
+        smooth_info.update(
+            local_coherence_before=coh_before, local_coherence_after=coh_after,
+            mean_normal_norm_before=mnn_before, mean_normal_norm_after=mnn_after,
+            over_smooth_coh_ceiling=OVER_SMOOTH_COH, over_smooth_suspect=over_smooth)
+        print(f"[decompose] normal smooth: {args.smooth_normals_iters}x knn={args.smooth_normals_knn} "
+              f"coherence {coh_before:.3f}->{coh_after:.3f} ||mean_n|| {mnn_before:.3f}->{mnn_after:.3f}",
+              flush=True)
+        if over_smooth:
+            print(f"[decompose] WARNING: post-smooth local coherence {coh_after:.3f} >= "
+                  f"{OVER_SMOOTH_COH} (over-smoothing tripwire — normals may be blurred toward a "
+                  f"sphere; confirm the held-out PSNR gate + eyeball). PSNR is the load-bearing guard.",
+                  flush=True)
+
     # ---- held-out re-render PSNR ----
     # MAJOR-A: the GATED PSNR is FULL-FRAME (matches train_base's pixel set EXACTLY);
     # the foreground-masked value is kept as a separate diagnostic, never gated.
     psnrs_full, psnrs_masked = [], []
     with torch.no_grad():
-        albedo = torch.sigmoid(_albedo); normal = F.normalize(_normal, dim=-1); rough = torch.sigmoid(_rough)
+        # normal sourced from normal_np (the smoothed array when --smooth-normals-iters>0;
+        # byte-identical to F.normalize(_normal) when off) so the gate validates SHIPPED normals.
+        albedo = torch.sigmoid(_albedo); rough = torch.sigmoid(_rough)
+        normal = torch.tensor(normal_np, device=dev)
         for idx in test_idx:
             K = Ks[idx].to(dev); vm = viewmats[idx].to(dev)
             gt = gts[idx].to(dev).float() / 255.0
@@ -627,6 +671,7 @@ def main():
         "psnr_heldout_db": (round(psnr, 3) if psnr_finite else None),                # GATED (full-frame)
         "psnr_heldout_masked_db": (round(psnr_masked, 3) if math.isfinite(psnr_masked) else None),  # diagnostic
         "test_views": len(test_idx), "wall_time_s": round(time.time() - t0, 1),
+        "normal_smooth": smooth_info,
     }
     # phase-D budget bookkeeping (tb_psnr verified against train_base.ply count, MINOR-C)
     metrics["train_base_psnr_db"] = tb_psnr

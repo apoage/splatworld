@@ -1,3 +1,13 @@
+> **STATUS (2026-07-15): STEP 2 (the fix) SHIPPED as v0.13.0 — TASK COMPLETE.** k-NN normal
+> smoothing folded into `decompose` (`precompute/core/normals.py` + opt-in `--smooth-normals-iters`,
+> default 0 = no-op) so decompose's fail-closed held-out-PSNR gate validates the shipped normals.
+> Validated on a real re-decompose of pxl_144634: held-out PSNR 21.572 dB (−0.11 dB, ≤1.5 budget),
+> shimmer 48.77 (−75.3%, ≤98.8), coherence 0.579→0.922 (over_smooth_suspect=false). Suite 78→88.
+> Panel: correctness+regression+flow-verifier all clean. Details:
+> `docs/validation-normal-quality-step2-2026-07-15.md`. **Rollout to built/mirrored assets +
+> pxl_131945 + demo/gif regen = recurring-quality-pass slice 5 (now unblocked); the fix is
+> default-OFF so the viewer asset is unchanged until then.**
+>
 > **STATUS (2026-07-14): STEP 1 (diagnosis) SHIPPED as v0.12.0 — STEP 2 (the fix) REMAINING + seeded.**
 > Verdict: the orbit sparkle is SHADING class = **spatial neighbour-normal incoherence** (noisy decompose
 > normals). Sort/aliasing ruled out (RAW orbit temporally flat), floaters ruled out (prune ~0 effect). New
