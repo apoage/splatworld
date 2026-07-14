@@ -11,12 +11,14 @@ pixel5 re-gated on D2 + grounded export; M4 LOD vision recorded).
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-13-ground-alignment.md` | S–M | **ground-alignment** (owner report: asset renders tilted — SfM has no gravity; estimate up from the camera ring in export, rotate env-SH sidecar identically). Do FIRST so pixel5 variants come out grounded |
-| 2 | `tasks/2026-07-13-normal-quality.md` | M | **D5 DECIDED: fix** — sparkle diagnosis (raw-vs-relit-vs-pruned attribution) then normal anisotropy/smoothing/confidence-clamp in decompose; M3 prerequisite |
+| 1 | `tasks/2026-07-13-normal-quality.md` **(STEP 2 only)** | M | **D5 fix — step 1 diagnosis SHIPPED v0.12.0.** Sparkle = spatial neighbour-normal incoherence (not sort/aliasing, not floaters). STEP 2 = the fix: export-time k-NN normal smoothing (numpy preview −75% shimmer, appearance-stable) OR a decompose-side neighbour regularizer. **Expensive-real-data:** MUST re-render/re-decompose and validate held-out PSNR ≤1.5 dB on the smoothed/shipped normals — the `shimmer ≤ 98.8` gate (`precompute/tools/gaussian_twinkle.py`) is necessary-NOT-sufficient (gameable by over-smoothing), pair with an anti-over-smoothing guard. Details: `docs/validation-normal-quality-diagnosis-2026-07-14.md`. M3 prerequisite |
 
 **Shipped in the 2026-07-12 factory runs (banners on task files):** ingest-stage (v0.2.0),
 code-hardening (v0.3.0), smoke-loop (v0.4.0), perf-budget (v0.5.0), **M2a relight-runtime
 (v0.6.0)**, **M2b decompose A/B/C (v0.7.0)**. See `docs/2026-07-12-handoff.md` + `-handoff-2-M2.md`.
+**Run #3 (2026-07-12):** M2b phase D (v0.8.0), env-SH runtime (v0.9.0), relight-orbit video (v0.10.0)
+— `docs/2026-07-12-handoff-3-run3.md`. **Run #4 (2026-07-14):** ground-alignment (v0.11.0),
+normal-quality diagnosis / D5 step 1 (v0.12.0) — `docs/2026-07-14-handoff-4-run4.md`.
 
 ## Filler — anytime, parallel-safe
 
