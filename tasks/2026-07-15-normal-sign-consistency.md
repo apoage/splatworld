@@ -1,3 +1,15 @@
+> **STATUS (2026-07-16): INFRASTRUCTURE SHIPPED as v0.16.0 — owner-facing acceptance UNPROVEN, gated on
+> the scheduled re-decompose (fail-closed).** Shipped: camera-hemisphere sign-consistency at init +
+> post-solve, sign-aware smoothing, multi-scale sign metrics, and a density-invariant fail-closed domain
+> gate (per-point adaptive radius + coverage floor). Golden green (MAE 0.0011), suite 107. Verified across
+> 3 fix/verify cycles (caught 2 gate fail-opens + an optimistic fixture; final fail-closed re-verify
+> confirms a foliage-dominant broken cloud is caught at 33.4%/13.1%). **NOT DONE:** the fix resolves only
+> the camera-resolvable sign component; synthetic evidence shows 17–49% residual at hero coherence with
+> grazing/away-facing normals, so camera-orientation ALONE is likely insufficient for foliage patch
+> shadows. **Next:** run the SCHEDULED re-decompose one-shot (`--smooth-normals-iters 2`, one asset per
+> GPU) — if the heroes exceed the 5% gate it fail-closes (assets unchanged), which decides tasks/DECISIONS
+> **D6** (which scalable grazing-normal resolver). M3's backlit dot(−N,L) term also depends on this.
+
 # normal-sign-consistency — resolve the front/back normal ambiguity (owner: "splats not synchronized in angle")
 
 **Size/risk:** M / medium-high (touches decompose normals + the D5 smoothing + its metrics;

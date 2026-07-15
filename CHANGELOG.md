@@ -5,6 +5,41 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-07-16
+- **normal-sign-consistency: sign-consistency infrastructure + fail-closed multi-scale domain gate
+  (`tasks/2026-07-15-normal-sign-consistency.md`). Ships the SUBSTRATE, not a proven patch-shadow fix.**
+  Owner report (viewer, sun-only): patchy fake shadows on foliage, "splats not synchronized in angle."
+  Audit: 28.5–29.2% of 8-NN neighbor normal pairs sign-opposed in decompose output; sign-naive
+  `smooth_normals_knn` coalesced them into ~0.1-unit random-signed DOMAINS (the patch shadows).
+- **Root cause:** `shortest_axis_normals` init used an arbitrary per-Gaussian eigenvector sign and never
+  oriented to the dominant camera hemisphere (contradicting the CLAUDE.md gotcha); stage-1's per-view
+  depth-normal targets don't enforce a global sign.
+- **Change:** orient init + post-solve normals to the camera hemisphere (`make_normals_sign_consistent`,
+  default-on); `smooth_normals_knn` is now SIGN-AWARE (flip each neighbor to self before averaging — no
+  longer byte-identical to the old gaussian_twinkle preview); tripwire folded to sign-independent
+  `folded_coherence`; new multi-scale sign metrics (`signed_opposition_frac` at 8-NN + a PER-POINT
+  ADAPTIVE domain radius = 4× each point's own 8-NN spacing) with a coverage-fraction floor; a
+  fail-closed gate raises before any artifact write when opposition ≥5%, sign-aware degenerate-mean
+  ≥0.5%, or <90% of points can be certified at their own domain scale. PSNR budget unchanged, still
+  load-bearing.
+- **Gate hardened density-invariant + fail-closed over 3 verification cycles:** verification caught and
+  drove out a uniform off-gauge fail-open (fixed world-unit radius → asset-relative) and a
+  density-nonuniform fail-open (a dense-ground majority "verified" the gate while sparse foliage went
+  unmeasured → per-point adaptive radius + coverage-fraction floor). Re-verify confirms a foliage-dominant
+  broken cloud is caught at 33.4% adaptive / 13.1% 8-NN, and CASE-D / duplicate-heavy raise through the
+  real gate; the good path still ships.
+- **KNOWN LIMITATION / efficacy UNPROVEN (tasks/DECISIONS D6):** camera-hemisphere orientation resolves
+  only the along-view sign component. Synthetic evidence at hero coherence with realistic grazing /
+  away-facing foliage normals shows 17–49% residual opposition — the approach ALONE is likely
+  insufficient to eliminate the owner's patch shadows, and the scalable global resolver (MST) does not
+  scale to million-Gaussian assets. The always-on fail-closed gate makes deferral safe: the SCHEDULED
+  re-decompose is the arbiter — if the heroes exceed 5% it REFUSES to ship (built/mirrored viewer assets
+  stay as-is). In-loop fixtures prove the MECHANISM (camera-resolvable regime → ~1–2%) and honestly
+  RECORD the hard-regime residual; they are NOT evidence the heroes pass.
+- **Verified (never self-reviewed):** correctness + fail-closed + regression + flow-verifier panel, then
+  re-verify panels after two fix passes (fail-closed re-verified a third time). Golden green (MAE 0.0011,
+  CUDA), suite 107 passed.
+
 ## [0.15.0] — 2026-07-16
 - **relit-energy: DC-normalize the env-SH ambient to the ambient slider
   (`tasks/2026-07-15-relit-energy.md`).** Owner report (both heroes): relit looked like "bloom with

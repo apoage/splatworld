@@ -192,6 +192,176 @@ def test_rerender_budget_gate_default_on_and_fails_closed():
     D.enforce_rerender_budget(1.0, True, 30.0, None)
 
 
+def test_sign_consistency_gate_fires_and_tolerates_absence():
+    """Normal-sign-consistency gate (task 2026-07-15). FAILS closed when the shipped
+    normals still carry random-signed domains (multi-scale opposition > gate) or
+    near-cancel (degenerate-mean > gate); passes when both are within budget; and is a
+    no-op when metrics carries no 'normal_sign' block (finalize's synthetic-metrics tests)
+    or the thresholds are None (experiment opt-out)."""
+    def m(opp8, oppd, deg, max_opp=0.05, max_deg=0.005):
+        return {"normal_sign": {
+            "opposition_8nn": {"frac_opposed": opp8},
+            "opposition_domain": {"frac_opposed": oppd},
+            "degenerate_mean_frac": deg,
+            "max_opposition": max_opp, "max_degenerate_mean": max_deg}}
+
+    # within budget -> passes (no raise)
+    D.enforce_sign_consistency(m(0.01, 0.02, 0.001))
+    # 8-NN opposition over gate -> reject
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(m(0.30, 0.01, 0.001))
+    # domain-scale opposition over gate (the audit's 18-20%) -> reject
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(m(0.01, 0.20, 0.001))
+    # degenerate-mean over gate -> reject
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(m(0.01, 0.02, 0.10))
+    # thresholds None (experiment opt-out) -> never raises even on terrible numbers
+    D.enforce_sign_consistency(m(0.30, 0.20, 0.10, max_opp=None, max_deg=None))
+    # no 'normal_sign' block (synthetic-metrics finalize tests) -> no-op
+    D.enforce_sign_consistency({"n_gaussians": 8})
+
+
+def test_sign_gate_fail_closed_on_undersampled_domain():
+    """ABSOLUTE-OVERRIDE (radius) mode fail-closed: a fixed --sign-opposition-radius fail-OPENS
+    when it captures no neighbour pairs — frac_opposed reads 0.0 ('clean') though it measured
+    NOTHING. enforce_sign_consistency must FAIL-CLOSED on that (mirror enforce_rerender_budget:
+    refuse when it cannot verify), NOT let a 0.0-from-no-data reading pass. (The DEFAULT path is
+    per-point adaptive — its coverage-fraction floor is covered by
+    test_sign_gate_adaptive_coverage_floor.)"""
+    def block(dom, min_nb=4.0, max_opp=0.05):
+        return {"normal_sign": {
+            "opposition_8nn": {"frac_opposed": 0.02},
+            "opposition_domain": dom,
+            "degenerate_mean_frac": 0.001,
+            "min_domain_neighbors": min_nb,
+            "max_opposition": max_opp, "max_degenerate_mean": 0.005}}
+
+    # captured NOTHING (radius too small for the gauge): 0 query pts w/ neighbours,
+    # mean_neighbors 0, frac_opposed 0.0 -> RAISE rather than false-pass.
+    empty = {"scale": "radius", "radius": 0.1, "n_query": 200, "n_query_with_neighbors": 0,
+             "n_pairs": 0, "mean_neighbors": 0.0, "frac_opposed": 0.0, "frac_strong_opposed": 0.0}
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(block(empty))
+
+    # captured a stray handful (mean_neighbors below the floor) -> still RAISE.
+    thin = {"scale": "radius", "radius": 0.1, "n_query": 200, "n_query_with_neighbors": 5,
+            "n_pairs": 6, "mean_neighbors": 0.03, "frac_opposed": 0.0, "frac_strong_opposed": 0.0}
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(block(thin))
+
+    # well-sampled AND within budget -> passes (no raise).
+    good = {"scale": "radius", "radius": 0.12, "n_query": 200, "n_query_with_neighbors": 200,
+            "n_pairs": 8000, "mean_neighbors": 40.0, "frac_opposed": 0.02, "frac_strong_opposed": 0.005}
+    D.enforce_sign_consistency(block(good))
+
+    # experiment opt-out (max_opposition None) -> under-sampling never raises either.
+    D.enforce_sign_consistency(block(empty, max_opp=None))
+
+
+def test_sign_gate_adaptive_coverage_floor():
+    """FIX A (task 2026-07-15 cycle 3): the DEFAULT per-point adaptive domain pass reports a
+    per-point coverage_frac; enforce_sign_consistency FAILS CLOSED when it is below
+    min_domain_coverage_frac — a whole-cloud AVERAGE must NOT be the guard, and 'measured
+    nothing on part of the cloud' is never read as 'clean'."""
+    def block(dom, min_cov=0.9, max_opp=0.05):
+        return {"normal_sign": {
+            "opposition_8nn": {"frac_opposed": 0.02},
+            "opposition_domain": dom, "degenerate_mean_frac": 0.001,
+            "min_domain_neighbors": 4.0, "min_domain_coverage_frac": min_cov,
+            "max_opposition": max_opp, "max_degenerate_mean": 0.005}}
+
+    # coverage below the floor (duplicate-heavy / degenerate) -> RAISE even with frac_opposed
+    # low, because most of the cloud could not be measured at its own domain scale.
+    thin = {"scale": "adaptive", "n_query": 3000, "n_query_adequate": 580,
+            "coverage_frac": 0.19, "frac_opposed": 0.0, "frac_strong_opposed": 0.0,
+            "mean_neighbors": 5.0, "global_spacing": 0.07}
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(block(thin))
+
+    # well-covered AND within budget -> passes (no raise).
+    good = {"scale": "adaptive", "n_query": 3000, "n_query_adequate": 2990,
+            "coverage_frac": 0.997, "frac_opposed": 0.02, "frac_strong_opposed": 0.004,
+            "mean_neighbors": 60.0, "global_spacing": 0.02}
+    D.enforce_sign_consistency(block(good))
+
+    # well-covered BUT opposition over gate (the CASE-D signature) -> RAISE.
+    broken = {"scale": "adaptive", "n_query": 4500, "n_query_adequate": 4500,
+              "coverage_frac": 1.0, "frac_opposed": 0.058, "frac_strong_opposed": 0.03,
+              "mean_neighbors": 90.0, "global_spacing": 0.02}
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(block(broken))
+
+    # experiment opt-out (max_opposition None) -> low coverage never raises either.
+    D.enforce_sign_consistency(block(thin, max_opp=None))
+
+
+def test_domain_gate_end_to_end_case_d_false_pass_now_fails():
+    """FIX A integration (task 2026-07-15 cycle 3): the CASE-D archetype (dense agreeing ground
+    + sparse randomly-signed foliage domains) is a VERIFIED false-pass of the old global-radius
+    domain pass. Drive it through the REAL default (per-point adaptive) metric + the real gate:
+    the adaptive metric measures the foliage domains (> 5%) so enforce_sign_consistency FAILS —
+    the gate no longer false-passes a density-nonuniform broken asset."""
+    from precompute.core import normals
+    from precompute.tests import test_normals as TN
+    xyz, n, _is_fol = TN._dense_ground_sparse_foliage()
+    idx = normals.knn_indices(xyz, 8)
+
+    # OLD global-radius pass: false 'clean' (< 1%) yet whole-cloud avg neighbours satisfied.
+    med = normals.median_knn_distance(xyz, idx=idx)
+    o_global = normals.signed_opposition_frac(xyz, n, radius=4.0 * med, sample=None)
+    assert o_global["frac_opposed"] < 0.01 and o_global["mean_neighbors"] > 4.0   # would false-pass
+
+    # NEW default: per-point adaptive -> measures the sparse foliage domains -> gate FIRES.
+    opp_dom = normals.signed_opposition_adaptive(
+        xyz, n, idx=idx, spacing_mult=D.DOMAIN_RADIUS_SPACING_MULT, min_neighbors=4.0, sample=None)
+    assert opp_dom["frac_opposed"] > 0.05 and opp_dom["coverage_frac"] > 0.99
+    metrics = {"normal_sign": {
+        "opposition_8nn": normals.signed_opposition_frac(xyz, n, idx=idx),
+        "opposition_domain": opp_dom, "degenerate_mean_frac": 0.0,
+        "min_domain_neighbors": 4.0, "min_domain_coverage_frac": 0.9,
+        "max_opposition": 0.05, "max_degenerate_mean": 0.005}}
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(metrics)
+
+
+def test_domain_gate_end_to_end_duplicate_heavy():
+    """FIX A degenerate case (task 2026-07-15 cycle 3): a duplicate-heavy cloud with real sign
+    domains elsewhere must NOT false-pass. Through the real adaptive metric + gate, coverage_frac
+    collapses below the floor (the duplicates capture no DISTINCT neighbours) -> fail-closed; the
+    real domains are also measured (> 5%). enforce_sign_consistency raises either way."""
+    from precompute.core import normals
+    from precompute.tests import test_normals as TN
+    xyz, n = TN._duplicate_heavy_with_domains()
+    idx = normals.knn_indices(xyz, 8)
+    opp_dom = normals.signed_opposition_adaptive(
+        xyz, n, idx=idx, spacing_mult=D.DOMAIN_RADIUS_SPACING_MULT, min_neighbors=4.0, sample=None)
+    assert opp_dom["coverage_frac"] < 0.9 or opp_dom["frac_opposed"] > 0.05   # not a false pass
+    metrics = {"normal_sign": {
+        "opposition_8nn": normals.signed_opposition_frac(xyz, n, idx=idx),
+        "opposition_domain": opp_dom, "degenerate_mean_frac": 0.0,
+        "min_domain_neighbors": 4.0, "min_domain_coverage_frac": 0.9,
+        "max_opposition": 0.05, "max_degenerate_mean": 0.005}}
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(metrics)
+
+
+def test_domain_gate_absolute_override_tiny_radius_fail_closed():
+    """The ABSOLUTE --sign-opposition-radius override still fail-closes when a pathologically
+    tiny radius captures nothing (the 0.0-from-no-data false pass), via the radius branch."""
+    from precompute.core import normals
+    from precompute.tests import test_normals as TN
+    xyz, n, _is_fol = TN._dense_ground_sparse_foliage()
+    opp_tiny = normals.signed_opposition_frac(xyz, n, radius=1e-6, sample=None)
+    assert opp_tiny["mean_neighbors"] == 0.0 and opp_tiny["frac_opposed"] == 0.0
+    metrics = {"normal_sign": {
+        "opposition_8nn": {"frac_opposed": 0.01}, "opposition_domain": opp_tiny,
+        "degenerate_mean_frac": 0.0, "min_domain_neighbors": 4.0,
+        "max_opposition": 0.05, "max_degenerate_mean": 0.005}}
+    with pytest.raises(SystemExit):
+        D.enforce_sign_consistency(metrics)
+
+
 def test_frozen_albedo_guard_catches_colored_constant():
     """MINOR-4: the frozen-albedo guard uses per-channel across-Gaussian std, so an
     every-Gaussian-identical-but-COLORED albedo ([0.3,0.4,0.5]) fires it — a flattened

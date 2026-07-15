@@ -37,6 +37,15 @@ ATTRIBUTION: (a) correlate the metrics with normal noise (angle to the k-NN
   metric drops >=50% under a smoothing that keeps appearance sane, an EXPORT-time
   normal smooth would suffice (no decompose-solver change needed).
 
+  CAVEAT (task 2026-07-15-normal-sign-consistency): this attribution-(b) preview loop is
+  SIGN-NAIVE — it sums raw neighbours (`sm[idx].sum`). The SHIPPED smooth
+  (core.normals.smooth_normals_knn) is now SIGN-AWARE (each neighbour flipped to the self
+  hemisphere before averaging). The two agree only on already-sign-consistent normals; on
+  partially sign-opposed assets the sign-naive preview NEAR-CANCELS opposed neighbours, so
+  its predicted metric drop is an UPPER BOUND (optimistic) approximation of what the shipped
+  sign-aware smooth actually does. This tool is a diagnostic, never a gate — the numeric
+  behaviour is left unchanged so the historical diagnosis numbers stay reproducible.
+
 Runs headless/CPU in the splat-relight conda env (numpy + scipy). No GPU, no Godot.
 
 Usage:
@@ -264,6 +273,11 @@ def main() -> None:
                   f"self={wmean(selftw[sel], w[sel])*1000:7.4f}  n={int(sel.sum())}")
 
     # --- attribution (b): k-NN normal-smoothing PREVIEW (no re-decompose) -------
+    # SIGN-NAIVE preview (raw neighbour sum). The SHIPPED export smooth
+    # (core.normals.smooth_normals_knn) is SIGN-AWARE (flips each neighbour to the self
+    # hemisphere first); this preview equals it only on already-sign-consistent normals and
+    # is an OPTIMISTIC upper bound on partially-opposed assets (opposed neighbours near-cancel
+    # here). Kept sign-naive on purpose — diagnostic only, so the diagnosis numbers reproduce.
     sm = normal_g.copy()
     for _ in range(max(0, args.smooth_iters)):
         summed = sm[idx].sum(axis=1)                          # includes self

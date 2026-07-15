@@ -60,6 +60,16 @@ ALPHA_TAU = 0.5
 # the CLI default so the SHIPPED stage gates by DEFAULT (phase D tunes it on real data).
 DEFAULT_MIN_PSNR_DROP = 1.5
 
+# domain-scale opposition radius = this MULTIPLE of the cloud's median 8-NN spacing when
+# --sign-opposition-radius is not given (the default/preferred auto-scale). The COLMAP
+# gauge is arbitrary per reconstruction and nothing rescales xyz (the heroes report
+# scene_scale 5.78 / 7.50), so a FIXED world-unit radius fail-OPENS on any asset whose
+# spacing differs from the heroes. Tying the radius to the asset's own spacing keeps the
+# domain detector meaningful at ANY gauge: the heroes' ~0.0265u median 8-NN spacing x 4
+# = ~0.106u reproduces the audited ~0.11-unit domain scale, so 4x captures the same domain
+# structure everywhere. (median 8-NN spacing = median over all (point,neighbour) pairs.)
+DOMAIN_RADIUS_SPACING_MULT = 4.0
+
 
 # ============================================================================
 # Environment light — pure-torch degree-2 SH (replaces the excluded cubemap)
@@ -130,6 +140,13 @@ def c2w_from_viewmat(viewmat: torch.Tensor):
     R_c2w = R.transpose(-1, -2)
     C = -(R_c2w @ t)
     return R_c2w, C
+
+
+def camera_center_from_viewmat(viewmat: np.ndarray) -> np.ndarray:
+    """world->cam viewmat [4,4] -> camera centre in world/COLMAP frame: C = -R^T t.
+    numpy sibling of c2w_from_viewmat's C (feeds the normal-sign camera-hemisphere pass)."""
+    vm = np.asarray(viewmat, dtype=np.float64)
+    return (-vm[:3, :3].T @ vm[:3, 3]).astype(np.float64)
 
 
 def _pixel_ray_dirs(H: int, W: int, K: torch.Tensor):
@@ -334,6 +351,79 @@ def enforce_rerender_budget(psnr, psnr_finite, tb_psnr, min_psnr_drop, tb_metric
             "reproduce the inputs")
 
 
+def enforce_sign_consistency(metrics):
+    """Normal-sign-consistency gate (task 2026-07-15-normal-sign-consistency, step 4;
+    CLAUDE.md invariant #7 — a metric that FAILS if the stage broke). FAIL if the shipped
+    normals still carry random-signed DOMAINS: multi-scale sign-opposition (8-NN OR the
+    ~0.1-unit domain scale) above `max_opposition`, or a sign-aware near-cancellation
+    (`degenerate_mean_frac`) above `max_degenerate_mean`. Reads metrics['normal_sign'];
+    a no-op when that block is absent (finalize's synthetic-metrics unit tests) or when the
+    thresholds are None (experiment opt-out). raise SystemExit (survives python -O).
+
+    FAIL-CLOSED when the DOMAIN pass could not verify enough of the cloud (mirrors
+    enforce_rerender_budget: refuse when it cannot verify). Two domain modes:
+      * adaptive (DEFAULT, FIX A): per-point radii measure each point at ITS OWN domain
+        scale so a dense majority cannot mask a sparse broken minority. REJECT if fewer than
+        `min_domain_coverage_frac` of the query points individually captured
+        `min_domain_neighbors` DISTINCT neighbours (a whole-cloud AVERAGE must NOT be the
+        guard — that is exactly how the old global pass false-passed density-nonuniform
+        clouds; and 'measured nothing' is never read as 'clean').
+      * radius (absolute --sign-opposition-radius override, experiments): a single fixed
+        radius fail-OPENS off-gauge — its frac_opposed reads 0.0 because the ball captured NO
+        neighbour, not because the asset is clean — so REJECT on a global mean_neighbors /
+        query-with-neighbours floor."""
+    si = metrics.get("normal_sign")
+    if not si:
+        return
+    max_opp = si.get("max_opposition")
+    max_deg = si.get("max_degenerate_mean")
+    if max_opp is not None:
+        # fail-closed: the DOMAIN pass must actually have certified enough of the cloud.
+        dom = si.get("opposition_domain", {})
+        scale = dom.get("scale")
+        if scale == "adaptive":
+            min_cov = si.get("min_domain_coverage_frac")
+            cov = dom.get("coverage_frac")
+            if min_cov is not None and cov is not None and cov < min_cov:
+                raise SystemExit(
+                    f"[decompose] FATAL: the per-point adaptive domain-scale sign-opposition "
+                    f"pass certified only {cov:.1%} of the cloud (< coverage floor {min_cov:.0%}): "
+                    f"too many query points failed to capture >= {si.get('min_domain_neighbors')} "
+                    "DISTINCT neighbours within their adaptive radius (duplicate-heavy / degenerate "
+                    "geometry). A whole-cloud AVERAGE must NOT be the guard and 'measured nothing' "
+                    "is NOT 'clean' — refusing to pass a gate that could not verify the domain scale "
+                    "on enough of the cloud.")
+        elif scale == "radius":
+            min_nb = si.get("min_domain_neighbors")
+            mean_nb = dom.get("mean_neighbors")
+            n_qwn = dom.get("n_query_with_neighbors")
+            undersampled = ((n_qwn is not None and n_qwn <= 0) or
+                            (min_nb is not None and mean_nb is not None and mean_nb < min_nb))
+            if undersampled:
+                raise SystemExit(
+                    f"[decompose] FATAL: the domain-scale sign-opposition pass measured too "
+                    f"little to verify (radius {dom.get('radius')}, mean_neighbors={mean_nb}, "
+                    f"query pts w/ neighbours={n_qwn} < floor {min_nb}) — its frac_opposed=0.0 "
+                    "is 'measured nothing', NOT 'clean'. Omit --sign-opposition-radius (per-point "
+                    "adaptive to the asset gauge) or widen the absolute override; refusing to pass a "
+                    "gate that could not verify the domain scale.")
+        for key, label in (("opposition_8nn", "8-NN"), ("opposition_domain", "domain")):
+            frac = si.get(key, {}).get("frac_opposed")
+            if frac is not None and frac > max_opp:
+                raise SystemExit(
+                    f"[decompose] FATAL: {label} sign-opposition {frac:.2%} > gate "
+                    f"{max_opp:.2%} — the shipped normals still carry random-signed domains "
+                    "(front/back ambiguity unresolved); those are the owner's patch shadows "
+                    "under max(dot(N,L),0). Raise --max-sign-opposition only for experiments.")
+    if max_deg is not None:
+        deg = si.get("degenerate_mean_frac")
+        if deg is not None and deg > max_deg:
+            raise SystemExit(
+                f"[decompose] FATAL: sign-aware degenerate-mean fraction {deg:.2%} > gate "
+                f"{max_deg:.2%} — too many normals near-cancel under smoothing (a noise "
+                "direction would be renormalized and shipped).")
+
+
 def held_out_psnr(shaded, gt, mask):
     """Per-view held-out PSNR, returned as (full_frame, masked).
 
@@ -425,6 +515,8 @@ def finalize_decompose(*, out, env_out, metrics, gate_psnr, psnr_finite, tb_psnr
     # defaults --min-psnr-drop to 1.5); rejects when it cannot verify (MINOR-3). Uses
     # the FULL-FRAME PSNR (MAJOR-A).
     enforce_rerender_budget(gate_psnr, psnr_finite, tb_psnr, min_psnr_drop, tb_metrics_path)
+    # normal-sign-consistency gate (task 2026-07-15) — DEFAULT ON via metrics['normal_sign'].
+    enforce_sign_consistency(metrics)
 
     # ---- all gates passed: NOW write the consumable artifacts ----
     ply_io.write_decompose_ply(
@@ -484,9 +576,61 @@ def main():
                          "per-Gaussian normals this many times, applied BEFORE the held-out "
                          "PSNR gate + decompose.ply write so the re-render budget (invariant "
                          "#8) validates the smoothed normals. DEFAULT 0 = OFF (byte-identical "
-                         "to no smoothing). See docs/validation-normal-quality-diagnosis-2026-07-14.md.")
+                         "to no smoothing). NOTE: the sign-opposition gate is ALWAYS ON "
+                         "(--max-sign-opposition). Smoothing (+ the sign-consistency pass) resolves "
+                         "the CAMERA-RESOLVABLE sign component: where a splat's true normal faces a "
+                         "camera hemisphere, orient + sign-aware smooth drive its opposition toward "
+                         "0. It does NOT resolve GRAZING / away-facing foliage normals (near-"
+                         "perpendicular to every camera) — camera-orientation cannot pick their "
+                         "sign, so those keep a residual opposition (a known limitation). Whether "
+                         "the real heroes clear the gate is decided by the scheduled GPU "
+                         "re-decompose, which fail-closes if they do not — NOT by any in-loop "
+                         "synthetic fixture. See docs/validation-normal-quality-diagnosis-2026-07-14.md.")
     ap.add_argument("--smooth-normals-knn", type=int, default=8,
                     help="k for --smooth-normals-iters (default 8, matches the diagnosis preview).")
+    # ---- normal-sign consistency (task 2026-07-15-normal-sign-consistency) ----
+    ap.add_argument("--no-sign-consistency", dest="no_sign_consistency", action="store_true",
+                    help="disable the normal-sign consistency pass (orient-to-camera-hemisphere "
+                         "on the init AND on the final normals before smoothing). Default OFF = "
+                         "pass ON. The sign-opposition gate (--max-sign-opposition) is ALWAYS ON "
+                         "regardless, so disabling reproduces the pre-fix ~29%%-sign-opposed output "
+                         "and the gate then FIRES (raise) unless --max-sign-opposition is raised.")
+    ap.add_argument("--sign-k-cam", dest="sign_k_cam", type=int, default=3,
+                    help="orient each normal toward the mean direction of its this-many nearest "
+                         "cameras (default 3; smooths the reference so no Voronoi-boundary flips).")
+    ap.add_argument("--sign-opposition-radius", dest="sign_opposition_radius", type=float, default=None,
+                    help="ABSOLUTE world-unit radius for the DOMAIN-scale sign-opposition "
+                         "metric/gate — EXPERIMENTS ONLY. DEFAULT (omit) = PER-POINT ADAPTIVE: "
+                         f"{DOMAIN_RADIUS_SPACING_MULT}x EACH point's own k-th-NN spacing, so every "
+                         "point is measured at ITS OWN domain scale. A single fixed radius (whether "
+                         "absolute or a global-median auto-scale) is dragged to the dense majority's "
+                         "spacing on density-nonuniform clouds (dense ground + sparse foliage) and "
+                         "never measures the sparse foliage's domains -> false-passes; per-point "
+                         "adaptive is density-invariant by construction.")
+    ap.add_argument("--sign-opposition-sample", dest="sign_opposition_sample", type=int, default=200000,
+                    help="subsample size for the domain-scale opposition metric (bounds cost on "
+                         "multi-M-Gaussian clouds; default 200000).")
+    ap.add_argument("--sign-opposition-min-neighbors", dest="sign_opposition_min_neighbors",
+                    type=float, default=4.0,
+                    help="the per-point coverage threshold: a query point is 'adequately sampled' "
+                         "only if it captured at least this many DISTINCT-position neighbours within "
+                         "its adaptive radius (default 4.0). Feeds the coverage-fraction fail-closed "
+                         "floor (--sign-opposition-min-coverage).")
+    ap.add_argument("--sign-opposition-min-coverage", dest="sign_opposition_min_coverage",
+                    type=float, default=0.9,
+                    help="fail-closed COVERAGE floor (default 0.9 = 90%%): FAIL if fewer than this "
+                         "FRACTION of query points were adequately sampled at their own domain scale "
+                         "(>= --sign-opposition-min-neighbors distinct neighbours). A whole-cloud "
+                         "AVERAGE neighbour count must NOT be the guard — the dense majority satisfies "
+                         "it while the sparse minority goes unmeasured; a per-point coverage fraction "
+                         "fails closed when too little of the cloud could be certified.")
+    ap.add_argument("--max-sign-opposition", dest="max_sign_opposition", type=float, default=0.05,
+                    help="fail-closed gate: FAIL if 8-NN OR domain-scale sign-opposition fraction "
+                         "of the SHIPPED normals exceeds this (default 0.05 = 5%%, the task gate). "
+                         "Pass a large value (e.g. 1.0) to ~disable for experiments.")
+    ap.add_argument("--max-degenerate-mean", dest="max_degenerate_mean", type=float, default=0.005,
+                    help="fail-closed gate: FAIL if the sign-aware degenerate-mean fraction "
+                         "(near-cancellation) of the shipped normals exceeds this (default 0.005).")
     ap.add_argument("--gpu", type=int, default=0)
     args = ap.parse_args()
 
@@ -511,9 +655,32 @@ def main():
     opacities = torch.sigmoid(torch.tensor(g["opacity"], device=dev))
     sh0 = g["f_dc"]                                        # carried into decompose.ply
 
+    # ---- views first: cam centres feed the normal-sign consistency pass ----
+    Ks, viewmats, gts, names = _load_views(args.sparse, args.images)
+    H, W = gts[0].shape[0], gts[0].shape[1]
+    n_imgs = len(gts)
+    is_test = [i % args.test_every == 0 for i in range(n_imgs)]
+    train_idx = [i for i in range(n_imgs) if not is_test[i]]
+    test_idx = [i for i in range(n_imgs) if is_test[i]]
+    # camera centres (world/COLMAP frame): C = -R_c2w @ t, R_c2w = R_w2c^T
+    cam_centers = np.stack([camera_center_from_viewmat(vm.numpy()) for vm in viewmats])
+    print(f"[decompose] N={N} gaussians  {n_imgs} imgs ({len(train_idx)} train/"
+          f"{len(test_idx)} test)  {W}x{H}  pbr_iteration={args.pbr_iteration}", flush=True)
+
     # ---- learnable material params (pre-activation leaves) ----
     _albedo = nn.Parameter(torch.zeros(N, 3, device=dev))          # sigmoid -> 0.5
     n0 = shortest_axis_normals(g["scale"], g["rot"])               # COLMAP frame, unit
+    # normal-sign consistency at the SOURCE (task 2026-07-15, step 1): shortest_axis_normals
+    # takes an arbitrary-signed covariance-axis column, so orient the INIT to the dominant
+    # camera hemisphere -> the whole solve runs on consistent signs (preferred over a
+    # post-hoc flip; dot(N,L) enters the shading). Cheap (O(N log C)); COLMAP frame.
+    if not args.no_sign_consistency:
+        n0, init_sign_info = normals_mod.make_normals_sign_consistent(
+            g["xyz"], n0, cam_centers=cam_centers, k_cam=args.sign_k_cam)
+        print(f"[decompose] init normal-sign consistency ({init_sign_info['method']}): "
+              f"flipped {init_sign_info.get('frac_flipped', 0.0):.1%}", flush=True)
+    else:
+        init_sign_info = {"method": "disabled"}
     _normal = nn.Parameter(torch.tensor(n0, device=dev))           # F.normalize at use
     _rough = nn.Parameter(torch.zeros(N, 1, device=dev))           # sigmoid -> 0.5
     env = SHEnvLight(grey_ambient=0.5, freeze_dc=False, device=dev)
@@ -522,15 +689,6 @@ def main():
     opt_albedo = torch.optim.Adam([_albedo], lr=args.albedo_lr, eps=1e-15)
     opt_rough = torch.optim.Adam([_rough], lr=args.rough_lr, eps=1e-15)
     opt_env = torch.optim.Adam(env.parameters(), lr=args.env_lr, eps=1e-15)
-
-    Ks, viewmats, gts, names = _load_views(args.sparse, args.images)
-    H, W = gts[0].shape[0], gts[0].shape[1]
-    n_imgs = len(gts)
-    is_test = [i % args.test_every == 0 for i in range(n_imgs)]
-    train_idx = [i for i in range(n_imgs) if not is_test[i]]
-    test_idx = [i for i in range(n_imgs) if is_test[i]]
-    print(f"[decompose] N={N} gaussians  {n_imgs} imgs ({len(train_idx)} train/"
-          f"{len(test_idx)} test)  {W}x{H}  pbr_iteration={args.pbr_iteration}", flush=True)
 
     window = _gauss_window(3, device=dev)
     rng = np.random.default_rng(0)
@@ -600,38 +758,96 @@ def main():
         rough_np = torch.sigmoid(_rough).cpu().numpy().reshape(-1).astype(np.float32)
         ambient_sh = env.export_ambient_sh()               # (9,3) PRE-flip
 
-    # ---- D5 normal-quality fix: optional k-NN normal smooth (task 2026-07-13, step 2) ----
-    # Applied to the FINAL normals (COLMAP frame; smoothing is rigid-equivariant so the
-    # single export COLMAP->Godot rotation still holds) BEFORE the held-out PSNR eval below
-    # AND the decompose.ply write, so decompose's own re-render budget gate (invariant #8)
-    # is the load-bearing appearance guard on the SHIPPED normals. iters=0 (default) is an
-    # exact no-op -> a normal run is byte-identical. Coherence is a cheap over-smoothing
-    # TRIPWIRE only (necessary-not-sufficient; a flat ground asset legitimately saturates it);
-    # PSNR is the fail-closed guard. Shimmer (<=98.8) is checked separately via gaussian_twinkle.
+    # ---- normal-sign consistency + optional smooth (COLMAP frame; before PSNR/write) ----
+    # k-NN graph shared by the sign pass, the smooth, and the sign metrics (one cKDTree).
+    knn_idx = normals_mod.knn_indices(g["xyz"], args.smooth_normals_knn)
+
+    # Post-solve sign-consistency pass (task 2026-07-15, step 2): even with the init
+    # oriented, the free _normal solve can drift signs, so RE-orient the FINAL normals to
+    # the camera hemisphere BEFORE smoothing. This is what removes the random-signed
+    # DOMAINS — sign-aware smoothing preserves each domain's arbitrary sign and cannot. It
+    # runs before the held-out PSNR eval + decompose.ply write, so the re-render budget
+    # (invariant #8) is the load-bearing appearance guard on the SHIPPED, sign-consistent
+    # normals (a post-solve flip changes shading; the PSNR gate must re-pass — hence real
+    # validation is a scheduled re-decompose, not an in-loop check).
+    sign_info = {"enabled": (not args.no_sign_consistency), "init": init_sign_info}
+    if not args.no_sign_consistency:
+        normal_np, final_sign_info = normals_mod.make_normals_sign_consistent(
+            g["xyz"], normal_np, cam_centers=cam_centers, k_cam=args.sign_k_cam, idx=knn_idx)
+        sign_info["final"] = final_sign_info
+        print(f"[decompose] final normal-sign consistency ({final_sign_info['method']}): "
+              f"flipped {final_sign_info.get('frac_flipped', 0.0):.1%}", flush=True)
+
+    # ---- D5 optional k-NN normal smooth (task 2026-07-13, step 2; now SIGN-AWARE) ----
+    # Applied to the FINAL normals (COLMAP frame; sign-aware smoothing is still rigid-
+    # equivariant so the single export COLMAP->Godot rotation holds). iters=0 (default) is
+    # an exact no-op. The over-smoothing TRIPWIRE is now folded_coherence (mean |dot|,
+    # sign-independent — the old signed local_coherence rewarded domain formation, task
+    # step 4); PSNR is the fail-closed guard. Shimmer (<=98.8) is checked via gaussian_twinkle.
     smooth_info = {"iters": int(args.smooth_normals_iters), "knn": int(args.smooth_normals_knn)}
     OVER_SMOOTH_COH = 0.985
     if args.smooth_normals_iters > 0:
-        knn_idx = normals_mod.knn_indices(g["xyz"], args.smooth_normals_knn)
-        coh_before = float(normals_mod.local_coherence(g["xyz"], normal_np, idx=knn_idx).mean())
+        fc_before = float(normals_mod.folded_coherence(g["xyz"], normal_np, idx=knn_idx).mean())
         mnn_before = normals_mod.mean_normal_norm(normal_np)
         normal_np = normals_mod.smooth_normals_knn(
             g["xyz"], normal_np, k=args.smooth_normals_knn,
             iters=args.smooth_normals_iters, idx=knn_idx)
-        coh_after = float(normals_mod.local_coherence(g["xyz"], normal_np, idx=knn_idx).mean())
+        fc_after = float(normals_mod.folded_coherence(g["xyz"], normal_np, idx=knn_idx).mean())
         mnn_after = normals_mod.mean_normal_norm(normal_np)
-        over_smooth = bool(coh_after >= OVER_SMOOTH_COH)
+        over_smooth = bool(fc_after >= OVER_SMOOTH_COH)
         smooth_info.update(
-            local_coherence_before=coh_before, local_coherence_after=coh_after,
+            folded_coherence_before=fc_before, folded_coherence_after=fc_after,
             mean_normal_norm_before=mnn_before, mean_normal_norm_after=mnn_after,
             over_smooth_coh_ceiling=OVER_SMOOTH_COH, over_smooth_suspect=over_smooth)
         print(f"[decompose] normal smooth: {args.smooth_normals_iters}x knn={args.smooth_normals_knn} "
-              f"coherence {coh_before:.3f}->{coh_after:.3f} ||mean_n|| {mnn_before:.3f}->{mnn_after:.3f}",
+              f"folded_coherence {fc_before:.3f}->{fc_after:.3f} ||mean_n|| {mnn_before:.3f}->{mnn_after:.3f}",
               flush=True)
         if over_smooth:
-            print(f"[decompose] WARNING: post-smooth local coherence {coh_after:.3f} >= "
+            print(f"[decompose] WARNING: post-smooth folded coherence {fc_after:.3f} >= "
                   f"{OVER_SMOOTH_COH} (over-smoothing tripwire — normals may be blurred toward a "
                   f"sphere; confirm the held-out PSNR gate + eyeball). PSNR is the load-bearing guard.",
                   flush=True)
+
+    # ---- normal-sign metrics on the SHIPPED normals (task step 4; audit numbers as a gate) ----
+    # Multi-scale sign-opposition (fine 8-NN AND the domain scale) + the sign-aware
+    # degenerate-mean (near-cancellation) fraction. Gated in finalize_decompose.
+    # DEFAULT domain metric is PER-POINT ADAPTIVE (FIX A): each point is measured at its OWN
+    # domain scale (radius = DOMAIN_RADIUS_SPACING_MULT x its k-th-NN distance) so a dense
+    # ground carpet cannot drag the radius below the sparse foliage's domain scale, and a
+    # per-point COVERAGE floor (not a whole-cloud average) fail-closes on degenerate geometry.
+    # --sign-opposition-radius forces a fixed ABSOLUTE global radius for experiments only.
+    if args.sign_opposition_radius is not None:
+        opp_dom = normals_mod.signed_opposition_frac(
+            g["xyz"], normal_np, radius=float(args.sign_opposition_radius),
+            sample=args.sign_opposition_sample)
+        domain_radius_mode = "absolute_override"
+        med_spacing = None
+        print(f"[decompose] domain-opposition radius = ABSOLUTE {args.sign_opposition_radius:.4g} "
+              "(experiment override; per-point adaptive is the default)", flush=True)
+    else:
+        opp_dom = normals_mod.signed_opposition_adaptive(
+            g["xyz"], normal_np, idx=knn_idx, spacing_mult=DOMAIN_RADIUS_SPACING_MULT,
+            min_neighbors=args.sign_opposition_min_neighbors,
+            sample=args.sign_opposition_sample)
+        domain_radius_mode = "adaptive_per_point"
+        med_spacing = opp_dom.get("global_spacing")
+        print(f"[decompose] domain-opposition radius PER-POINT ADAPTIVE: "
+              f"{DOMAIN_RADIUS_SPACING_MULT}x each point's k-th-NN spacing "
+              f"(mean radius {opp_dom.get('mean_radius'):.4g}, global spacing {med_spacing:.4g}, "
+              f"coverage {opp_dom.get('coverage_frac'):.1%})", flush=True)
+    opp_knn = normals_mod.signed_opposition_frac(g["xyz"], normal_np, idx=knn_idx)
+    deg_frac = normals_mod.degenerate_mean_fraction(
+        g["xyz"], normal_np, idx=knn_idx, sign_aware=True)
+    sign_info.update(
+        opposition_8nn=opp_knn, opposition_domain=opp_dom,
+        degenerate_mean_frac=deg_frac,
+        domain_radius_mode=domain_radius_mode, median_knn_spacing=med_spacing,
+        min_domain_neighbors=args.sign_opposition_min_neighbors,
+        min_domain_coverage_frac=args.sign_opposition_min_coverage,
+        max_opposition=args.max_sign_opposition, max_degenerate_mean=args.max_degenerate_mean)
+    print(f"[decompose] sign-opposition 8-NN {opp_knn['frac_opposed']:.2%}  "
+          f"domain({domain_radius_mode}) {opp_dom['frac_opposed']:.2%}  "
+          f"degenerate-mean {deg_frac:.2%}", flush=True)
 
     # ---- held-out re-render PSNR ----
     # MAJOR-A: the GATED PSNR is FULL-FRAME (matches train_base's pixel set EXACTLY);
@@ -672,6 +888,7 @@ def main():
         "psnr_heldout_masked_db": (round(psnr_masked, 3) if math.isfinite(psnr_masked) else None),  # diagnostic
         "test_views": len(test_idx), "wall_time_s": round(time.time() - t0, 1),
         "normal_smooth": smooth_info,
+        "normal_sign": sign_info,
     }
     # phase-D budget bookkeeping (tb_psnr verified against train_base.ply count, MINOR-C)
     metrics["train_base_psnr_db"] = tb_psnr
