@@ -4,6 +4,18 @@
 the queue is blocked or as a parallel slice. Banner each pass with its date + what was swept
 (prepend, keep history); this file is never marked SHIPPED.
 
+> **PASS 2026-07-15 (run #6): slice-5 D5 rollout — pxl_131945 (the 2nd hero asset).** Re-decomposed
+> `pxl_131945` with `--smooth-normals-iters 2 --smooth-normals-knn 8` (scratch-first → passed the
+> fail-closed held-out-PSNR gate → promoted to `assets/built/pxl_131945/` + mirrored byte-identical
+> to `godot/gs_assets/pxl_131945.relightply`; originals kept as `*_unsmoothed.*.bak`). Metrics:
+> held-out PSNR **24.202 dB** (budget_ok, 0.48 dB headroom vs the 23.72 floor), coherence
+> **0.576→0.925** (over_smooth_suspect false), unit normals, no NaN; smoothing cost 0.50 dB (7.5×
+> pxl_144634's — albedo/rough BYTE-IDENTICAL, so normals-only). Verified flow-verifier + correctness
+> (no BLOCKER/MAJOR; MINOR advisory: **owner eyeball recommended** on a relit render given the thin
+> headroom — trivially reversible via the `.bak` + `git checkout` of the 4 JSONs). **REMAINING
+> slice-5 work:** regen the demo video + README gif (still gated on slice-4 = GDGS −180°Z
+> neutralization in the demo/gif render tools). Detail: `docs/2026-07-15-handoff-6-run6.md`.
+
 ## Purpose (owner mandate, 2026-07-12)
 Keep space in the factory for **code quality reviews and keeping the project well structured**
 — continuously, not as one-off cleanups.

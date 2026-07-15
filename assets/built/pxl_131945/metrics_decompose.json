@@ -8,23 +8,33 @@
     1066
   ],
   "albedo": {
-    "min": 0.03473717346787453,
-    "max": 0.9822100400924683,
+    "min": 0.03474000468850136,
+    "max": 0.9822099208831787,
     "nan": 0,
     "inf": 0
   },
-  "albedo_std": 0.22843940556049347,
+  "albedo_std": 0.22843988239765167,
   "rough": {
-    "min": 0.02608039602637291,
-    "max": 0.9625557661056519,
+    "min": 0.026083825156092644,
+    "max": 0.9625628590583801,
     "nan": 0,
     "inf": 0
   },
-  "normal_unit_err": 1.7881393432617188e-07,
-  "psnr_heldout_db": 24.703,
-  "psnr_heldout_masked_db": 24.71,
+  "normal_unit_err": 5.960464477539063e-08,
+  "psnr_heldout_db": 24.202,
+  "psnr_heldout_masked_db": 24.206,
   "test_views": 19,
-  "wall_time_s": 351.8,
+  "wall_time_s": 356.6,
+  "normal_smooth": {
+    "iters": 2,
+    "knn": 8,
+    "local_coherence_before": 0.5761501589129652,
+    "local_coherence_after": 0.9252967020585614,
+    "mean_normal_norm_before": 0.1843356374756943,
+    "mean_normal_norm_after": 0.36515487932793345,
+    "over_smooth_coh_ceiling": 0.985,
+    "over_smooth_suspect": false
+  },
   "train_base_psnr_db": 25.22,
   "min_psnr_drop": 1.5,
   "budget_ok": true
