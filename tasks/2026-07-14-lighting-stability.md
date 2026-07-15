@@ -1,3 +1,15 @@
+> **STATUS (2026-07-15): SHIPPED as v0.14.0** (dark-factory run #6). `render_matrix.gd` finished from
+> the run #5 WIP to a legitimate, repeatable **10/10** gate: 53-condition matrix, `LIGHTING_STABILITY_RESULT
+> PASS`, exit 0 on the grounded `pxl_144634` (DISPLAY=:0). No engine finding — all 4 formerly-failing
+> checks were harness-logic/threshold bugs (no DECISIONS row). Verified correctness+regression+flow-verifier
+> (fault-injection confirmed the raw-invariance check still fires on a real leak). Full detail:
+> `docs/validation-lighting-stability-2026-07-15.md`.
+> **REMAINDER (not done):** Approach §4 / acceptance bullet 4 — the per-condition shimmer BASELINE table
+> (gaussian_twinkle semantics over short orbit bursts at 3–4 matrix corners) — is NOT shipped: it needs
+> temporal orbit-bursts, which the static-frame matrix does not produce, and it is explicitly BASELINE-only
+> (de-scoped from gating). Carry as a small follow-on. Follow-on note: Ready #4 `flashlight-orb`'s engine-lit
+> reference orb should reuse this tool's `sphere_consistency` helper.
+
 # lighting-stability — prove the relight pass is stable across conditions + engine models
 
 **Size/risk:** M / medium (godot/ tools lane — no GDGS edits, no shader changes unless a check

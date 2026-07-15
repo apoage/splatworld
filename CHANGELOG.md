@@ -5,6 +5,30 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-07-15
+- **lighting-stability harness (`tasks/2026-07-14-lighting-stability.md`).** Finished the run #5 WIP
+  `godot/relight/tools/render_matrix.gd` into a legitimate, repeatable **10/10** offline gate. A FIXED
+  camera renders a **53-condition** matrix of the M2 relight pass on the grounded `pxl_144634.relightply`
+  (elevation×azimuth grid + energy/ambient/color 1-D sweeps × {raw, relit, relit+trans_on}) and emits
+  per-check pass/fail into `godot/shots/lighting_stability/lighting_stability.json`. One greppable line
+  `LIGHTING_STABILITY_RESULT PASS|FAIL`; exit code mirrors it. Real renderer only (`DISPLAY=:0`, NO
+  `--headless`), ~23 s on the 3090.
+- **10 machine-checkable checks:** no-NaN, min-coverage (two-tier: RAW footprint + universal blank floor),
+  relit luma bounds, raw-invariance (light must not leak into the albedo-only path), trans-inertness
+  (relit == relit+trans_on while asset trans==0), azimuth-360° return (no state drift), energy-linearity
+  (luma(2E)/luma(E)≈2, env off + ambient 0), elevation smoothness, ambient floor, and an engine
+  cross-model sphere-consistency check (our `light_dir_ws` agrees in sign with the engine
+  DirectionalLight3D). **No engine finding surfaced** — all four previously-failing checks were
+  harness-logic/threshold bugs; no `tasks/DECISIONS.md` row.
+- **Verified (never self-reviewed):** correctness + regression + flow-verifier panel. The correctness
+  judge caught the first implementer pass having lowered two PSNR floors (`RAW` 55→45, `TRANS` 55→40)
+  *below* their measured operating point on a false rationale; the fix pass corrected them to `RAW 50` /
+  `TRANS 55` — margin under the measured worsts (raw 55.4–56.9 dB, trans 62.7–64.2 dB over 4–5 runs),
+  the false comments replaced with the flow-verifier's fault-injection numbers (a subtle ~2% raw leak
+  reads 36 dB, gross 4.5 dB — the loosened check still fires on a real fault), and the degenerate
+  `trans_inertness` self-compares removed (`n_pairs` 28→11 genuine pairs). Suite unchanged at 88.
+  Full analysis: `docs/validation-lighting-stability-2026-07-15.md`.
+
 ## [0.13.0] — 2026-07-15
 - **normal-quality FIX (`tasks/2026-07-13-normal-quality.md`, D5 — STEP 2 of 2).** k-NN normal
   smoothing that removes the orbit "sparkle" step 1 attributed to spatial neighbour-normal
