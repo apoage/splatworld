@@ -27,6 +27,17 @@ const LOCAL_SIZE := 256
 const ENV_SH_COEFFS := 9
 const ENV_SH_BYTES := 144 # ENV_SH_COEFFS * 4 floats * 4 bytes
 
+# DC-normalization (relit-energy): set_env_sh scales ALL 9 c_lm so the sphere-mean
+# luma of ambient_sh(N) becomes 1.0. The sphere-mean of ambient_sh equals SH_C0*c00
+# because every l>=1 SH band integrates to zero over the sphere, so dividing all
+# coeffs by that mean's Rec.709 luma makes ambient_sh unit-mean while preserving the
+# env's directional shape + RELATIVE tint. The shader then scales by the ambient
+# slider (pc.light_color.w), so the recovered env drives ambient strength with the
+# SAME energy budget as the flat fallback vec3(ambient). SH_C0 MUST equal the shader
+# / relight_ply_loader constant; ENV_DC_EPS guards a ~0 (or negative) DC luma.
+const SH_C0 := 0.28209479177387814
+const ENV_DC_EPS := 1e-8
+
 enum { MODE_RAW = 0, MODE_RELIT = 1 }
 
 # --- material state (set on resource assign) ---
@@ -80,17 +91,29 @@ static func clear_materials() -> void:
 # coeffs_rgb = 27 floats [c0.r,c0.g,c0.b, c1.r, ...] (9 coeffs x RGB), Godot-frame,
 # A_l/pi already folded (see RelightEnvSH / core.sh_env). Empty / wrong length =>
 # flat-ambient fallback. Packs to 9 x vec4 (w pad) for std430 binding 4.
+#
+# DC-normalization: the sidecar coeffs are the FULL recovered capture illumination;
+# left raw they'd apply the env at weight ~1.0 (mean ambient luma ~0.8-0.9) IGNORING
+# the ambient slider -> relit ~= unit sun + full capture light ~= double energy
+# ("bloom with extra saturation", clipping). We scale ALL 9 coeffs by
+# s = 1 / max(SH_C0 * luma(c00), eps) so the sphere-mean luma of ambient_sh(N) == 1.0
+# (all l>=1 bands integrate to zero over the sphere, so the mean is exactly SH_C0*c00);
+# the shader multiplies by the ambient slider, matching the flat fallback's energy
+# budget while keeping the env's directional shape + relative tint. Normalization is
+# runtime-side ONLY: the sidecar bytes / core.sh_env stay engine-agnostic ground truth.
 static func set_env_sh(coeffs_rgb: PackedFloat32Array) -> void:
 	if coeffs_rgb.size() != ENV_SH_COEFFS * 3:
 		clear_env_sh()
 		return
+	var dc_luma := 0.2126 * coeffs_rgb[0] + 0.7152 * coeffs_rgb[1] + 0.0722 * coeffs_rgb[2]
+	var s := 1.0 / maxf(SH_C0 * dc_luma, ENV_DC_EPS)
 	var b := PackedByteArray()
 	b.resize(ENV_SH_BYTES)
 	for i in ENV_SH_COEFFS:
 		var o := i * 16
-		b.encode_float(o + 0, coeffs_rgb[i * 3 + 0])
-		b.encode_float(o + 4, coeffs_rgb[i * 3 + 1])
-		b.encode_float(o + 8, coeffs_rgb[i * 3 + 2])
+		b.encode_float(o + 0, coeffs_rgb[i * 3 + 0] * s)
+		b.encode_float(o + 4, coeffs_rgb[i * 3 + 1] * s)
+		b.encode_float(o + 8, coeffs_rgb[i * 3 + 2] * s)
 		b.encode_float(o + 12, 0.0)
 	_env_bytes = b
 	_env_active = 1

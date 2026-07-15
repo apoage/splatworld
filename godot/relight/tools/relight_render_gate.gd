@@ -39,6 +39,18 @@ const MIN_COVERED := 5000              # splats must actually render
 const DIFF_TOL := 0.01                 # luminance-mean difference threshold
 const DEFAULT_LUMA_FLOOR := 0.01       # ambient floor (env RELIGHT_LUMA_FLOOR overrides)
 
+# --- relit-energy env-SH checks (set_env_sh DC-normalizes the env to the ambient
+# slider). Two properties, both luma-only so they survive this asset's near-isotropic
+# foliage normals (see the DIR_* note): (1) at the SAME ambient slider, env-relit mean
+# ~= flat-relit mean (the DC-normalization restored the flat energy budget; the pre-fix
+# bug applied the env at weight ~1.0 -> |env-flat| ~= 0.34, so this FAILS loudly on a
+# regression). (2) env-relit now SCALES with the ambient slider (the shader multiplies
+# ambient_sh(N) by pc.light_color.w) — pre-fix the env IGNORED the slider so env@hi ==
+# env@lo. Thresholds measured on DISPLAY=:0 then set with margin. ---
+const ENV_FLAT_TOL := 0.05             # |env@0.2 - flat@0.2| bound (measured 0.00014; pre-fix 0.34)
+const ENV_SLIDER_HI := 0.5             # second ambient level for the slider-scaling probe
+const ENV_SLIDER_MIN_DELTA := 0.03     # env@0.5 - env@0.2 must exceed this (measured ~0.13; pre-fix 0.0)
+
 # Fixed light TRAVEL directions (world). A = oblique, B = a shallower GRAZING angle,
 # SHADOW = straight DOWN (light from directly overhead). The directional-response
 # assertion deliberately compares OVERHEAD (DIR_SHADOW) vs GRAZING (DIR_B) because
@@ -60,10 +72,11 @@ var _res
 var _shot_dir := ""
 var _measures := []
 
-# env-SH ambient: when a sidecar loads, phases 4-5 re-render with the recovered
-# ambient (set_env_sh) so we can prove sidecar-ambient != flat-fallback (checksum)
-# and that the ambient floor still holds under the light-behind config with env SH.
-# No sidecar -> _n_phases stays 4 and the gate is the exact M2a flat-only gate.
+# env-SH ambient: when a sidecar loads, phases 4-6 re-render with the recovered
+# (DC-normalized) ambient (set_env_sh) so we can prove (4) env@slider matches the flat
+# energy budget, (5) the ambient floor still holds under the light-behind config with
+# env SH, and (6) the env now SCALES with the ambient slider. No sidecar -> _n_phases
+# stays 4 and the gate is the exact M2a flat-only gate.
 var _env_coeffs := PackedFloat32Array()
 var _has_env := false
 var _n_phases := 4
@@ -101,7 +114,7 @@ func _initialize() -> void:
 
 	_env_coeffs = RelightEnvSH.load_coeffs(ASSET_PATH)
 	_has_env = _env_coeffs.size() == RelightEnvSH.N_COEFFS * 3
-	_n_phases = 6 if _has_env else 4
+	_n_phases = 7 if _has_env else 4
 	print("[relight-gate] env-SH sidecar: %s (%d coeffs) -> %d phases" % [
 		("LOADED" if _has_env else "absent, flat-only"), _env_coeffs.size(), _n_phases])
 
@@ -121,7 +134,9 @@ func _initialize() -> void:
 
 
 # Phases 0-3 are the M2a flat-ambient gate (env cleared -> shader uses pc.light_color.w).
-# Phases 4-5 (only when a sidecar loaded) re-render with the recovered env-SH ambient.
+# Phases 4-6 (only when a sidecar loaded) re-render with the recovered (DC-normalized)
+# env-SH ambient: 4 = env @ default slider (energy-budget match vs flat phase 1),
+# 5 = env light-behind (ambient floor), 6 = env @ a HIGHER slider (slider-scaling).
 func _apply_phase() -> void:
 	match _phase:
 		0:
@@ -137,13 +152,19 @@ func _apply_phase() -> void:
 			RelightPass.clear_env_sh()
 			RelightPass.set_light(DIR_SHADOW.normalized(), LIGHT_COLOR, WRAP_POWER, AMBIENT, RelightPass.MODE_RELIT, false)
 		4:
-			# relit A, but with the recovered env-SH ambient (vs flat phase 1).
+			# relit A, recovered env-SH ambient at the DEFAULT slider. Post-fix this
+			# matches flat phase 1's energy budget (env keeps only shape + tint).
 			RelightPass.set_env_sh(_env_coeffs)
 			RelightPass.set_light(DIR_A.normalized(), LIGHT_COLOR, WRAP_POWER, AMBIENT, RelightPass.MODE_RELIT, false)
 		5:
 			# light straight down, env-SH ambient -> ambient floor must still hold.
 			RelightPass.set_env_sh(_env_coeffs)
 			RelightPass.set_light(DIR_SHADOW.normalized(), LIGHT_COLOR, WRAP_POWER, AMBIENT, RelightPass.MODE_RELIT, false)
+		6:
+			# relit A, env-SH ambient at a HIGHER slider -> env must scale with the
+			# slider (pre-fix it ignored the slider, so this == phase 4).
+			RelightPass.set_env_sh(_env_coeffs)
+			RelightPass.set_light(DIR_A.normalized(), LIGHT_COLOR, WRAP_POWER, ENV_SLIDER_HI, RelightPass.MODE_RELIT, false)
 
 
 func _process(_delta: float) -> bool:
@@ -252,17 +273,28 @@ func _evaluate() -> bool:
 	print("[relight-gate] L_raw=%.5f L_A=%.5f L_B=%.5f L_over=%.5f darkest=phase%d(mean=%.5f) | |A-raw|=%.5f |over-B|=%.5f shadow_p2=%.5f floor=%.5f" % [
 		l_raw, l_a, l_b, l_over, darkest, float(_measures[darkest]["mean"]), absf(l_a - l_raw), dir_delta, shadow_floor, floor_thr])
 
-	# env-SH ambient vs flat-fallback proof (only when a sidecar loaded).
+	# env-SH energy proof (only when a sidecar loaded). Post relit-energy fix the env is
+	# DC-normalized to the ambient slider, so (a) env@slider matches the flat energy
+	# budget (NOT "differs from flat" — that was the pre-fix bug), and (b) the env now
+	# SCALES with the slider. Both are luma-only (robust to near-isotropic normals).
 	if _has_env:
-		var l_a_env: float = _measures[4]["mean"]   # relit A, recovered env-SH ambient
-		var env_delta := absf(l_a_env - l_a)         # l_a == relit A, flat ambient (phase 1)
+		var l_a_env: float = _measures[4]["mean"]     # relit A, env-SH ambient @ default slider
+		var env_delta := absf(l_a_env - l_a)           # l_a == relit A, FLAT ambient (phase 1)
 		var env_shadow_floor: float = _measures[5]["p2"]
-		if env_delta <= DIFF_TOL:
-			problems.append("env≈flat: |L_A_env-L_A_flat|=%.5f <= %.5f (sidecar ambient had no effect)" % [env_delta, DIFF_TOL])
+		var l_a_env_hi: float = _measures[6]["mean"]   # relit A, env-SH ambient @ ENV_SLIDER_HI
+		var slider_delta := l_a_env_hi - l_a_env       # must be clearly positive (env obeys slider)
+		# (a) DC-normalization restored the flat energy budget.
+		if env_delta > ENV_FLAT_TOL:
+			problems.append("env!=flat budget: |L_A_env-L_A_flat|=%.5f > %.5f (env not DC-normalized to the ambient slider)" % [env_delta, ENV_FLAT_TOL])
+		# (b) env ambient scales with the ambient slider (pre-fix: ignored it).
+		if slider_delta < ENV_SLIDER_MIN_DELTA:
+			problems.append("env ignores slider: L_A_env(%.2f)=%.5f - L_A_env(%.2f)=%.5f delta=%.5f < %.5f (ambient slider does not scale the env term)" % [
+				AMBIENT, l_a_env, ENV_SLIDER_HI, l_a_env_hi, slider_delta, ENV_SLIDER_MIN_DELTA])
+		# ambient floor still holds under env-SH.
 		if env_shadow_floor < floor_thr:
 			problems.append("env shadow floor p2=%.5f < %.5f (env ambient black shadows)" % [env_shadow_floor, floor_thr])
-		print("[relight-gate] ENV-SH: L_A_flat=%.5f L_A_env=%.5f |env-flat|=%.5f (>%.5f) | env_shadow_p2=%.5f floor=%.5f" % [
-			l_a, l_a_env, env_delta, DIFF_TOL, env_shadow_floor, floor_thr])
+		print("[relight-gate] ENV-SH: L_A_flat=%.5f L_A_env=%.5f |env-flat|=%.5f (<=%.5f) | env@%.2f=%.5f slider_delta=%.5f (>=%.5f) | env_shadow_p2=%.5f floor=%.5f" % [
+			l_a, l_a_env, env_delta, ENV_FLAT_TOL, ENV_SLIDER_HI, l_a_env_hi, slider_delta, ENV_SLIDER_MIN_DELTA, env_shadow_floor, floor_thr])
 
 	if not problems.is_empty():
 		for p in problems:

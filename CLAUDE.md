@@ -60,8 +60,14 @@ in the same commit. Reader/writer lives in `precompute/core/ply_io.py` only.
 ```
 direct = max(dot(N, L), 0)
 back   = trans * pow(max(dot(-N, L), 0) * 0.5 + 0.5, wrap_power)   # cheap wrap translucency
-color  = albedo * (direct + back) * light_color + albedo * ambient_sh(N)
+color  = albedo * (direct + back) * light_color + albedo * ambient * ambient_sh(N)
 ```
+- `ambient` = the ambient slider; `ambient_sh(N)` = a **DC-normalized env shape** (unit
+  sphere-mean luma), so the ambient term = slider × unit-mean env shape, i.e. the slider
+  sets the ambient energy budget exactly like the flat fallback and the env contributes only
+  directional shape + relative tint — NOT the raw capture energy. When no env sidecar is
+  bound, `ambient_sh(N)` collapses to the flat `ambient` constant. DC-normalization is
+  runtime-side ONLY (`RelightPass.set_env_sh`); exported sidecar bytes stay ground truth.
 - **Mode A (default, M2):** direct eval from albedo/normal/rough/trans as above.
 - **Mode B (stretch, M5):** PRT-lite — `color = Σ w_i · b_i`, weights = current light
   projected onto the baked basis. Linear blend of baked states only.

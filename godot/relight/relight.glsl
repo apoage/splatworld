@@ -44,7 +44,12 @@ layout(std430, set = 0, binding = 3) restrict readonly buffer MaterialBuffer {
 // Lambertian band factors already folded in (c_lm = (A_l/pi)*L_lm). Populated by
 // RelightPass.set_env_sh from the *_env_sh.json sidecar; consumed ONLY when
 // pc.misc.w != 0, else the flat pc.light_color.w ambient is used (fallback). Each
-// entry: xyz = c_lm RGB, w = pad (9 x vec4 = 144 bytes).
+// entry: xyz = c_lm RGB, w = pad (9 x vec4 = 144 bytes). The bound coeffs are
+// DC-NORMALIZED at bind time (RelightPass.set_env_sh scales all 9 by 1/(SH_C0*luma(c00)))
+// so ambient_sh(N) has UNIT sphere-mean luma; the ambient slider (pc.light_color.w)
+// below then scales env strength exactly like the flat fallback (same energy budget,
+// env keeps only its directional shape + relative tint). The raw sidecar bytes are
+// unchanged on disk — this energy normalization lives ONLY here at runtime.
 layout(std430, set = 0, binding = 4) restrict readonly buffer EnvSHBuffer {
 	vec4 env_sh[9];
 } env;
@@ -117,8 +122,11 @@ void main() {
 	// CLAUDE.md ambient term: recovered env-SH when a sidecar is bound
 	// (pc.misc.w != 0), else the flat scalar fallback. N is the world-space
 	// normal already used by the direct term; the sidecar coeffs are in the same
-	// Godot world frame, so no re-flip is applied here.
-	vec3 ambient_rgb = (pc.misc.w != 0) ? ambient_sh(N) : vec3(ambient);
+	// Godot world frame, so no re-flip is applied here. The bound env coeffs are
+	// DC-normalized (unit sphere-mean luma) at bind time, so the ambient slider
+	// (pc.light_color.w) scales the env shape to the SAME energy budget as the flat
+	// fallback -> env-on vs env-off differ in directional SHAPE, not overall energy.
+	vec3 ambient_rgb = (pc.misc.w != 0) ? pc.light_color.w * ambient_sh(N) : vec3(ambient);
 	vec3 color = albedo * (direct + back) * light_color + albedo * ambient_rgb;
 
 	culled_buffer[id].color = vec4(color, prev.a);

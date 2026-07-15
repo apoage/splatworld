@@ -1,3 +1,12 @@
+> **STATUS (2026-07-16): SHIPPED as v0.15.0.** DC-normalized the env-SH ambient (unit sphere-mean)
+> and scaled it by the ambient slider in `relight.glsl` + `RelightPass.set_env_sh`. Verified green by a
+> correctness + regression + flow-verifier panel; `render_matrix.gd` 10/10 on the 3090 (deterministic
+> ×2), `|env-flat|=0.00014`, `slider_delta=0.13191`, env-on grid luma 0.15–0.30 (pre-fix ~4×). Suite 95.
+> **Remainders (planner):** (1) add the D4-runtime-recalibration entry to `docs/decisions.md` (full text
+> in the run handoff); (2) owner eyeball in the viewer (V toggle should read as a subtle shape/tint
+> difference, not an energy jump). MINOR carried: a degenerate zero-DC sidecar would fail the smoke gate
+> loudly (not a silent bad ship) — harden only if a black-DC capture is ever expected.
+
 # relit-energy — normalize the env-SH ambient to the ambient slider (owner: "bloom with extra saturation")
 
 **Size/risk:** S–M / medium (one-line shader semantics + set_env_sh normalization — but it is

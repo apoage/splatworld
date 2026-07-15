@@ -5,6 +5,35 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-07-16
+- **relit-energy: DC-normalize the env-SH ambient to the ambient slider
+  (`tasks/2026-07-15-relit-energy.md`).** Owner report (both heroes): relit looked like "bloom with
+  extra saturation" — made-up light/shadow patches + hue shift. Root cause: `relight.glsl` applied the
+  recovered env-SH ambient at weight 1.0 (`ambient_rgb = ambient_sh(N)`), IGNORING the ambient slider,
+  while the sidecar coeffs are the FULL recovered capture illumination — so relit ≈ unit sun + full
+  capture light ≈ ~4× energy (audit: env ambient luma 0.84–0.88 = 4.2–4.4× the 0.2 flat design; 23–27%
+  of splats clipping >1.0 → the hue-shift/bloom). Flow-verifier measured the pre-fix multiplier at 4.01×.
+- **Fix (runtime-side only):** `RelightPass.set_env_sh` now scales all 9 c_lm by `1/(SH_C0·luma(c00))`
+  so the sphere-mean luma of `ambient_sh(N)` == 1.0 (every l≥1 SH band integrates to zero over the
+  sphere ⇒ the mean is exactly `SH_C0·c00`); `relight.glsl` multiplies the env branch by the ambient
+  slider (`pc.light_color.w · ambient_sh(N)`). The slider now drives env strength exactly like the flat
+  fallback (same energy budget); the env contributes only directional shape + relative tint.
+  `sh_env.py`, the `*_env_sh.json` sidecar bytes, and the export A_l·π folding are UNTOUCHED — exports
+  stay engine-agnostic ground truth; normalization is runtime-only. (Recalibrates D4's runtime wiring;
+  the data contract is unchanged — planner to log the D4 note in `docs/decisions.md`.)
+- **Gates:** new headless data gate in `relight_smoke.gd` asserts unit sphere-mean luma on the BOUND
+  coeffs (synthetic + real sidecar) via an exact 6-point octahedral quadrature; `relight_render_gate.gd`
+  rewritten — the old "env must DIFFER from flat" assertion was INVERTED by this fix (env now MATCHES the
+  flat energy budget by design), replaced by an energy-budget-match check (|env−flat| ≤ 0.05; a
+  regression to weight-1.0 reads ~0.34) plus a new phase-6 slider-scaling probe (env@0.5 − env@0.2 ≥
+  0.03; pre-fix the env ignored the slider). `render_matrix.gd` re-passes 10/10 on the 3090 (deterministic
+  ×2); env-on grid luma dropped from bloomy (~4×) to 0.15–0.30. Suite 95 passed.
+- **Verified (never self-reviewed):** correctness + regression + flow-verifier panel, all green.
+  Correctness hand-derived the SH sphere-mean identity; regression confirmed the cactus/raw/flat paths
+  stay byte-identical and the push constant is unchanged (48 B); the flow-verifier ran all four gates on
+  the real RTX 3090 after a forced shader reimport (a `.glsl` edit needs `godot --headless --import`
+  before a `--script` render or the run uses the stale cached import — noted for CI).
+
 ## [0.14.0] — 2026-07-15
 - **lighting-stability harness (`tasks/2026-07-14-lighting-stability.md`).** Finished the run #5 WIP
   `godot/relight/tools/render_matrix.gd` into a legitimate, repeatable **10/10** offline gate. A FIXED
