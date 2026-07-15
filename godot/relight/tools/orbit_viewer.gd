@@ -38,6 +38,14 @@ var _amb := AMBIENT
 var _wrap := WRAP_POWER
 var _color := LIGHT_COLOR
 
+# Diagnostic isolation toggles (owner debugging of the relit energy budget):
+# V = env-SH ambient on/off (off -> flat AMBIENT fallback), A = sun off
+# (ambient term only), D = ambient off (direct sun term only).
+var _env_coeffs := PackedFloat32Array()
+var _env_on := true
+var _sun_off := false
+var _amb_off := false
+
 
 func _ready() -> void:
 	super()
@@ -49,6 +57,13 @@ func _ready() -> void:
 		_center = ab.position + ab.size * 0.5
 		_dist = maxf(ab.size.length() * 0.9, 1.0)
 		_update_cam()
+	# Cache the sidecar coeffs (same path logic as the controller) so V can
+	# re-bind after a clear. Empty => no sidecar => V is a no-op.
+	var asset_path := OS.get_environment("RELIGHT_ASSET")
+	if asset_path.is_empty():
+		asset_path = ASSET_PATH
+	_env_coeffs = RelightEnvSH.load_coeffs(asset_path)
+	_env_on = not _env_coeffs.is_empty()
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -96,6 +111,28 @@ func _unhandled_input(e: InputEvent) -> void:
 				_amb = AMBIENT
 				_wrap = WRAP_POWER
 				_color = LIGHT_COLOR
+				_sun_off = false
+				_amb_off = false
+				if not _env_on and not _env_coeffs.is_empty():
+					RelightPass.set_env_sh(_env_coeffs)
+					_env_on = true
+			KEY_V:
+				if _env_coeffs.is_empty():
+					_condition = "no env sidecar"
+				else:
+					_env_on = not _env_on
+					if _env_on and not _amb_off:
+						RelightPass.set_env_sh(_env_coeffs)
+					else:
+						RelightPass.clear_env_sh()
+			KEY_A:
+				_sun_off = not _sun_off
+			KEY_D:
+				_amb_off = not _amb_off
+				if _amb_off:
+					RelightPass.clear_env_sh()
+				elif _env_on and not _env_coeffs.is_empty():
+					RelightPass.set_env_sh(_env_coeffs)
 			KEY_5:
 				# Backlit: sun directly opposite the camera, low over the horizon.
 				_hold_light("backlit")
@@ -149,7 +186,9 @@ func _process(delta: float) -> void:
 	)
 	_light.look_at_from_position(Vector3.ZERO, -sun, Vector3.UP)
 	var light_dir_ws := -_light.global_transform.basis.z
-	RelightPass.set_light(light_dir_ws, _color * _energy, _wrap, _amb, _mode, _trans_on)
+	var eff_energy := 0.0 if _sun_off else _energy
+	var eff_amb := 0.0 if _amb_off else _amb
+	RelightPass.set_light(light_dir_ws, _color * eff_energy, _wrap, eff_amb, _mode, _trans_on)
 	_refresh_hud()
 
 
@@ -166,14 +205,18 @@ func _refresh_hud() -> void:
 			1000.0 / maxf(Engine.get_frames_per_second(), 1.0),
 			str(_splat.gaussian.point_count) if _splat != null and _splat.gaussian != null else "?",
 		]
-		+ "mode=%s%s  sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
+		+ "mode=%s%s  env=%s%s%s  sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
 			"relit" if _mode == RelightPass.MODE_RELIT else "RAW ALBEDO",
 			"+trans" if _trans_on else "",
+			("none" if _env_coeffs.is_empty() else ("SH" if _env_on else "flat")),
+			"  SUN-OFF" if _sun_off else "",
+			"  AMB-OFF" if _amb_off else "",
 			roundi(wrapf(rad_to_deg(_sun_az), 0.0, 360.0)), roundi(rad_to_deg(_sun_el)),
 			_energy, _amb, _wrap, _condition,
 		]
 		+ "drag=cam  rdrag=sun  wheel=zoom  SPACE=orbit pause  C=day-cycle\n"
-		+ "1=noon 2=golden 3=overcast 4=moon 5=backlit  +/-=E  [/]=amb  ,/.=wrap  R=reset"
+		+ "1=noon 2=golden 3=overcast 4=moon 5=backlit  +/-=E  [/]=amb  ,/.=wrap  R=reset\n"
+		+ "V=envSH/flat  A=sun off (env term alone)  D=ambient off (sun term alone)"
 	)
 
 
