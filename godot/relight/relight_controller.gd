@@ -30,15 +30,21 @@ func _ready() -> void:
 	_build_environment()
 	_build_ui()
 
-	var res := RelightPlyLoader.load(ASSET_PATH)
+	# RELIGHT_ASSET env var overrides the default asset (owner eyeballs of other
+	# heroes without a code edit): RELIGHT_ASSET=res://gs_assets/pxl_131945.relightply
+	var asset_path := OS.get_environment("RELIGHT_ASSET")
+	if asset_path.is_empty():
+		asset_path = ASSET_PATH
+
+	var res := RelightPlyLoader.load(asset_path)
 	if res == null:
-		_set_status("FAILED to load %s" % ASSET_PATH)
-		push_error("[relight] controller: asset load failed (%s)" % ASSET_PATH)
+		_set_status("FAILED to load %s" % asset_path)
+		push_error("[relight] controller: asset load failed (%s)" % asset_path)
 		return
 
 	RelightPass.set_materials(res.attr_data_byte, res.point_count)
 	# Recovered ambient env-SH (empty => flat ambient fallback, warned by the reader).
-	RelightPass.set_env_sh(RelightEnvSH.load_coeffs(ASSET_PATH))
+	RelightPass.set_env_sh(RelightEnvSH.load_coeffs(asset_path))
 
 	_splat = GaussianSplatNode.new()
 	_splat.gaussian = res

@@ -161,7 +161,12 @@ func _hold_light(condition: String) -> void:
 
 func _refresh_hud() -> void:
 	_set_status(
-		"mode=%s%s  sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
+		"fps=%d  frame=%.1fms  splats=%s\n" % [
+			Engine.get_frames_per_second(),
+			1000.0 / maxf(Engine.get_frames_per_second(), 1.0),
+			str(_splat.gaussian.point_count) if _splat != null and _splat.gaussian != null else "?",
+		]
+		+ "mode=%s%s  sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
 			"relit" if _mode == RelightPass.MODE_RELIT else "RAW ALBEDO",
 			"+trans" if _trans_on else "",
 			roundi(wrapf(rad_to_deg(_sun_az), 0.0, 360.0)), roundi(rad_to_deg(_sun_el)),
