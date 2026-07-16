@@ -296,3 +296,16 @@ owner GO** as scoped (corrected triple gate). **Lighting-lab viewer** shipped pl
 `orbit_viewer.gd` (presets/day-cycle/manual sun/live energy-ambient-wrap); systematic harness
 seeded as `tasks/2026-07-14-lighting-stability.md` (Ready #2). **unreal-port** parked ON HOLD
 (Epic MegaGrants candidate). Run #4 reconciled + pushed (tags v0.11.0/v0.12.0).
+
+---
+
+**2026-07-16 — relit-energy: runtime DC-normalization of the env-SH ambient (recalibrates D4's wiring).**
+`relight.glsl` applied the env-SH ambient at weight 1.0 (ignoring the ambient slider) while the sidecar
+is the full recovered capture illumination → ~4× energy / clipping / "bloom" (audit 4.2–4.4× design;
+flow-verifier 4.01×). Fix (runtime only): `set_env_sh` scales c_lm by `1/(SH_C0·luma(c00))` (unit
+sphere-mean; every l≥1 SH band integrates to zero over the sphere ⇒ mean = SH_C0·c00); `relight.glsl`
+multiplies the env branch by the ambient slider. NOT touched: `sh_env.py`, sidecar bytes, export folding
+— exports stay engine-agnostic ground truth. D4's data contract unchanged; only its runtime wiring
+recalibrated. Verified: `relight_smoke.gd` unit sphere-mean gate + `relight_render_gate.gd`
+(|env−flat|=0.0001, slider Δ=0.13) + `render_matrix.gd` 10/10. (Entry authored by run #7, placed by the
+planner per the two-thread contract; CLAUDE.md runtime-shading section updated in the same run.)
