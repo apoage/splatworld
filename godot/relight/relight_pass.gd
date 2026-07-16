@@ -27,6 +27,20 @@ const LOCAL_SIZE := 256
 const ENV_SH_COEFFS := 9
 const ENV_SH_BYTES := 144 # ENV_SH_COEFFS * 4 floats * 4 bytes
 
+# Local point/spot light buffer (binding 5): a FIXED-SIZE array of light slots so the
+# flashlight (N=1) extends to N=2..MAX_FLASH_LIGHTS Moon-Stone fireballs (M4/M5) WITHOUT
+# another GPU buffer / shader contract change — only set_flashlight()'s caller grows.
+# std430 layout, MUST match FlashBuffer in relight.glsl:
+#   ivec4 meta                          (16 B)  x = active light count
+#   FlashLight lights[MAX_FLASH_LIGHTS]         each 3 vec4 = 48 B:
+#     pos_range  : xyz world pos, w = range (falloff cutoff distance)
+#     dir_cone   : xyz spot axis (world, unit), w = cos(outer cone half-angle)
+#     color_cone : rgb color*energy, w = cos(inner cone half-angle)
+const MAX_FLASH_LIGHTS := 4
+const FLASH_SLOT_BYTES := 48                       # 3 vec4
+const FLASH_META_BYTES := 16                       # ivec4 header
+const FLASH_BYTES := FLASH_META_BYTES + MAX_FLASH_LIGHTS * FLASH_SLOT_BYTES # 208
+
 # DC-normalization (relit-energy): set_env_sh scales ALL 9 c_lm so the sphere-mean
 # luma of ambient_sh(N) becomes 1.0. The sphere-mean of ambient_sh equals SH_C0*c00
 # because every l>=1 SH band integrates to zero over the sphere, so dividing all
@@ -50,6 +64,10 @@ static var _env_bytes := PackedByteArray() # 144 B packed, or empty (=> flat fal
 static var _env_active := 0                # push-constant misc.w: 1 => shade with env_sh
 static var _env_version := 0
 
+# --- local point/spot light state (set each frame by the scene; count 0 => no local light) ---
+static var _flash_bytes := PackedByteArray() # FLASH_BYTES packed, or empty (=> off)
+static var _flash_version := 0
+
 # --- light / shading state (set each frame by the scene) ---
 static var _light_dir := Vector3(0.0, -1.0, 0.0) # travel direction (world)
 static var _light_color := Vector3(1.0, 1.0, 1.0)
@@ -68,12 +86,14 @@ class Bundle:
 	var shader: RID
 	var material_desc     # GdgsRenderingDeviceContext.Descriptor
 	var env_desc          # GdgsRenderingDeviceContext.Descriptor (env-SH buffer, fixed 144 B)
+	var flash_desc        # GdgsRenderingDeviceContext.Descriptor (local-light buffer, fixed 208 B)
 	var descriptor_set: RID
 	var pipeline: Callable
 	var point_count := 0
 	var material_size := 0
 	var material_version := -1
 	var env_version := -1
+	var flash_version := -1
 
 
 static func set_materials(attr_data_byte: PackedByteArray, count: int) -> void:
@@ -136,6 +156,66 @@ static func _env_padded() -> PackedByteArray:
 	return z
 
 
+# Local point/spot light. `on` gates the whole term (off => meta.x = 0 => no cost
+# beyond the count read). `pos`/`dir` are WORLD-space (the shader transforms each
+# splat's object position to world itself). `energy` scales `color`. `range` is the
+# falloff cutoff distance. `inner_deg`/`outer_deg` are the spot cone half-angles
+# (full brightness inside inner, fades to 0 by outer). Equal (or inner>outer) angles
+# collapse to a NEAR-HARD edge: cos_inner is nudged just above cos_outer so the
+# shader's smoothstep(cos_outer, cos_inner, .) never gets edge0>=edge1 (undefined /
+# NaN on many drivers). Fills slot 0 (N=1) — the buffer already carries
+# MAX_FLASH_LIGHTS slots, so adding the Moon-Stone fireballs later is a
+# set_flashlights([...]) that fills more slots, NOT a contract change. Mirrors
+# set_light: static, called each frame by the scene.
+static func set_flashlight(on: bool, pos: Vector3, dir: Vector3, color: Color,
+		energy: float, range: float, inner_deg: float, outer_deg: float) -> void:
+	if not on:
+		clear_flashlight()
+		return
+	var d := dir.normalized()
+	if d.length_squared() < 0.5:
+		d = Vector3(0.0, 0.0, -1.0)
+	# outer >= inner so cos_outer <= cos_inner. Guard the shader's smoothstep against a
+	# degenerate cone (inner_deg >= outer_deg): force cos_inner strictly above cos_outer,
+	# which renders as a near-hard edge instead of an undefined smoothstep(e, e, x).
+	var outer := maxf(outer_deg, inner_deg)
+	var cos_outer := cos(deg_to_rad(outer))
+	var cos_inner: float = maxf(cos(deg_to_rad(inner_deg)), cos_outer + 1e-4)
+	var b := PackedByteArray()
+	b.resize(FLASH_BYTES)
+	b.encode_s32(0, 1) # meta.x = active light count
+	var o := FLASH_META_BYTES # slot 0
+	b.encode_float(o + 0, pos.x)
+	b.encode_float(o + 4, pos.y)
+	b.encode_float(o + 8, pos.z)
+	b.encode_float(o + 12, maxf(range, 1e-4))
+	b.encode_float(o + 16, d.x)
+	b.encode_float(o + 20, d.y)
+	b.encode_float(o + 24, d.z)
+	b.encode_float(o + 28, cos_outer)
+	b.encode_float(o + 32, color.r * energy)
+	b.encode_float(o + 36, color.g * energy)
+	b.encode_float(o + 40, color.b * energy)
+	b.encode_float(o + 44, cos_inner)
+	_flash_bytes = b
+	_flash_version += 1
+
+
+static func clear_flashlight() -> void:
+	_flash_bytes = PackedByteArray()
+	_flash_version += 1
+
+
+# Always FLASH_BYTES: real slots when active, else zeros (meta.x = 0 => shader skips).
+# Buffer stays bound so the descriptor set / pipeline need no rebuild when it toggles.
+static func _flash_padded() -> PackedByteArray:
+	if _flash_bytes.size() == FLASH_BYTES:
+		return _flash_bytes
+	var z := PackedByteArray()
+	z.resize(FLASH_BYTES)
+	return z
+
+
 static func set_light(light_dir_ws: Vector3, light_color: Color, wrap_power: float,
 		ambient: float, mode: int, trans_on: bool) -> void:
 	_light_dir = light_dir_ws
@@ -179,6 +259,12 @@ static func run(state, point_count: int) -> void:
 		ctx.device.buffer_update(bundle.env_desc.rid, 0, ENV_SH_BYTES, env_data)
 		bundle.env_version = _env_version
 
+	# Refresh local-light contents if they changed (fixed 208 B => no rebuild needed).
+	if bundle.flash_version != _flash_version:
+		var flash_data := _flash_padded()
+		ctx.device.buffer_update(bundle.flash_desc.rid, 0, FLASH_BYTES, flash_data)
+		bundle.flash_version = _flash_version
+
 	var push := _push_constant(point_count)
 	var compute_list: int = ctx.compute_list_begin()
 	bundle.pipeline.call(ctx, compute_list, push)
@@ -199,12 +285,15 @@ static func _build(state, point_count: int) -> Bundle:
 	b.material_version = _material_version
 	b.env_desc = ctx.create_storage_buffer(ENV_SH_BYTES, _env_padded())
 	b.env_version = _env_version
+	b.flash_desc = ctx.create_storage_buffer(FLASH_BYTES, _flash_padded())
+	b.flash_version = _flash_version
 	b.descriptor_set = ctx.create_descriptor_set([
 		state.descriptors["culled_splats"],
 		state.descriptors["splat_instance_ids"],
 		state.descriptors["instance_transforms"],
 		b.material_desc,
 		b.env_desc,
+		b.flash_desc,
 	], b.shader, 0)
 	b.pipeline = ctx.create_pipeline([ceili(point_count / float(LOCAL_SIZE)), 1, 1], [b.descriptor_set], b.shader)
 	return b

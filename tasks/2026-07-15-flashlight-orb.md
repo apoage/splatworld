@@ -1,3 +1,14 @@
+> **STATUS (2026-07-16): SHIPPED as v0.17.0.** Flashlight (camera-attached point/spot in the relight
+> pass), reference orb (`O`, engine-lit + mirrored SpotLight3D), `F` toggle + HUD. Per-splat world
+> position added to OUR material buffer (32→48 B, object-space pos × instance matrix — the task's
+> "already available" premise was WRONG and is corrected; NO PLY schema change). Light params in a new
+> binding-5 UBO; push constant unchanged (48 B); layout is the N=2–4 fireball extension point (M4/M5).
+> High-tier panel + a fail-closed re-verify (the analytic gate was fail-open on the range term → fixed
+> with P4 non-trivial-range + P5 out-of-range→0, re-verified by fault injection); render_matrix 10/10;
+> suite 107; world-position correctness confirmed spatially. **REMAINDER:** owner UX eyeball is the
+> acceptance gate (F flashlight feel / O orb). Frame-time baseline: on/off within noise @ 2.4M —
+> `docs/validation-flashlight-orb-2026-07-16.md`.
+
 # flashlight-orb — aggressive local lighting (point/spot) + engine-lit reference orb
 
 **Size/risk:** M / medium (extends the relight compute pass's light model — the first change

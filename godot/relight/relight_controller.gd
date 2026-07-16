@@ -72,9 +72,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	# Don't leave stale materials / ambient bound for whatever scene renders next.
+	# Don't leave stale materials / ambient / local lights bound for whatever scene renders next.
 	RelightPass.clear_materials()
 	RelightPass.clear_env_sh()
+	RelightPass.clear_flashlight()
 
 
 func _process(delta: float) -> void:

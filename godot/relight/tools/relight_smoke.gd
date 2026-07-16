@@ -28,7 +28,7 @@ const NORM_TOL := 1e-4                # unit sphere-mean luma tolerance
 
 const FLOATS_PER_SPLAT := 60          # GDGS std430 struct
 const BYTES_PER_SPLAT := 240
-const MATERIAL_BYTES := 32            # 2 x vec4
+const MATERIAL_BYTES := 48            # 3 x vec4 (albedo_rough, normal_trans, pos_label)
 const SCHEMA_VERSION := 1
 
 
@@ -88,6 +88,22 @@ func _initialize() -> void:
 		problems.append("trans=%d (want %d)" % [res.trans.size(), count])
 	if res.label.size() != count:
 		problems.append("label=%d (want %d)" % [res.label.size(), count])
+
+	# Material-buffer position slot (vec4 #3, floats 8-10) MUST equal the builder's
+	# centered geometry (res.xyz) — the point/spot light transforms it to world. A
+	# mismatch means the flashlight would light the wrong point in space.
+	if problems.is_empty() and count > 0:
+		var pos_err := 0.0
+		for idx in [0, int(count / 2), count - 1]:
+			var mo := int(idx) * MATERIAL_BYTES + 32 # 3rd vec4 byte offset
+			var px := res.attr_data_byte.decode_float(mo + 0)
+			var py := res.attr_data_byte.decode_float(mo + 4)
+			var pz := res.attr_data_byte.decode_float(mo + 8)
+			var xyz: Vector3 = res.xyz[int(idx)]
+			pos_err = maxf(pos_err, (Vector3(px, py, pz) - xyz).length())
+		print("[relight-smoke] material pos-slot vs xyz max_err=%.9f" % pos_err)
+		if pos_err > 1e-5:
+			problems.append("material pos slot != centered xyz (err %.3e)" % pos_err)
 
 	# Ranges + finiteness over every splat (single pass).
 	var albedo_min := INF

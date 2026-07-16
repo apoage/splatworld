@@ -5,7 +5,9 @@
 // and before its sort, writing the shaded per-splat color into the culled_splats
 // buffer (RasterizeData.color.rgb) that the GDGS rasterizer consumes. Only .rgb is
 // written; .a (opacity, set by projection) is preserved. Shading is CLAUDE.md
-// verbatim: direct + cheap wrap-translucency + flat ambient.
+// verbatim: direct + cheap wrap-translucency + ambient, PLUS optional local
+// point/spot lights (flashlight) that ADD the same direct+back term with a
+// per-splat local L, inverse-square range falloff, and a smooth spot cone.
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
@@ -34,11 +36,32 @@ layout(std430, set = 0, binding = 2) restrict readonly buffer InstanceTransforms
 struct Material {
 	vec4 albedo_rough; // rgb = albedo (SH deg0), w = roughness
 	vec4 normal_trans; // xyz = object-space unit normal, w = transmission
+	vec4 pos_label;    // xyz = object-space CENTERED position, w = label
 };
 
 layout(std430, set = 0, binding = 3) restrict readonly buffer MaterialBuffer {
 	Material materials[];
 };
+
+// Local light slots (flashlight now; Moon-Stone fireballs later). FIXED-SIZE array
+// so N=1 today extends to N=2..MAX_FLASH_LIGHTS without another buffer/shader contract
+// change — only the CPU-side setter grows. Populated by RelightPass.set_flashlight;
+// flash.meta.x = active light count (0 => no local light this frame). Each slot:
+//   pos_range   : xyz = world position,          w = range (falloff cutoff distance)
+//   dir_cone    : xyz = spot axis (world, unit),  w = cos(outer cone half-angle)
+//   color_cone  : rgb = color * energy,           w = cos(inner cone half-angle)
+// std430: ivec4 header (16 B) + MAX_FLASH_LIGHTS * 3 vec4 (48 B each). MUST match
+// RelightPass.MAX_FLASH_LIGHTS / FLASH_* byte layout.
+const int MAX_FLASH_LIGHTS = 4;
+struct FlashLight {
+	vec4 pos_range;
+	vec4 dir_cone;
+	vec4 color_cone;
+};
+layout(std430, set = 0, binding = 5) restrict readonly buffer FlashBuffer {
+	ivec4 meta; // x = active light count
+	FlashLight lights[MAX_FLASH_LIGHTS];
+} flash;
 
 // Recovered ambient environment (deg-2 real SH), Godot post-flip frame, with the
 // Lambertian band factors already folded in (c_lm = (A_l/pi)*L_lm). Populated by
@@ -110,9 +133,10 @@ void main() {
 	float ambient = pc.light_color.w;
 	vec3 light_color = pc.light_color.rgb;
 
-	// Rotation-only instance transform (M2a single instance); mat3() drops the
-	// visibility flag GDGS stores in model[0][3]. Exact for a rigid instance.
-	mat3 model3 = mat3(instance_model_matrices[si.x]);
+	mat4 model = instance_model_matrices[si.x];
+	// Rotation-only for the normal; mat3() drops the visibility flag GDGS stores in
+	// model[0][3]. Exact for a rigid instance.
+	mat3 model3 = mat3(model);
 	vec3 N = normalize(model3 * normal_obj);
 	vec3 L = normalize(-pc.light_dir_ws.xyz);
 
@@ -128,6 +152,36 @@ void main() {
 	// fallback -> env-on vs env-off differ in directional SHAPE, not overall energy.
 	vec3 ambient_rgb = (pc.misc.w != 0) ? pc.light_color.w * ambient_sh(N) : vec3(ambient);
 	vec3 color = albedo * (direct + back) * light_color + albedo * ambient_rgb;
+
+	// Local point/spot lights (flashlight; Moon-Stone fireballs later). Each ADDS a
+	// second `direct + back` evaluation with a per-splat local L, using the SAME
+	// albedo/normal/trans math, scaled by inverse-square range falloff * smooth cone.
+	// Object-space (centered) position -> world with the SAME instance matrix as N.
+	// RAW mode already returned above, so this never leaks into raw output.
+	int n_flash = flash.meta.x;
+	if (n_flash > 0) {
+		vec3 pos_ws = (model * vec4(m.pos_label.xyz, 1.0)).xyz;
+		for (int i = 0; i < MAX_FLASH_LIGHTS; ++i) {
+			if (i >= n_flash) break;
+			FlashLight fl = flash.lights[i];
+			vec3 to_light = fl.pos_range.xyz - pos_ws;
+			float dist = length(to_light);
+			vec3 Lf = to_light / max(dist, 1e-4);
+			// inverse-square with a smooth range window that reaches 0 at `range`.
+			float range = max(fl.pos_range.w, 1e-4);
+			float inv_sq = 1.0 / (1.0 + dist * dist);
+			float range_win = clamp(1.0 - (dist * dist) / (range * range), 0.0, 1.0);
+			float falloff = inv_sq * range_win;
+			// smooth spot cone: 1 inside inner half-angle, 0 outside outer half-angle.
+			float cos_a = dot(-Lf, fl.dir_cone.xyz);
+			float cone = smoothstep(fl.dir_cone.w, fl.color_cone.w, cos_a);
+			float w = falloff * cone;
+			if (w <= 0.0) continue;
+			float direct_f = max(dot(N, Lf), 0.0);
+			float back_f = trans * pow(max(dot(-N, Lf), 0.0) * 0.5 + 0.5, wrap_power);
+			color += albedo * (direct_f + back_f) * fl.color_cone.rgb * w;
+		}
+	}
 
 	culled_buffer[id].color = vec4(color, prev.a);
 }

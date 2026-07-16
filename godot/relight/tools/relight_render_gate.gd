@@ -51,6 +51,19 @@ const ENV_FLAT_TOL := 0.05             # |env@0.2 - flat@0.2| bound (measured 0.
 const ENV_SLIDER_HI := 0.5             # second ambient level for the slider-scaling probe
 const ENV_SLIDER_MIN_DELTA := 0.03     # env@0.5 - env@0.2 must exceed this (measured ~0.13; pre-fix 0.0)
 
+# --- flashlight (point/spot local light) checks. Two ALWAYS-run extra phases at the
+# tail: (F1) MODE_RAW with the flashlight ON must stay byte-close to plain raw (phase 0)
+# — the local light must NOT leak into raw output; (F2) MODE_RELIT (DIR_A, flat ambient)
+# with the flashlight ON must brighten the covered mean vs the same relit config with the
+# flashlight OFF (phase 1) — proves the point-light term actually ADDS. The flashlight is
+# placed at the camera, aimed at the asset center, wide cone so it covers a chunk of the
+# footprint. See relight_flashlight_gate.gd for the closed-form single-splat term check. ---
+const FLASH_BRIGHTNESS := 3.0          # energy = FLASH_BRIGHTNESS * (1 + d^2) (distance-normalized)
+const FLASH_INNER_DEG := 35.0
+const FLASH_OUTER_DEG := 55.0
+const FLASH_MIN_DELTA := 0.01          # relit(flash on) mean - relit(flash off) mean must exceed this
+const FLASH_RAW_TOL := 0.01            # |raw(flash on) - raw(flash off)| bound (no leak into raw)
+
 # Fixed light TRAVEL directions (world). A = oblique, B = a shallower GRAZING angle,
 # SHADOW = straight DOWN (light from directly overhead). The directional-response
 # assertion deliberately compares OVERHEAD (DIR_SHADOW) vs GRAZING (DIR_B) because
@@ -80,6 +93,12 @@ var _measures := []
 var _env_coeffs := PackedFloat32Array()
 var _has_env := false
 var _n_phases := 4
+
+# Flashlight phases run at the tail (always): indices computed after env phases.
+var _cam_pos := Vector3.ZERO
+var _scene_center := Vector3.ZERO
+var _flash_raw_phase := -1
+var _flash_relit_phase := -1
 
 
 func _luma_floor() -> float:
@@ -114,8 +133,12 @@ func _initialize() -> void:
 
 	_env_coeffs = RelightEnvSH.load_coeffs(ASSET_PATH)
 	_has_env = _env_coeffs.size() == RelightEnvSH.N_COEFFS * 3
-	_n_phases = 7 if _has_env else 4
-	print("[relight-gate] env-SH sidecar: %s (%d coeffs) -> %d phases" % [
+	var base_phases := 7 if _has_env else 4
+	# Two flashlight phases always run at the tail.
+	_flash_raw_phase = base_phases
+	_flash_relit_phase = base_phases + 1
+	_n_phases = base_phases + 2
+	print("[relight-gate] env-SH sidecar: %s (%d coeffs) -> %d phases (incl. 2 flashlight)" % [
 		("LOADED" if _has_env else "absent, flat-only"), _env_coeffs.size(), _n_phases])
 
 	var gs := GaussianSplatNode.new()
@@ -127,7 +150,9 @@ func _initialize() -> void:
 	var radius: float = maxf(ab.size.length() * 0.6, 1.0)
 	var cam := Camera3D.new()
 	root.add_child(cam)
-	cam.look_at_from_position(center + Vector3(radius, radius * 0.4, radius), center, Vector3.UP)
+	_cam_pos = center + Vector3(radius, radius * 0.4, radius)
+	_scene_center = center
+	cam.look_at_from_position(_cam_pos, center, Vector3.UP)
 	cam.current = true
 
 	print("[relight-gate] splats=%d aabb=%s" % [_res.point_count, ab])
@@ -138,6 +163,21 @@ func _initialize() -> void:
 # env-SH ambient: 4 = env @ default slider (energy-budget match vs flat phase 1),
 # 5 = env light-behind (ambient floor), 6 = env @ a HIGHER slider (slider-scaling).
 func _apply_phase() -> void:
+	# Flashlight phases (tail) — handled first so their indices are env-layout-independent.
+	if _phase == _flash_raw_phase:
+		# RAW mode + flashlight ON: local light must NOT leak into raw output.
+		RelightPass.clear_env_sh()
+		_set_flashlight_on()
+		RelightPass.set_light(DIR_A.normalized(), LIGHT_COLOR, WRAP_POWER, AMBIENT, RelightPass.MODE_RAW, false)
+		return
+	if _phase == _flash_relit_phase:
+		# RELIT (DIR_A, flat ambient) + flashlight ON: must brighten vs phase 1 (flash off).
+		RelightPass.clear_env_sh()
+		_set_flashlight_on()
+		RelightPass.set_light(DIR_A.normalized(), LIGHT_COLOR, WRAP_POWER, AMBIENT, RelightPass.MODE_RELIT, false)
+		return
+	# Non-flashlight phases keep the flashlight OFF.
+	RelightPass.clear_flashlight()
 	match _phase:
 		0:
 			RelightPass.clear_env_sh()
@@ -165,6 +205,16 @@ func _apply_phase() -> void:
 			# slider (pre-fix it ignored the slider, so this == phase 4).
 			RelightPass.set_env_sh(_env_coeffs)
 			RelightPass.set_light(DIR_A.normalized(), LIGHT_COLOR, WRAP_POWER, ENV_SLIDER_HI, RelightPass.MODE_RELIT, false)
+
+
+func _set_flashlight_on() -> void:
+	var to_center := _scene_center - _cam_pos
+	var d := to_center.length()
+	var dir := to_center / maxf(d, 1e-4)
+	var energy := FLASH_BRIGHTNESS * (1.0 + d * d)
+	var range := maxf(d * 4.0, 10.0)
+	RelightPass.set_flashlight(true, _cam_pos, dir, Color(1.0, 1.0, 1.0), energy, range,
+		FLASH_INNER_DEG, FLASH_OUTER_DEG)
 
 
 func _process(_delta: float) -> bool:
@@ -295,6 +345,19 @@ func _evaluate() -> bool:
 			problems.append("env shadow floor p2=%.5f < %.5f (env ambient black shadows)" % [env_shadow_floor, floor_thr])
 		print("[relight-gate] ENV-SH: L_A_flat=%.5f L_A_env=%.5f |env-flat|=%.5f (<=%.5f) | env@%.2f=%.5f slider_delta=%.5f (>=%.5f) | env_shadow_p2=%.5f floor=%.5f" % [
 			l_a, l_a_env, env_delta, ENV_FLAT_TOL, ENV_SLIDER_HI, l_a_env_hi, slider_delta, ENV_SLIDER_MIN_DELTA, env_shadow_floor, floor_thr])
+
+	# --- flashlight (local point/spot light) proof (always run) ---
+	var l_raw_flash: float = _measures[_flash_raw_phase]["mean"]   # RAW + flashlight ON
+	var l_relit_flash: float = _measures[_flash_relit_phase]["mean"] # RELIT DIR_A + flashlight ON
+	var raw_leak := absf(l_raw_flash - l_raw)                       # must be ~0 (no leak into raw)
+	var flash_delta := l_relit_flash - l_a                          # must be clearly positive (adds light)
+	if raw_leak > FLASH_RAW_TOL:
+		problems.append("flashlight leaks into RAW: |L_raw_flash-L_raw|=%.5f > %.5f (raw must stay plain albedo)" % [raw_leak, FLASH_RAW_TOL])
+	if flash_delta < FLASH_MIN_DELTA:
+		problems.append("flashlight adds no light: L_relit_flash=%.5f - L_A=%.5f delta=%.5f < %.5f (point-light term inert)" % [
+			l_relit_flash, l_a, flash_delta, FLASH_MIN_DELTA])
+	print("[relight-gate] FLASH: L_raw=%.5f L_raw_flash=%.5f raw_leak=%.5f (<=%.5f) | L_A=%.5f L_relit_flash=%.5f flash_delta=%.5f (>=%.5f)" % [
+		l_raw, l_raw_flash, raw_leak, FLASH_RAW_TOL, l_a, l_relit_flash, flash_delta, FLASH_MIN_DELTA])
 
 	if not problems.is_empty():
 		for p in problems:

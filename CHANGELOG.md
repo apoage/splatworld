@@ -5,6 +5,47 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-07-16
+- **flashlight-orb: aggressive local lighting (point/spot) + engine-lit reference orb
+  (`tasks/2026-07-15-flashlight-orb.md`). First change to the relight shading contract since M2a.**
+  Owner request (post-D5 eyeball): "more aggressive lighting options like flashlight, and a reference
+  orb." Strategically this is the Moon-Stone-demo point-light prerequisite (fireballs) pulled forward
+  as a viewer feature — same shading math, one camera-attached local light.
+- **Per-splat world position (the task's premise was wrong — corrected):** the pass had NO world
+  position available (it binds only the screen-space culled buffer + material/instance buffers). Added
+  per-Gaussian OBJECT-SPACE position to OUR material GPU buffer (grown 2→3 vec4, 32→48 B; new
+  `pos_label` slot, xyz = centered object-space position, filled from the already-parsed loader
+  positions) and transform it to world in the shader with the SAME `instance_model_matrices[si.x]`
+  already used for the normal. NOT a PLY schema change — `.relightply` already stores x/y/z; this is a
+  runtime GPU-buffer layout addition only (no `SCHEMA_VERSION` bump; ply_io.py untouched).
+- **Shader (`relight.glsl`):** additive point/spot term after the RAW early-return —
+  `L = normalize(flash_pos - pos_ws)`, inverse-square × smooth range window, `smoothstep` spot cone —
+  reusing the same albedo/normal/trans as the directional term. Light params live in a NEW binding-5
+  storage buffer (`ivec4 meta` + fixed `FlashLight[4]` array, N=1 now); the push constant stays exactly
+  48 B / 3 vec4. Layout documented as the N=2–4 fireball extension point (adding lights is a CPU-setter
+  change only — no shader/descriptor churn).
+- **Viewer (`orbit_viewer.gd`):** `F` toggles a camera-attached flashlight (warm white, tight cone),
+  `O` toggles a gray Lambert reference orb (engine-lit by the same DirectionalLight3D) + a real
+  `SpotLight3D` mirroring the flashlight so the orb stays honest in flashlight mode; HUD shows
+  `flash=`/`orb=`. Shared `orb_placement()` helper (reused by the sphere_consistency check).
+- **Gates:** new `relight_flashlight_gate.gd` (synthetic closed-form analytic gate for the point-light
+  term) + two always-on tail phases in `relight_render_gate.gd` (RAW-with-flashlight no-leak;
+  relit-with-flashlight adds-light); `flashlight_perf.gd` frame-time probe. Raw-mode invariance provably
+  holds with the flashlight ON.
+- **Gate hardened fail-closed (verification cycle):** the analytic gate was initially fail-OPEN on the
+  range/falloff term (its only splat sat at range_win≈0.98, hiding a dropped range clamp under
+  tolerance). Fixed with a non-trivial-range phase (range_win≈0.31) + a dedicated out-of-range→0 hard
+  discriminator; re-verified by fault injection (`falloff = inv_sq;` now FAILS with a 10× tolerance
+  margin). Also clamped the cone `smoothstep` to avoid a NaN when inner==outer (the fireball extension
+  path) and bumped SETTLE to 40 to kill cold-cache false-fails.
+- **Frame-time baseline (Moon-Stone fireball budget):** flashlight on/off delta is within noise at
+  2.4M splats / 1080p (~8 ms/frame; GDGS sort/rasterize dominates one extra local light) —
+  `docs/validation-flashlight-orb-2026-07-16.md`.
+- **Verified (never self-reviewed):** high-tier panel (correctness + fail-closed + regression +
+  security/invariants + flow-verifier), then a dedicated fail-closed re-verify after fix cycle 1.
+  render_matrix 10/10; suite 107; world-position correctness confirmed spatially (lit blob tracks the
+  light). No GDGS edits, no schema bump, push constant unchanged.
+
 ## [0.16.0] — 2026-07-16
 - **normal-sign-consistency: sign-consistency infrastructure + fail-closed multi-scale domain gate
   (`tasks/2026-07-15-normal-sign-consistency.md`). Ships the SUBSTRATE, not a proven patch-shadow fix.**

@@ -103,9 +103,19 @@ static func load(path: String) -> RelightGaussianResource:
 	var opacities: PackedFloat32Array = canonical["opacities"]
 	var sh_coeffs: PackedFloat32Array = canonical["sh_coeffs"]
 
-	# Our per-splat material buffer (2 vec4 = 8 floats) + raw arrays for the gate.
+	# Our per-splat material buffer (3 vec4 = 12 floats) + raw arrays for the gate.
+	# Layout (std430, MUST match Material in relight.glsl):
+	#   vec4 albedo_rough : rgb = albedo, w = rough
+	#   vec4 normal_trans : xyz = object-space normal, w = trans
+	#   vec4 pos_label    : xyz = object-space CENTERED position, w = label
+	# The position slot is filled AFTER GaussianResourceBuilder.build() so it carries
+	# the SAME centered object-space position the GDGS render path uses (the builder
+	# subtracts the per-asset centroid); the flashlight/point-light pass transforms it
+	# to world with the same instance matrix already used for the normal. This is our
+	# GPU buffer layout, NOT the PLY schema (.relightply already stores x/y/z) -> no
+	# schema-version bump.
 	var attr := PackedFloat32Array()
-	attr.resize(count * 8)
+	attr.resize(count * 12)
 	var albedo_rgb := PackedFloat32Array()
 	albedo_rgb.resize(count * 3)
 	var normal_xyz := PackedFloat32Array()
@@ -166,7 +176,7 @@ static func load(path: String) -> RelightGaussianResource:
 		trans_arr[i] = tr
 		label_arr[i] = data[base + o_label] if has_label else 0
 
-		var m := i * 8
+		var m := i * 12
 		attr[m + 0] = ar
 		attr[m + 1] = ag
 		attr[m + 2] = ab
@@ -175,6 +185,8 @@ static func load(path: String) -> RelightGaussianResource:
 		attr[m + 5] = ny
 		attr[m + 6] = nz
 		attr[m + 7] = tr
+		# m+8..11 (object-space position + label) filled after build (below), so the
+		# packed position matches the builder's CENTERED geometry.
 
 	# Byte-identical GDGS build (centering / covariance / std430 packing).
 	var build_result := GaussianResourceBuilder.build(canonical)
@@ -182,6 +194,17 @@ static func load(path: String) -> RelightGaussianResource:
 		push_error("[relight] %s: %s" % [path, build_result.get("message", "build failed")])
 		return null
 	var base_res: GaussianResource = build_result["resource"]
+
+	# Fill the material buffer's object-space position slot from the builder's CENTERED
+	# positions (base_res.xyz) so it matches exactly what the GDGS render path / instance
+	# matrix consume; w carries the label for possible future per-light masking.
+	var centered: PackedVector3Array = base_res.xyz
+	for i in count:
+		var m := i * 12
+		attr[m + 8] = centered[i].x
+		attr[m + 9] = centered[i].y
+		attr[m + 10] = centered[i].z
+		attr[m + 11] = float(label_arr[i])
 
 	var res := RelightGaussianResourceScript.new()
 	res.point_count = base_res.point_count

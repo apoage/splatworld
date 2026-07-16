@@ -12,6 +12,20 @@ extends "res://relight/relight_controller.gd"
 
 const DAY_CYCLE_SECONDS := 24.0
 
+# Camera-attached flashlight (F). Warm white, tight-ish spot. Energy scales with the
+# orbit distance so the lit focal point stays roughly constant brightness as you zoom
+# (inverse-square falloff -> energy ~ (1 + d^2)). Cone: full inside inner, fades to 0
+# by outer. The reference orb's engine SpotLight3D mirrors these exact params.
+const FLASH_COLOR := Color(1.0, 0.95, 0.86)
+const FLASH_INNER_DEG := 14.0
+const FLASH_OUTER_DEG := 24.0
+const FLASH_BRIGHTNESS := 2.5
+
+# Reference orb (O): a gray Lambert sphere, engine-lit by the SAME DirectionalLight3D,
+# a live cross-model reference for the eyeball. Offset from the AABB center.
+const ORB_ALBEDO := Color(0.5, 0.5, 0.5)
+const ORB_ROUGHNESS := 0.8
+
 const PRESETS := {
 	KEY_1: {"name": "noon", "el": 1.2, "color": Color(1.0, 1.0, 1.0), "energy": 1.0, "amb": 0.25},
 	KEY_2: {"name": "golden hour", "el": 0.15, "color": Color(1.0, 0.62, 0.35), "energy": 1.1, "amb": 0.12},
@@ -46,6 +60,12 @@ var _env_on := true
 var _sun_off := false
 var _amb_off := false
 
+# Flashlight (F) + reference orb (O).
+var _flash_on := false
+var _flash_range := 6.0
+var _orb: MeshInstance3D
+var _orb_light: SpotLight3D
+
 
 func _ready() -> void:
 	super()
@@ -56,7 +76,10 @@ func _ready() -> void:
 		var ab: AABB = _splat.gaussian.aabb
 		_center = ab.position + ab.size * 0.5
 		_dist = maxf(ab.size.length() * 0.9, 1.0)
+		_flash_range = maxf(ab.size.length() * 2.0, 6.0)
 		_update_cam()
+		_build_orb(ab)
+		_build_flash_engine_light()
 	# Cache the sidecar coeffs (same path logic as the controller) so V can
 	# re-bind after a clear. Empty => no sidecar => V is a no-op.
 	var asset_path := OS.get_environment("RELIGHT_ASSET")
@@ -133,6 +156,11 @@ func _unhandled_input(e: InputEvent) -> void:
 					RelightPass.clear_env_sh()
 				elif _env_on and not _env_coeffs.is_empty():
 					RelightPass.set_env_sh(_env_coeffs)
+			KEY_F:
+				_flash_on = not _flash_on
+			KEY_O:
+				if _orb != null:
+					_orb.visible = not _orb.visible
 			KEY_5:
 				# Backlit: sun directly opposite the camera, low over the horizon.
 				_hold_light("backlit")
@@ -189,7 +217,24 @@ func _process(delta: float) -> void:
 	var eff_energy := 0.0 if _sun_off else _energy
 	var eff_amb := 0.0 if _amb_off else _amb
 	RelightPass.set_light(light_dir_ws, _color * eff_energy, _wrap, eff_amb, _mode, _trans_on)
+	_update_flashlight()
 	_refresh_hud()
+
+
+# Camera-attached flashlight: world pos = camera pos, dir = camera forward. Energy
+# scales with distance so the focal point stays roughly constant as you zoom. The
+# engine SpotLight3D (orb reference) is a child of the camera, so it tracks pos/dir
+# automatically — we only toggle its visibility with the flashlight state.
+func _update_flashlight() -> void:
+	if _cam == null:
+		return
+	var cam_pos := _cam.global_position
+	var cam_fwd := -_cam.global_transform.basis.z
+	var flash_energy := FLASH_BRIGHTNESS * (1.0 + _dist * _dist)
+	RelightPass.set_flashlight(_flash_on, cam_pos, cam_fwd, FLASH_COLOR, flash_energy,
+		_flash_range, FLASH_INNER_DEG, FLASH_OUTER_DEG)
+	if _orb_light != null:
+		_orb_light.visible = _flash_on
 
 
 func _hold_light(condition: String) -> void:
@@ -205,19 +250,69 @@ func _refresh_hud() -> void:
 			1000.0 / maxf(Engine.get_frames_per_second(), 1.0),
 			str(_splat.gaussian.point_count) if _splat != null and _splat.gaussian != null else "?",
 		]
-		+ "mode=%s%s  env=%s%s%s  sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
+		+ "mode=%s%s  env=%s%s%s  flash=%s  orb=%s  sun az=%d° el=%d°  E=%.2f  amb=%.2f  wrap=%.2f  [%s]\n" % [
 			"relit" if _mode == RelightPass.MODE_RELIT else "RAW ALBEDO",
 			"+trans" if _trans_on else "",
 			("none" if _env_coeffs.is_empty() else ("SH" if _env_on else "flat")),
 			"  SUN-OFF" if _sun_off else "",
 			"  AMB-OFF" if _amb_off else "",
+			"on" if _flash_on else "off",
+			("on" if (_orb != null and _orb.visible) else "off"),
 			roundi(wrapf(rad_to_deg(_sun_az), 0.0, 360.0)), roundi(rad_to_deg(_sun_el)),
 			_energy, _amb, _wrap, _condition,
 		]
 		+ "drag=cam  rdrag=sun  wheel=zoom  SPACE=orbit pause  C=day-cycle\n"
 		+ "1=noon 2=golden 3=overcast 4=moon 5=backlit  +/-=E  [/]=amb  ,/.=wrap  R=reset\n"
-		+ "V=envSH/flat  A=sun off (env term alone)  D=ambient off (sun term alone)"
+		+ "F=flashlight  O=reference orb  V=envSH/flat  A=sun off  D=ambient off"
 	)
+
+
+# Gray Lambert reference sphere, offset from the AABB center, engine-lit by the same
+# DirectionalLight3D. Placement uses the shared helper so a later sphere_consistency
+# check reuses the exact position/radius.
+func _build_orb(ab: AABB) -> void:
+	var place := orb_placement(_center, ab.size)
+	_orb = MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = place["radius"]
+	sphere.height = place["radius"] * 2.0
+	_orb.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = ORB_ALBEDO
+	mat.roughness = ORB_ROUGHNESS
+	mat.metallic = 0.0
+	_orb.material_override = mat
+	_orb.position = place["position"]
+	_orb.visible = false
+	add_child(_orb)
+
+
+# One engine SpotLight3D mirroring the compute-pass flashlight, parented to the camera
+# so it tracks camera pos + forward. Toggled visible with the flashlight so the orb
+# stays an honest cross-model reference in flashlight mode too.
+func _build_flash_engine_light() -> void:
+	if _cam == null:
+		return
+	_orb_light = SpotLight3D.new()
+	_orb_light.light_color = FLASH_COLOR
+	_orb_light.light_energy = 6.0
+	_orb_light.spot_range = _flash_range
+	_orb_light.spot_angle = FLASH_OUTER_DEG
+	_orb_light.spot_angle_attenuation = 1.0
+	_orb_light.visible = false
+	_cam.add_child(_orb_light)
+
+
+# Shared orb placement helper (reused by any later sphere-based reference check).
+# Offsets the sphere to the side + slightly above the AABB center; radius scales with
+# the asset extent so it reads at the demo's viewing distance.
+static func orb_placement(center: Vector3, aabb_size: Vector3) -> Dictionary:
+	var radius: float = maxf(aabb_size.length() * 0.12, 0.2)
+	var pos := center + Vector3(
+		maxf(aabb_size.x, 1.0) * 0.75 + radius,
+		maxf(aabb_size.y, 1.0) * 0.25,
+		0.0)
+	return {"position": pos, "radius": radius}
 
 
 func _update_cam() -> void:
