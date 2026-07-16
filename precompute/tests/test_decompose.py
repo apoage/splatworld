@@ -470,6 +470,67 @@ def test_finalize_writes_only_on_success(tmp_path):
     assert not os.path.exists(kw2["env_out"]), "gate-failed env_sh.json must NOT exist"
 
 
+def test_refused_run_exits_nonzero_and_does_not_clobber_metrics(tmp_path):
+    """Gate defects #1 + #2 (task 2026-07-16). persist_metrics_and_finalize is the one place
+    that persists the decompose metrics around the gates:
+
+      * #1 (fail-open exit): a FATAL gate refusal must exit NONZERO so run.py / automation
+        cannot read a refusal as success. Assert the SystemExit carries a NONZERO INTEGER code.
+      * #2 (metrics clobber): a refused run must NOT overwrite the tracked
+        metrics_decompose.json (which describes the currently-SHIPPED decompose.ply). Assert
+        the refused metrics land in metrics_decompose_refused.json and a PRE-EXISTING tracked
+        metrics_decompose.json is left byte-identical (matching the shipped artifacts)."""
+    d = tmp_path / "built"; d.mkdir()
+    ok_path = str(d / "metrics_decompose.json")
+    refused_path = str(d / "metrics_decompose_refused.json")
+
+    # a tracked metrics file already on disk from a PRIOR successful, shipped run
+    shipped = {"stage": "decompose", "n_gaussians": 12345, "psnr_heldout_db": 27.5,
+               "note": "SHIPPED — must survive a later refused run untouched"}
+    with open(ok_path, "w") as f:
+        json.dump(shipped, f, indent=2)
+    shipped_bytes = open(ok_path, "rb").read()
+
+    # a refusing finalize (sub-budget PSNR: 19.89 << tb 27.0 - 1.5)
+    kw = _good_finalize_kwargs(str(d))
+    kw["gate_psnr"] = 19.89
+    refused_metrics = {"stage": "decompose", "n_gaussians": kw["metrics"]["n_gaussians"],
+                       "psnr_heldout_db": 19.89, "budget_ok": False}
+
+    with pytest.raises(SystemExit) as ei:
+        D.persist_metrics_and_finalize(
+            metrics=refused_metrics, metrics_ok_path=ok_path,
+            metrics_refused_path=refused_path, finalize_kwargs=kw)
+
+    # #1: NONZERO integer exit code (a string / 0 / None would be a fail-open regression)
+    assert isinstance(ei.value.code, int) and ei.value.code != 0
+
+    # #2: tracked file untouched (byte-identical to the shipped pairing); refused file written
+    assert open(ok_path, "rb").read() == shipped_bytes, "refused run clobbered the tracked metrics"
+    assert os.path.exists(refused_path)
+    assert json.load(open(refused_path))["psnr_heldout_db"] == 19.89
+    # the gate-failed artifacts must NOT exist (finalize's MAJOR-B order still holds)
+    assert not os.path.exists(kw["out"]) and not os.path.exists(kw["env_out"])
+
+
+def test_successful_run_writes_tracked_metrics_only(tmp_path):
+    """The success side of persist_metrics_and_finalize: all gates pass -> the tracked
+    metrics_decompose.json is written (matching the freshly-written artifacts) and NO refused
+    file is left behind."""
+    d = tmp_path / "built"; d.mkdir()
+    ok_path = str(d / "metrics_decompose.json")
+    refused_path = str(d / "metrics_decompose_refused.json")
+    kw = _good_finalize_kwargs(str(d))
+    good_metrics = {"stage": "decompose", "n_gaussians": kw["metrics"]["n_gaussians"],
+                    "psnr_heldout_db": kw["gate_psnr"], "budget_ok": True}
+    D.persist_metrics_and_finalize(
+        metrics=good_metrics, metrics_ok_path=ok_path,
+        metrics_refused_path=refused_path, finalize_kwargs=kw)
+    assert json.load(open(ok_path))["budget_ok"] is True
+    assert not os.path.exists(refused_path), "a passing run must not write a refused-metrics file"
+    assert os.path.exists(kw["out"]) and os.path.exists(kw["env_out"])   # artifacts shipped
+
+
 def test_budget_ok_field_tristate():
     """MAJOR-B bookkeeping: budget_ok is True only when verifiable AND within budget,
     False when verifiable but below budget, None when unverifiable (gate off / no

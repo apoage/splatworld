@@ -16,6 +16,10 @@ assets/raw/*
 assets/built/*/asset.ply
 assets/built/*/preview/
 assets/built/**/*.ply
+# decompose's REFUSED-run metrics (fail-closed diagnostic, not a shipped artifact) — a refused
+# run drops this next to built assets; tracked metrics_decompose.json stays the shipped pairing
+metrics_decompose_refused.json
+assets/built/**/metrics_decompose_refused.json
 *.mp4
 *.MP4
 # exception: small committed demo clips (relight demo video, <10 MB)

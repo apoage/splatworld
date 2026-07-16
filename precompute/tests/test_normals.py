@@ -559,3 +559,271 @@ def test_signfix_hard_regime_grazing_normals_residual():
     assert o8_raw > 0.4 and od_raw > 0.4          # raw is salt-and-pepper
     assert o8_fix < o8_raw and od_fix < od_raw    # the fix REDUCES opposition (partial mechanism)
     # NO <5% assertion: grazing / away-facing normals are a KNOWN unresolved limitation here.
+
+
+# ---------------------------------------------------------------------------
+# D6 hybrid grazing-normal sign resolver (task 2026-07-16-grazing-normal-resolver):
+# visibility-weighted orientation (cue a) + coarse-voxel sign field (cue b)
+# ---------------------------------------------------------------------------
+def _look_at_colmap_np(eye, target):
+    """COLMAP-convention (x-right, y-down, +z-forward) world->cam viewmat [4,4] + cam
+    centre, numpy. Mirrors test_decompose._look_at_colmap. `target-eye` must not be
+    parallel to the +Y down-hint (degenerate cross product)."""
+    eye = np.asarray(eye, np.float64); target = np.asarray(target, np.float64)
+    f = target - eye; f = f / np.linalg.norm(f)            # cam +z forward
+    down = np.array([0.0, 1.0, 0.0])                       # COLMAP y is down
+    r = np.cross(down, f); r = r / np.linalg.norm(r)       # cam +x right
+    d = np.cross(f, r)                                      # cam +y down
+    R_c2w = np.stack([r, d, f], axis=1)
+    R_w2c = R_c2w.T
+    V = np.eye(4, dtype=np.float64)
+    V[:3, :3] = R_w2c
+    V[:3, 3] = -R_w2c @ eye
+    return V, eye.copy()
+
+
+def _grazing_wall_scene(n_side=22, seed=0, sigma=0.10, face_fpx=1300.0):
+    """D6 fixture: a near-planar 'leaf wall' in the x=0 plane (points over y,z in [0,1])
+    whose TRUE normals are +X with a small lateral spread (coherent AXIS; front = +X), then
+    given RANDOM front/back signs. The camera rig is the crux:
+
+      * 3 NEAREST cameras sit just off the wall plane (x~=0.05) and look ALONG it, so they
+        see every splat GRAZING (dir-to-camera ~perpendicular to +X -> |dot| ~ 0). The old
+        k_cam=3 nearest-camera vote uses exactly these -> it cannot resolve the +X sign.
+      * 1 FAR camera on the +X axis sees the wall FACE-ON (|dot| ~ 1) but through a TIGHT FOV
+        (`face_fpx`) that covers only the wall INTERIOR — the outer ring projects outside its
+        frustum, so those edge splats are seen only grazingly (low confidence).
+
+    So visibility-weighted orientation resolves the interior (a face-on view dominates), and
+    the coarse-voxel sign field must resolve the edge ring from its confident neighbours.
+    Returns (xyz, normals, true_normals, viewmats[V,4,4], Ks[V,3,3], cam_centers[V,3], (W,H))."""
+    rng = np.random.default_rng(seed)
+    ys, zs = np.meshgrid(np.linspace(0, 1, n_side), np.linspace(0, 1, n_side))
+    xyz = np.stack([np.zeros(ys.size), ys.ravel(), zs.ravel()], axis=1).astype(np.float32)
+    m = xyz.shape[0]
+    lat = sigma * rng.standard_normal((m, 2))
+    true_n = _unit(np.stack([np.ones(m), lat[:, 0], lat[:, 1]], axis=1)).astype(np.float32)
+    signs = rng.choice([-1.0, 1.0], size=m)
+    n = (true_n * signs[:, None]).astype(np.float32)
+
+    W = Hh = 200
+    K_graze = np.array([[120.0, 0, W / 2], [0, 120.0, Hh / 2], [0, 0, 1.0]], np.float64)
+    K_face = np.array([[face_fpx, 0, W / 2], [0, face_fpx, Hh / 2], [0, 0, 1.0]], np.float64)
+    cams = []
+    for eye in ([0.05, 0.5, 2.2], [0.05, -0.6, 0.5], [0.05, 1.6, 0.5]):   # grazing, nearest
+        V, C = _look_at_colmap_np(eye, [0.0, 0.5, 0.5]); cams.append((V, K_graze, C))
+    Vf, Cf = _look_at_colmap_np([4.0, 0.5, 0.5], [0.0, 0.5, 0.5])         # face-on, far, tight
+    cams.append((Vf, K_face, Cf))
+    return (xyz, n, true_n,
+            np.stack([c[0] for c in cams]), np.stack([c[1] for c in cams]),
+            np.stack([c[2] for c in cams]), (W, Hh))
+
+
+def test_visibility_voxel_resolver_recovers_grazing_signs():
+    """GOLDEN sign-resolver test (task D6). A leaf wall whose sign the OLD k_cam=3 nearest-
+    camera vote CANNOT fix (its nearest cameras all graze the wall) but the hybrid resolver
+    CAN: visibility-weighted orientation fixes every splat a face-on view sees, and the
+    coarse-voxel sign field fixes the residual (the outer ring, seen only grazingly).
+
+    FAULT-INJECTION — the <5% assertions below FAIL if either cue regresses:
+      * revert to the nearest-camera vote -> opposition stays ~17% (asserted separately);
+      * drop the voxel field (visibility only) -> opposition stays ~9% (asserted separately);
+    so a broken resolver cannot pass. Mirrors the decompose pipeline: resolve THEN sign-aware
+    smooth, then measure multi-scale opposition against the 5% gate."""
+    xyz, n, true_n, vms, Ks, ccs, wh = _grazing_wall_scene()
+    idx = normals.knn_indices(xyz, 8)
+
+    def opp(nn):
+        return (normals.signed_opposition_frac(xyz, nn, idx=idx)["frac_opposed"],
+                normals.signed_opposition_adaptive(xyz, nn, idx=idx, spacing_mult=4.0,
+                                                    sample=None)["frac_opposed"])
+
+    # the true axis is coherent; the ambiguity is purely front/back sign
+    assert normals.folded_coherence(xyz, true_n, idx=idx).mean() > 0.9
+
+    o8_raw, od_raw = opp(n)
+    assert o8_raw > 0.4 and od_raw > 0.4          # raw signs are salt-and-pepper (~50%)
+
+    # (1) OLD k_cam=3 nearest-camera vote -> its nearest cameras all GRAZE -> FAILS the gate
+    old, _f = normals.orient_normals_to_cameras(xyz, n, ccs, k_cam=3)
+    old_sm = normals.smooth_normals_knn(xyz, old, k=8, iters=2, idx=idx)
+    o8_old, od_old = opp(old_sm)
+    assert o8_old > 0.05 and od_old > 0.05        # nearest-vote cannot clear 5%
+
+    # (2) VISIBILITY-ONLY (no voxel field) -> the grazed edge ring keeps random signs -> FAILS
+    ref, coh, peak, d_peak, seen, S = normals.visibility_weighted_reference(
+        xyz, n, ccs, vms, Ks, wh)
+    vis = _unit(n.astype(np.float64)).copy()
+    hv = S > 1e-12
+    dd = np.einsum("ij,ij->i", vis, d_peak)                # orient by the peak witness (as resolve does)
+    vis[hv & (dd < 0)] *= -1.0
+    vis_sm = normals.smooth_normals_knn(xyz, vis.astype(np.float32), k=8, iters=2, idx=idx)
+    o8_vis, od_vis = opp(vis_sm)
+    assert o8_vis > 0.05                          # voxel field is LOAD-BEARING (not redundant)
+
+    # (3) FULL hybrid resolver -> both cues -> clears the 5% gate at BOTH scales
+    res, info = normals.resolve_normal_signs(
+        xyz, n, cam_centers=ccs, viewmats=vms, Ks=Ks, image_wh=wh, idx=idx,
+        voxel_mult=4.0, voxel_neighbor_passes=2)
+    res_sm = normals.smooth_normals_knn(xyz, res, k=8, iters=2, idx=idx)
+    o8_hyb, od_hyb = opp(res_sm)
+    deg = normals.degenerate_mean_fraction(xyz, res_sm, idx=idx, sign_aware=True)
+    print(f"[D6 resolver] raw {o8_raw:.1%}/{od_raw:.1%}  nearest-vote {o8_old:.1%}/{od_old:.1%}  "
+          f"vis-only {o8_vis:.1%}/{od_vis:.1%}  HYBRID {o8_hyb:.2%}/{od_hyb:.2%}  "
+          f"[vis {info['frac_resolved_visibility']:.0%} + voxel {info['frac_resolved_voxel']:.0%} "
+          f"+ unres {info['frac_unresolved']:.1%}]")
+
+    assert info["method"] == "visibility_voxel"
+    assert o8_hyb < 0.05 and od_hyb < 0.05        # GATE cleared at both scales
+    assert deg < 0.005                            # degenerate near-cancellation stays tiny
+    # both cues genuinely contribute (the resolver is not silently a one-cue passthrough)
+    assert info["frac_resolved_visibility"] > 0.05
+    assert info["frac_resolved_voxel"] > 0.05
+    assert info["frac_unresolved"] < 0.01         # the wall is fully resolved
+
+
+def _aggregate_trap_scene(n_side=26, seed=0, sigma=0.10, n_graze=40,
+                          graze_x=-0.22, face_fpx=340.0):
+    """D6 MAJOR-1 fixture — the aggregate-vs-witness trap the one-sided _grazing_wall_scene
+    cannot reach. A leaf wall (x=0 plane, true front normals +X, random signs) seen by:
+
+      * ONE close, wide face-on camera on +X ([2.5,.5,.5]) whose frustum covers the WHOLE
+        wall, so the MOST-face-on view (the peak witness `d_peak`) is +X for every splat;
+      * a CROWD of `n_graze` off-axis grazing cameras on the -X side aimed at the MIDDLE
+        band (0.35<z<0.65). Each is individually grazing (|dot| < the +X face-on's, so it
+        never becomes the peak witness), but their -X view directions SUM in the count-
+        weighted reference `ref = Sum w*d` and drag the middle band to the WRONG (-X)
+        hemisphere.
+
+    So in the middle band the aggregate `ref` points -X (wrong) while the peak witness
+    `d_peak` points +X (right). Orienting by the aggregate (the pre-MAJOR-1 bug) flips the
+    whole band to a coherent wrong-signed domain; orienting by the peak witness (the fix)
+    keeps it correct. Returns (xyz, normals, true_normals, viewmats, Ks, cam_centers, (W,H))."""
+    rng = np.random.default_rng(seed)
+    ys, zs = np.meshgrid(np.linspace(0, 1, n_side), np.linspace(0, 1, n_side))
+    xyz = np.stack([np.zeros(ys.size), ys.ravel(), zs.ravel()], axis=1).astype(np.float32)
+    m = xyz.shape[0]
+    lat = sigma * rng.standard_normal((m, 2))
+    true_n = _unit(np.stack([np.ones(m), lat[:, 0], lat[:, 1]], axis=1)).astype(np.float32)
+    n = (true_n * rng.choice([-1.0, 1.0], size=m)[:, None]).astype(np.float32)
+
+    W = Hh = 200
+    K_face = np.array([[face_fpx, 0, W / 2], [0, face_fpx, Hh / 2], [0, 0, 1.0]], np.float64)
+    K_graze = np.array([[150.0, 0, W / 2], [0, 150.0, Hh / 2], [0, 0, 1.0]], np.float64)
+    cams = [(_look_at_colmap_np([2.5, 0.5, 0.5], [0, 0.5, 0.5])[0], K_face,
+             np.array([2.5, 0.5, 0.5]))]                                # wide +X face-on witness
+    for _ in range(n_graze):                                           # -X grazing crowd, MIDDLE band
+        e = [graze_x, rng.uniform(-0.3, 1.3), rng.uniform(0.35, 0.65)]
+        cams.append((_look_at_colmap_np(e, [0, 0.5, 0.5])[0], K_graze, np.array(e, float)))
+    return (xyz, n, true_n,
+            np.stack([c[0] for c in cams]), np.stack([c[1] for c in cams]),
+            np.stack([c[2] for c in cams]), (W, Hh))
+
+
+def test_resolver_orients_by_peak_witness_not_aggregate():
+    """D6 MAJOR-1 regression pin: cue (a) must orient each splat toward its MOST-face-on view
+    (`d_peak`), NOT the count-weighted aggregate `ref`. On the aggregate trap a crowd of one-
+    sided grazing views drags `ref` to the wrong hemisphere across a whole middle band; the
+    aggregate orientation flips that band (a coherent wrong-signed domain = the patch fake-
+    shadow this task removes), while the peak-witness orientation keeps it correct.
+
+    FAULT-INJECTION (verified): orienting by `ref` instead of `d_peak` collapses the band to
+    ~0% correct and the whole-wall true-axis agreement to ~0.53, so the assertions below fail;
+    orienting by `d_peak` recovers the band to ~0.98. This pins the ORIENTATION cue directly
+    (independent of the voxel field). The full multi-scale <5% opposition is deliberately NOT
+    asserted here: on this PATHOLOGICAL single-face-on synthetic the voxel field is actually
+    net-NEGATIVE — it drops the witness-oriented ~0.99 to ~0.82 by flipping correctly-oriented
+    low-confidence splats toward a handful of wrong-confident voxel seeds (a known single-
+    witness artifact; on real ALL-AROUND capture the voxel field is beneficial — see the one-
+    sided `_grazing_wall_scene`, vis-only ~8% -> hybrid 0%). So `a_res>0.75` only checks the
+    wall stays MAJORITY-correct (the peak-witness orientation survives the voxel pass), NOT
+    that the voxel field is optimal; the objective <5% arbiter is the scheduled, fail-closed
+    hero re-decompose, not this synthetic."""
+    xyz, n, true_n, vms, Ks, ccs, wh = _aggregate_trap_scene()
+    ref, coh, peak, d_peak, seen, S = normals.visibility_weighted_reference(
+        xyz, n, ccs, vms, Ks, wh)
+    have = S > 1e-12
+    band = (xyz[:, 2] > 0.4) & (xyz[:, 2] < 0.6)
+    tn = _unit(true_n.astype(np.float64))
+
+    def agree(v, mask):
+        return float((np.einsum("ij,ij->i", _unit(v.astype(np.float64)), tn) > 0)[mask].mean())
+
+    # (0) the trap is REAL and non-vacuous: in the band the count aggregate points WRONG (-X)
+    #     while the peak witness points RIGHT (+X). Without this the test is trivially passable.
+    assert (ref[band, 0] < 0).mean() > 0.9, "fixture failed to set the -X aggregate trap"
+    assert (d_peak[band, 0] > 0).mean() > 0.9, "peak witness should point +X across the band"
+
+    # (1) the FIX mechanism -- orient by the peak witness d_peak -- recovers the band and wall
+    fix = _unit(n.astype(np.float64)).copy()
+    fix[have & (np.einsum("ij,ij->i", fix, d_peak) < 0)] *= -1.0
+    # (2) the BUG mechanism -- orient by the count aggregate ref -- flips the whole band wrong
+    bug = _unit(n.astype(np.float64)).copy()
+    bug[have & (np.einsum("ij,ij->i", bug, ref) < 0)] *= -1.0
+
+    a_fix, a_fix_band = agree(fix, have), agree(fix, band)
+    a_bug, a_bug_band = agree(bug, have), agree(bug, band)
+    # (3) the wired resolver keeps the wall correct (drops toward the bug level if cue (a) regresses)
+    res, info = normals.resolve_normal_signs(
+        xyz, n, cam_centers=ccs, viewmats=vms, Ks=Ks, image_wh=wh,
+        voxel_mult=4.0, voxel_neighbor_passes=2)
+    a_res = agree(res, have)
+    print(f"[MAJOR-1] witness-orient agree={a_fix:.2f} (band {a_fix_band:.2f})  "
+          f"aggregate-orient agree={a_bug:.2f} (band {a_bug_band:.2f})  "
+          f"resolve_normal_signs agree={a_res:.2f}  method={info['method']}")
+
+    assert a_fix > 0.95 and a_fix_band > 0.90       # peak witness resolves the band
+    assert a_bug < 0.65 and a_bug_band < 0.15       # the aggregate flips the band (the bug)
+    assert a_fix - a_bug > 0.25                     # peak-witness orientation is load-bearing
+    assert a_res > 0.75 and info["method"] == "visibility_voxel"   # wired resolver stays correct
+
+
+def test_resolver_matches_true_axis_after_resolution():
+    """The hybrid resolver recovers the TRUE oriented normal (+X hemisphere), not merely a
+    low-opposition field: after resolution the fraction of splats whose sign matches the
+    ground-truth front (+X) normal is ~1. (A field can be internally sign-consistent yet
+    globally flipped; this pins the absolute sign the face-on camera fixes.)"""
+    xyz, n, true_n, vms, Ks, ccs, wh = _grazing_wall_scene()
+    res, _info = normals.resolve_normal_signs(
+        xyz, n, cam_centers=ccs, viewmats=vms, Ks=Ks, image_wh=wh,
+        voxel_mult=4.0, voxel_neighbor_passes=2)
+    agree = (np.einsum("ij,ij->i", _unit(res.astype(np.float64)),
+                       _unit(true_n.astype(np.float64))) > 0.0).mean()
+    assert agree > 0.98, f"resolved signs match the true +X front for only {agree:.1%}"
+
+
+def test_resolver_fallback_without_projection_data():
+    """With no per-view projection data the resolver falls back to make_normals_sign_consistent
+    (camera hemisphere when centres exist, else k-NN propagation) — same behaviour the
+    v0.16.0 path had, so the fallback keeps working on assets without the visibility inputs."""
+    xyz, n, cams = _domain_flipped_plane()
+    out, info = normals.resolve_normal_signs(xyz, n, cam_centers=cams)   # no viewmats/Ks/wh
+    assert info["resolver"] == "fallback"
+    assert info["method"] == "camera_hemisphere"
+    # and with neither cameras nor projection data -> knn propagation fallback
+    out2, info2 = normals.resolve_normal_signs(xyz, n)
+    assert info2["resolver"] == "fallback" and info2["method"] == "knn_propagation"
+
+
+def test_voxel_sign_field_resolves_low_confidence_from_neighbours():
+    """Unit test for the voxel sign field in isolation: a coherent +Z plane where a scattered
+    subset is marked low-confidence with FLIPPED signs. The voxel field flips them back to the
+    confident majority; a fully-confident call is an exact no-op."""
+    xyz = _grid_plane(n_side=30)
+    m = xyz.shape[0]
+    up = _unit(np.tile([0.0, 0.0, 1.0], (m, 1))).astype(np.float32)
+    rng = np.random.default_rng(0)
+    lowc = rng.random(m) < 0.2                     # 20% low-confidence, sign flipped
+    n = up.copy()
+    n[lowc] *= -1.0
+    confident = ~lowc
+    vs = 4.0 * normals.median_knn_distance(xyz, k=8)
+    out, info = normals.voxel_sign_field(xyz, n, confident, vs, neighbor_passes=1)
+    # low-confidence members flipped back to the +Z majority
+    assert (out[:, 2] > 0).mean() > 0.99
+    assert info["n_voxel_resolved"] == int(lowc.sum())
+    assert info["n_unresolved"] == 0
+    # all-confident -> no-op (nothing to resolve; unit-length preserved)
+    out2, info2 = normals.voxel_sign_field(xyz, n, np.ones(m, bool), vs)
+    np.testing.assert_allclose(out2, _unit(n.astype(np.float64)), atol=1e-6)
+    assert info2["n_voxel_resolved"] == 0

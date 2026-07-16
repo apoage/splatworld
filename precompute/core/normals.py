@@ -281,6 +281,240 @@ def make_normals_sign_consistent(xyz: np.ndarray, normals: np.ndarray, k: int = 
 
 
 # ============================================================================
+# Hybrid grazing-normal sign resolver (task 2026-07-16-grazing-normal-resolver, D6)
+# ----------------------------------------------------------------------------
+# The k_cam nearest-camera vote (orient_normals_to_cameras) resolves only the
+# along-view sign component: it picks the CLOSEST cameras regardless of whether a
+# Gaussian faces them, so where a splat's normal grazes the nearest views (foliage,
+# near-perpendicular to every close camera) the vote is uninformative and the splat
+# keeps its arbitrary init sign — the ~29-31% neighbour-sign opposition audited on the
+# heroes (D6). This resolver replaces that with two O(N)-ish cues:
+#   (a) VISIBILITY-WEIGHTED orientation over ALL training views that see a Gaussian,
+#       each view weighted by how FACE-ON it is (|dot(N, dir_to_cam)|): a face-on view
+#       votes decisively, a grazing/edge-on view contributes ~0. No extra render pass —
+#       the weight is a cheap geometric frustum + facing test on the camera params the
+#       solve already holds (occlusion=1, matching decompose's v1 assumption).
+#   (b) a COARSE-VOXEL sign field: where NO view sees a Gaussian face-on (low confidence)
+#       the sign is undetermined by cameras, so neighbours decide — per voxel take the
+#       visibility-resolved (confident) majority direction and flip low-confidence members
+#       to agree, propagating to confident-empty voxels over 1-2 voxel-neighbour passes.
+#       No MST/BFS (the test-only propagate_normal_signs_knn path).
+# ============================================================================
+def visibility_weighted_reference(xyz: np.ndarray, normals: np.ndarray,
+                                  cam_centers: np.ndarray, viewmats: np.ndarray,
+                                  Ks: np.ndarray, image_wh, near: float = 0.01):
+    """Per-Gaussian visibility-weighted view reference + the MOST-face-on witness direction.
+
+    For each view v that SEES Gaussian g (projects inside the [0,W)x[0,H) image and lies
+    in front of the camera, near-plane `near`; no occlusion — decompose's v1 assumption) let
+    d_gv = unit direction g->camera_v and the face-on-ness wf_gv = |dot(N_g, d_gv)| (sign-free:
+    a face-on view ~1, a grazing view ~0). Two aggregates are formed:
+
+      * the reference `ref` is a FACE-ON-EMPHASISED mean, weighted by wf**2 not wf. Squaring is
+        what stops a crowd of one-sided GRAZING views (each tiny wf) from out-voting the single
+        genuine FACE-ON view (MAJOR-1): the face-on view's wf**2 ~ 1 dominates many grazing
+        wf**2 ~ 1e-2. It is still O(M*V), sign-free, no occlusion pass;
+      * `d_peak` is the direction of the SINGLE most-face-on view (argmax wf), and `peak` its
+        wf. Face-on views are the only reliable sign WITNESSES, so the caller orients the sign
+        by d_peak (the peak view's hemisphere) and treats a splat as camera-confident only when
+        `ref` corroborates d_peak — anything the peak witness cannot vouch for is handed to the
+        voxel field, which is exactly what lets it correct a contradicted splat.
+
+    Returns (ref[M,3] unit, coherence[M] in [0,1], peak[M] in [0,1], d_peak[M,3] unit,
+    seen[M] int, S[M]):
+      * coherence  = ||sum wf**2 d|| / sum wf**2, the DIRECTIONAL agreement of the face-on
+                     views (diagnostic; ~0 = a thin surface seen face-on from both sides);
+      * peak       = max_v wf_gv (0 when every view grazes g);
+      * d_peak     = the argmax-wf view direction (0 vector when g is seen by no view);
+      * seen       = number of views with g in-frustum;
+      * S          = sum_v wf_gv**2 (total face-on weight, the ref denominator).
+    O(M*V), looped over views so peak memory is O(M). COLMAP/native frame (rigid-invariant).
+    """
+    xyz = np.asarray(xyz, dtype=np.float64)
+    nrm = _unit(normals.astype(np.float64, copy=False))
+    cc = np.asarray(cam_centers, dtype=np.float64).reshape(-1, 3)
+    vms = np.asarray(viewmats, dtype=np.float64).reshape(-1, 4, 4)
+    Ks = np.asarray(Ks, dtype=np.float64).reshape(-1, 3, 3)
+    W, H = int(image_wh[0]), int(image_wh[1])
+    m = xyz.shape[0]
+    V = vms.shape[0]
+    if not (cc.shape[0] == V == Ks.shape[0]):
+        raise ValueError("visibility_weighted_reference: cam_centers/viewmats/Ks length mismatch")
+    R = np.zeros((m, 3), dtype=np.float64)
+    S = np.zeros(m, dtype=np.float64)
+    peak = np.zeros(m, dtype=np.float64)
+    d_peak = np.zeros((m, 3), dtype=np.float64)
+    seen = np.zeros(m, dtype=np.int64)
+    for v in range(V):
+        Rwc = vms[v, :3, :3]                                    # world->cam rotation
+        t = vms[v, :3, 3]
+        Xc = xyz @ Rwc.T + t                                    # (m,3) camera-space
+        z = Xc[:, 2]
+        front = z > near
+        zc = np.where(front, z, 1.0)                            # guard divide
+        fx, fy = Ks[v, 0, 0], Ks[v, 1, 1]
+        cx, cy = Ks[v, 0, 2], Ks[v, 1, 2]
+        u = fx * Xc[:, 0] / zc + cx
+        vv = fy * Xc[:, 1] / zc + cy
+        vis = front & (u >= 0.0) & (u < W) & (vv >= 0.0) & (vv < H)
+        d = cc[v][None, :] - xyz                                # (m,3) toward camera
+        d /= np.clip(np.linalg.norm(d, axis=1, keepdims=True), _EPS, None)
+        face = np.abs(np.einsum("ij,ij->i", nrm, d))            # face-on-ness (sign-free)
+        wf = np.where(vis, face, 0.0)                           # visible face-on-ness
+        w2 = wf * wf                                            # face-on-EMPHASISED weight
+        R += w2[:, None] * d
+        S += w2
+        better = wf > peak                                     # this view is the new peak witness
+        peak = np.where(better, wf, peak)
+        d_peak = np.where(better[:, None], d, d_peak)
+        seen += vis.astype(np.int64)
+    ref = _unit(R)
+    Rn = np.linalg.norm(R, axis=1)
+    coherence = np.where(S > _EPS, Rn / np.clip(S, _EPS, None), 0.0)
+    return ref, coherence, peak, d_peak, seen, S
+
+
+def voxel_sign_field(xyz: np.ndarray, normals: np.ndarray, confident: np.ndarray,
+                     voxel_size: float, weights: np.ndarray | None = None,
+                     neighbor_passes: int = 1):
+    """Coarse-voxel sign field for the grazing residual (task D6 cue (b)). The signs of
+    NON-confident Gaussians (cameras could not resolve them) are set from the voxel-local
+    majority of the CONFIDENT ones: per voxel accumulate the confidence-weighted confident
+    normals (already visibility-oriented, so they agree in sign within a local patch) into a
+    reference direction; flip each low-confidence member of that voxel to agree. Voxels with
+    no confident member borrow their neighbours' accumulated reference over up to
+    `neighbor_passes` 26-neighbour consensus passes. No MST/BFS.
+
+    Returns (normals same dtype, info dict: n_confident, n_voxel_resolved, n_unresolved,
+    n_voxels, voxel_size, neighbor_passes)."""
+    nrm = _unit(normals.astype(np.float64, copy=True))
+    m = nrm.shape[0]
+    confident = np.asarray(confident, dtype=bool).reshape(-1)
+    w = (np.ones(m, dtype=np.float64) if weights is None
+         else np.asarray(weights, dtype=np.float64).reshape(-1))
+    lowc = ~confident
+    if not (np.isfinite(voxel_size) and voxel_size > 0.0) or m == 0:
+        return normals.astype(normals.dtype, copy=True), {
+            "n_confident": int(confident.sum()), "n_voxel_resolved": 0,
+            "n_unresolved": int(lowc.sum()), "n_voxels": 0,
+            "voxel_size": float(voxel_size), "neighbor_passes": int(neighbor_passes)}
+    xyz = np.asarray(xyz, dtype=np.float64)
+    origin = xyz.min(axis=0)
+    vi = np.floor((xyz - origin) / voxel_size).astype(np.int64)     # (m,3) voxel coord
+    keys, inv = np.unique(vi, axis=0, return_inverse=True)
+    inv = np.asarray(inv).reshape(-1)                              # 1-D (numpy 2.x safe)
+    nv = keys.shape[0]
+    # per-voxel confidence-weighted sum of the CONFIDENT (visibility-oriented) normals
+    acc = np.zeros((nv, 3), dtype=np.float64)
+    contrib = (w * confident)[:, None] * nrm
+    np.add.at(acc, inv, contrib)
+    have = np.linalg.norm(acc, axis=1) > _EPS                      # voxel has a confident ref
+    # neighbour consensus: fill confident-empty voxels from their 26 voxel-neighbours
+    if int(neighbor_passes) > 0 and nv > 0 and (~have).any():
+        key_to_idx = {(int(k[0]), int(k[1]), int(k[2])): i for i, k in enumerate(keys)}
+        offsets = [(dx, dy, dz)
+                   for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1)
+                   if not (dx == 0 and dy == 0 and dz == 0)]
+        for _ in range(int(neighbor_passes)):
+            if have.all():
+                break
+            new_acc = acc.copy()
+            new_have = have.copy()
+            for vidx in np.where(~have)[0]:
+                bx, by, bz = int(keys[vidx, 0]), int(keys[vidx, 1]), int(keys[vidx, 2])
+                s = np.zeros(3, dtype=np.float64)
+                got = False
+                for dx, dy, dz in offsets:
+                    nb = key_to_idx.get((bx + dx, by + dy, bz + dz))
+                    if nb is not None and have[nb]:
+                        s += acc[nb]
+                        got = True
+                if got:
+                    new_acc[vidx] = s
+                    new_have[vidx] = True
+            acc, have = new_acc, new_have
+    vox_ref = _unit(acc)
+    ref_per_g = vox_ref[inv]
+    vox_has = have[inv]
+    target = lowc & vox_has                                        # low-conf, resolvable
+    dots = np.einsum("ij,ij->i", nrm, ref_per_g)
+    flip = target & (dots < 0.0)
+    nrm[flip] = -nrm[flip]
+    info = {"n_confident": int(confident.sum()),
+            "n_voxel_resolved": int(target.sum()),
+            "n_unresolved": int((lowc & ~vox_has).sum()),
+            "n_voxels": int(nv), "voxel_size": float(voxel_size),
+            "neighbor_passes": int(neighbor_passes)}
+    return nrm.astype(normals.dtype, copy=False), info
+
+
+def resolve_normal_signs(xyz: np.ndarray, normals: np.ndarray,
+                         cam_centers: np.ndarray | None = None,
+                         viewmats: np.ndarray | None = None, Ks: np.ndarray | None = None,
+                         image_wh=None, min_face: float = 0.35, min_coherence: float = 0.5,
+                         voxel_mult: float = 3.0, voxel_neighbor_passes: int = 1,
+                         k: int = 8, k_cam: int = 3, idx: np.ndarray | None = None,
+                         near: float = 0.01, voxel_size: float | None = None):
+    """Hybrid grazing-normal sign resolver (task D6): visibility-weighted orientation over
+    ALL views that see a Gaussian (cue a), then a coarse-voxel sign field for the residual
+    the cameras could not resolve (cue b). Supersedes the k_cam nearest-camera vote in the
+    decompose path. Returns (oriented unit normals, info dict).
+
+    Needs the per-view projection data (`viewmats`, `Ks`, `image_wh`) to test visibility;
+    without it (or without cameras) it falls back to `make_normals_sign_consistent`.
+
+    Sign witness (MAJOR-1 fix): the sign of every SEEN Gaussian is oriented toward its
+    MOST-face-on view (`d_peak`), the only reliable witness — NOT the count-weighted view
+    aggregate, which a crowd of one-sided grazing views can drag to the wrong hemisphere. A
+    Gaussian is CONFIDENTLY resolved by cameras (cue a) only when that witness is genuinely
+    face-on (`peak >= min_face`) AND the face-on-emphasised reference `ref` CORROBORATES it
+    (`dot(ref, d_peak) >= min_coherence`). Anything the witness cannot vouch for — grazed by
+    every view, or a `ref` that contradicts the peak witness — is left NOT-confident and
+    handed to the voxel field (cue b), which is what lets neighbours correct it. `info`
+    records the split: frac_resolved_visibility vs frac_resolved_voxel vs frac_unresolved."""
+    if viewmats is None or Ks is None or image_wh is None:
+        out, info = make_normals_sign_consistent(xyz, normals, k=k,
+                                                 cam_centers=cam_centers, k_cam=k_cam, idx=idx)
+        info["resolver"] = "fallback"
+        return out, info
+
+    ref, coherence, peak, d_peak, seen, S = visibility_weighted_reference(
+        xyz, normals, cam_centers, viewmats, Ks, image_wh, near=near)
+    nrm = _unit(normals.astype(np.float64, copy=True))
+    # cue (a): orient every SEEN Gaussian toward its MOST-face-on witness (d_peak) — the
+    # peak view's hemisphere, never the count-weighted aggregate (MAJOR-1). Low-confidence
+    # ones are re-decided by the voxel field below.
+    have_ref = S > _EPS
+    witness = np.einsum("ij,ij->i", nrm, d_peak)                  # signed dot with peak view
+    flip_vis = have_ref & (witness < 0.0)
+    nrm[flip_vis] = -nrm[flip_vis]
+    # confident ONLY when a genuine face-on witness exists AND the face-on-emphasised ref
+    # agrees with it; a contradicted / ambiguous witness is handed to the voxel field.
+    peak_agree = np.einsum("ij,ij->i", ref, d_peak)              # ref vs peak-view direction
+    confident = (have_ref & (peak >= float(min_face))
+                 & (peak_agree >= float(min_coherence)))
+
+    # cue (b): coarse-voxel sign field for the low-confidence residual.
+    if voxel_size is None:
+        voxel_size = float(voxel_mult) * median_knn_distance(xyz, k=k, idx=idx)
+    out, vinfo = voxel_sign_field(xyz, nrm, confident, voxel_size,
+                                  weights=coherence, neighbor_passes=voxel_neighbor_passes)
+    m = int(xyz.shape[0]) if hasattr(xyz, "shape") else nrm.shape[0]
+    info = {
+        "method": "visibility_voxel", "resolver": "visibility_voxel", "n_gaussians": m,
+        "frac_flipped_visibility": float(flip_vis.mean()) if m else 0.0,
+        "n_seen": int(have_ref.sum()),
+        "frac_resolved_visibility": float(confident.mean()) if m else 0.0,
+        "frac_resolved_voxel": (vinfo["n_voxel_resolved"] / m) if m else 0.0,
+        "frac_unresolved": (vinfo["n_unresolved"] / m) if m else 0.0,
+        "min_face": float(min_face), "min_coherence": float(min_coherence),
+        "voxel_size": float(voxel_size), "voxel_neighbor_passes": int(voxel_neighbor_passes),
+        "voxel": vinfo,
+    }
+    return out.astype(normals.dtype, copy=False), info
+
+
+# ============================================================================
 # Sign metrics (task step 4)
 # ============================================================================
 def folded_coherence(xyz: np.ndarray, normals: np.ndarray, k: int = 8,

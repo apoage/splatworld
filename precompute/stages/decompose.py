@@ -41,7 +41,7 @@ Usage:
 """
 from __future__ import annotations
 
-import argparse, json, math, os, time
+import argparse, json, math, os, sys, time
 
 import numpy as np
 import torch
@@ -493,8 +493,11 @@ def finalize_decompose(*, out, env_out, metrics, gate_psnr, psnr_finite, tb_psnr
     `export --from-decompose` has no budget check and would happily ship a sub-budget
     asset (invariant #8). So the writes happen strictly AFTER the count / NaN /
     unit-normal / albedo-range / frozen-albedo gates AND enforce_rerender_budget. All
-    gates raise SystemExit (survives python -O). The caller writes metrics FIRST, so a
-    gate-failed solve stays inspectable (incl. its `budget_ok` field)."""
+    gates raise SystemExit (survives python -O). The caller (persist_metrics_and_finalize)
+    persists the metrics json AROUND this call: the tracked metrics_decompose.json is written
+    only AFTER this returns (success), while a gate-failed solve's metrics land in
+    metrics_decompose_refused.json (inspectable, incl. its `budget_ok` field) so a refusal
+    never clobbers the shipped-artifact <-> metrics pairing (task 2026-07-16 gate defect #2)."""
     N = metrics["n_gaussians"]
     if int(N) <= 0:
         raise SystemExit("[decompose] FATAL: 0 gaussians")
@@ -524,6 +527,52 @@ def finalize_decompose(*, out, env_out, metrics, gate_psnr, psnr_finite, tb_psnr
         albedo=albedo, normal=normal, rough=rough)
     with open(env_out, "w") as f:
         json.dump(env_json, f, indent=2)
+
+
+# refused-run exit code (task 2026-07-16 gate defect #1): a FATAL gate refusal MUST exit
+# NONZERO so run.py / automation cannot read a refusal as success. SystemExit(str) already
+# exits 1, but we normalize any string / 0 / None code to this explicit nonzero code to
+# remove all doubt (and so the refusal test can assert an integer nonzero .code directly).
+GATE_REFUSED_EXIT = 3
+
+
+def persist_metrics_and_finalize(*, metrics, metrics_ok_path, metrics_refused_path,
+                                 finalize_kwargs):
+    """Run every fail-closed gate + (on success) write the consumable artifacts, and persist
+    the metrics json so the SHIPPED-artifact <-> metrics pairing stays honest.
+
+    Gate defect #2 (metrics clobber): the tracked `metrics_decompose.json` describes the
+    currently-SHIPPED decompose.ply, so a REFUSED run must not overwrite it. The tracked file
+    is written ONLY after all gates pass; a refused run's metrics go to
+    `metrics_decompose_refused.json` (still fully inspectable) and the tracked file is left
+    untouched — matching whatever artifacts are actually on disk.
+
+    Gate defect #1 (fail-open exit): a refusal re-raises SystemExit with an explicit NONZERO
+    integer code (GATE_REFUSED_EXIT), preserving the FATAL reason on stdout. Raises SystemExit
+    (nonzero) on any gate refusal; returns None on success."""
+    try:
+        finalize_decompose(**finalize_kwargs)
+    except SystemExit as e:
+        with open(metrics_refused_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+        if isinstance(e.code, str):
+            print(e.code, flush=True)                    # keep the FATAL reason on stdout
+            print(e.code, file=sys.stderr, flush=True)   # and mirror to stderr so log
+            #                                              pipelines that split error streams
+            #                                              (or key on stderr) still see refusals
+        print(f"[decompose] REFUSED: metrics -> {metrics_refused_path} "
+              f"(tracked {os.path.basename(metrics_ok_path)} left matching the shipped "
+              "artifacts; NOT clobbered)", flush=True)
+        code = e.code if (isinstance(e.code, int) and e.code != 0) else GATE_REFUSED_EXIT
+        raise SystemExit(code)
+    with open(metrics_ok_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+    # a prior REFUSED run's metrics no longer describe reality once we ship fresh artifacts;
+    # drop the stale refused file so a refuse-then-succeed sequence can't leave a misleading
+    # metrics_decompose_refused.json sitting next to the good pairing.
+    if os.path.exists(metrics_refused_path):
+        os.remove(metrics_refused_path)
+    print(f"[decompose] metrics -> {metrics_ok_path}", flush=True)
 
 
 # ============================================================================
@@ -596,8 +645,30 @@ def main():
                          "regardless, so disabling reproduces the pre-fix ~29%%-sign-opposed output "
                          "and the gate then FIRES (raise) unless --max-sign-opposition is raised.")
     ap.add_argument("--sign-k-cam", dest="sign_k_cam", type=int, default=3,
-                    help="orient each normal toward the mean direction of its this-many nearest "
-                         "cameras (default 3; smooths the reference so no Voronoi-boundary flips).")
+                    help="FALLBACK-path only: nearest-camera count for make_normals_sign_consistent "
+                         "when no per-view projection data is available. The DEFAULT decompose path "
+                         "is the visibility-weighted+voxel resolver (task D6), which supersedes the "
+                         "k_cam nearest-camera vote (it flipped 55-68%% at init yet left ~30%% "
+                         "neighbour-sign opposition post-solve on the heroes — grazing normals).")
+    # ---- grazing-normal sign resolver (task 2026-07-16-grazing-normal-resolver, D6) ----
+    ap.add_argument("--sign-vis-min-face", dest="sign_vis_min_face", type=float, default=0.35,
+                    help="visibility-weighted resolver: a Gaussian is confidently sign-resolved by "
+                         "cameras only if SOME training view sees it at least this face-on "
+                         "(max |dot(N, dir_to_cam)| over in-frustum views; default 0.35). Below it "
+                         "the splat is grazed by every view and the voxel sign field decides.")
+    ap.add_argument("--sign-vis-min-coherence", dest="sign_vis_min_coherence", type=float,
+                    default=0.5,
+                    help="visibility-weighted resolver: the face-on views must also AGREE on a "
+                         "hemisphere (||weighted-mean view dir|| / total weight >= this; default "
+                         "0.5) — a thin surface seen face-on from both sides cancels and is handed "
+                         "to the voxel field instead.")
+    ap.add_argument("--sign-voxel-mult", dest="sign_voxel_mult", type=float, default=3.0,
+                    help="coarse-voxel sign field: voxel edge = this multiple of the cloud's median "
+                         "8-NN spacing (default 3.0 = a few x spacing). Low-confidence splats take "
+                         "their voxel's visibility-resolved majority sign.")
+    ap.add_argument("--sign-voxel-passes", dest="sign_voxel_passes", type=int, default=2,
+                    help="coarse-voxel sign field: number of 26-voxel-neighbour consensus passes to "
+                         "propagate the majority into confident-empty voxels (default 2; no MST/BFS).")
     ap.add_argument("--sign-opposition-radius", dest="sign_opposition_radius", type=float, default=None,
                     help="ABSOLUTE world-unit radius for the DOMAIN-scale sign-opposition "
                          "metric/gate — EXPERIMENTS ONLY. DEFAULT (omit) = PER-POINT ADAPTIVE: "
@@ -664,21 +735,39 @@ def main():
     test_idx = [i for i in range(n_imgs) if is_test[i]]
     # camera centres (world/COLMAP frame): C = -R_c2w @ t, R_c2w = R_w2c^T
     cam_centers = np.stack([camera_center_from_viewmat(vm.numpy()) for vm in viewmats])
+    # per-TRAIN-view projection data (world->cam viewmat + K + image size) for the
+    # visibility-weighted sign resolver (task D6): visibility = a Gaussian projects inside
+    # a TRAIN view's frustum & is in front. Cheap geometric test on the camera params the
+    # solve already holds — NO extra render pass. Test views are held out of the resolver.
+    train_viewmats = np.stack([viewmats[i].numpy() for i in train_idx]).astype(np.float64)
+    train_Ks = np.stack([Ks[i].numpy() for i in train_idx]).astype(np.float64)
+    train_cam_centers = cam_centers[train_idx]
     print(f"[decompose] N={N} gaussians  {n_imgs} imgs ({len(train_idx)} train/"
           f"{len(test_idx)} test)  {W}x{H}  pbr_iteration={args.pbr_iteration}", flush=True)
 
     # ---- learnable material params (pre-activation leaves) ----
     _albedo = nn.Parameter(torch.zeros(N, 3, device=dev))          # sigmoid -> 0.5
     n0 = shortest_axis_normals(g["scale"], g["rot"])               # COLMAP frame, unit
-    # normal-sign consistency at the SOURCE (task 2026-07-15, step 1): shortest_axis_normals
-    # takes an arbitrary-signed covariance-axis column, so orient the INIT to the dominant
-    # camera hemisphere -> the whole solve runs on consistent signs (preferred over a
-    # post-hoc flip; dot(N,L) enters the shading). Cheap (O(N log C)); COLMAP frame.
+    # normal-sign consistency at the SOURCE (task 2026-07-15 step 1; D6 grazing resolver):
+    # shortest_axis_normals takes an arbitrary-signed covariance-axis column, so resolve the
+    # INIT sign with the visibility-weighted + voxel resolver -> the whole solve runs on
+    # consistent signs (preferred over a post-hoc flip; dot(N,L) enters the shading). The
+    # visibility weight is a cheap geometric frustum+facing test over the TRAIN views (no
+    # render pass). COLMAP frame (rigid-invariant).
+    def _resolve_signs(nrm, idx=None):
+        return normals_mod.resolve_normal_signs(
+            g["xyz"], nrm, cam_centers=train_cam_centers, viewmats=train_viewmats,
+            Ks=train_Ks, image_wh=(W, H), min_face=args.sign_vis_min_face,
+            min_coherence=args.sign_vis_min_coherence, voxel_mult=args.sign_voxel_mult,
+            voxel_neighbor_passes=args.sign_voxel_passes, k=args.smooth_normals_knn,
+            k_cam=args.sign_k_cam, idx=idx)
+
     if not args.no_sign_consistency:
-        n0, init_sign_info = normals_mod.make_normals_sign_consistent(
-            g["xyz"], n0, cam_centers=cam_centers, k_cam=args.sign_k_cam)
-        print(f"[decompose] init normal-sign consistency ({init_sign_info['method']}): "
-              f"flipped {init_sign_info.get('frac_flipped', 0.0):.1%}", flush=True)
+        n0, init_sign_info = _resolve_signs(n0)
+        print(f"[decompose] init sign resolve ({init_sign_info['method']}): "
+              f"visibility {init_sign_info.get('frac_resolved_visibility', 0.0):.1%} + "
+              f"voxel {init_sign_info.get('frac_resolved_voxel', 0.0):.1%} "
+              f"(unresolved {init_sign_info.get('frac_unresolved', 0.0):.1%})", flush=True)
     else:
         init_sign_info = {"method": "disabled"}
     _normal = nn.Parameter(torch.tensor(n0, device=dev))           # F.normalize at use
@@ -772,11 +861,12 @@ def main():
     # validation is a scheduled re-decompose, not an in-loop check).
     sign_info = {"enabled": (not args.no_sign_consistency), "init": init_sign_info}
     if not args.no_sign_consistency:
-        normal_np, final_sign_info = normals_mod.make_normals_sign_consistent(
-            g["xyz"], normal_np, cam_centers=cam_centers, k_cam=args.sign_k_cam, idx=knn_idx)
+        normal_np, final_sign_info = _resolve_signs(normal_np, idx=knn_idx)
         sign_info["final"] = final_sign_info
-        print(f"[decompose] final normal-sign consistency ({final_sign_info['method']}): "
-              f"flipped {final_sign_info.get('frac_flipped', 0.0):.1%}", flush=True)
+        print(f"[decompose] final sign resolve ({final_sign_info['method']}): "
+              f"visibility {final_sign_info.get('frac_resolved_visibility', 0.0):.1%} + "
+              f"voxel {final_sign_info.get('frac_resolved_voxel', 0.0):.1%} "
+              f"(unresolved {final_sign_info.get('frac_unresolved', 0.0):.1%})", flush=True)
 
     # ---- D5 optional k-NN normal smooth (task 2026-07-13, step 2; now SIGN-AWARE) ----
     # Applied to the FINAL normals (COLMAP frame; sign-aware smoothing is still rigid-
@@ -873,7 +963,9 @@ def main():
     psnr_masked = float(np.mean(psnrs_masked)) if psnrs_masked else float("nan")  # diagnostic only
     psnr_finite = math.isfinite(psnr)
 
-    # ---- metrics (written BEFORE the gates so a failure stays inspectable) ----
+    # ---- metrics (persisted AROUND the gates by persist_metrics_and_finalize: the tracked
+    # metrics_decompose.json only on success; a refused run -> metrics_decompose_refused.json
+    # so a refusal never clobbers the shipped-artifact<->metrics pairing, task gate defect #2)
     def stats(a):
         return {"min": float(np.min(a)), "max": float(np.max(a)),
                 "nan": int(np.isnan(a).sum()), "inf": int(np.isinf(a).sum())}
@@ -894,10 +986,8 @@ def main():
     metrics["train_base_psnr_db"] = tb_psnr
     metrics["min_psnr_drop"] = args.min_psnr_drop
     metrics["budget_ok"] = budget_ok(psnr, psnr_finite, tb_psnr, args.min_psnr_drop)
-    mpath = os.path.join(out_dir, "metrics_decompose.json")
-    with open(mpath, "w") as f:
-        json.dump(metrics, f, indent=2)
-    print(f"[decompose] metrics -> {mpath}")
+    metrics_ok_path = os.path.join(out_dir, "metrics_decompose.json")
+    metrics_refused_path = os.path.join(out_dir, "metrics_decompose_refused.json")
 
     # ---- gates THEN write the consumable artifacts (MAJOR-B fail-closed order) ----
     # decompose.ply + env_sh.json land ONLY after every gate passes, so a gate-failed
@@ -910,12 +1000,17 @@ def main():
                 "export flips COLMAP->Godot (core.sh_env.flip_env_sh_colmap_to_godot).",
         "ambient_sh": ambient_sh.tolist(),
     }
-    finalize_decompose(
-        out=args.out, env_out=env_out, metrics=metrics, gate_psnr=psnr,
-        psnr_finite=psnr_finite, tb_psnr=tb_psnr, min_psnr_drop=args.min_psnr_drop,
-        tb_metrics_path=tb_metrics_path, xyz=g["xyz"], sh0=sh0, opacity=g["opacity"],
-        scales=g["scale"], quats=g["rot"], albedo=albedo_np, normal=normal_np,
-        rough=rough_np, env_json=env_json)
+    # persist metrics AROUND the gates: tracked file on success, refused file on refusal
+    # (gate defect #2), and re-raise NONZERO on refusal (gate defect #1).
+    persist_metrics_and_finalize(
+        metrics=metrics, metrics_ok_path=metrics_ok_path,
+        metrics_refused_path=metrics_refused_path,
+        finalize_kwargs=dict(
+            out=args.out, env_out=env_out, metrics=metrics, gate_psnr=psnr,
+            psnr_finite=psnr_finite, tb_psnr=tb_psnr, min_psnr_drop=args.min_psnr_drop,
+            tb_metrics_path=tb_metrics_path, xyz=g["xyz"], sh0=sh0, opacity=g["opacity"],
+            scales=g["scale"], quats=g["rot"], albedo=albedo_np, normal=normal_np,
+            rough=rough_np, env_json=env_json))
 
     print(f"[decompose] DONE  N={N}  albedo_std={albedo_std:.3f}  "
           f"PSNR(heldout,full)={psnr:.2f} dB  masked={psnr_masked:.2f} dB  "

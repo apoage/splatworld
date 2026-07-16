@@ -5,6 +5,37 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-07-17
+- **grazing-normal-resolver: D6 hybrid sign resolver + two gate-defect fixes
+  (`tasks/2026-07-16-grazing-normal-resolver.md`).** Ships the resolver INFRASTRUCTURE and the
+  bugfixes; the real-data efficacy target is **REFUTED** (see below) — assets UNCHANGED (fail-closed).
+- **Hybrid sign resolver (cue a + cue b), replacing the k_cam nearest-camera vote as the default
+  decompose sign pass** (`core/normals.py`: `visibility_weighted_reference`, `voxel_sign_field`,
+  `resolve_normal_signs`; wired into `decompose.py` at init + post-solve). Cue (a): orient each
+  Gaussian toward its MOST-face-on view (`d_peak`, the peak visibility witness), confident only when
+  the face-on-emphasised aggregate `ref` corroborates it — a crowd of one-sided grazing views can no
+  longer drag the sign to the wrong hemisphere (the confidently-wrong-domain failure). Cue (b):
+  coarse-voxel majority sign field for the low-confidence residual (no MST/BFS, O(N)). CLI knobs:
+  `--sign-vis-min-face`, `--sign-vis-min-coherence`, `--sign-voxel-mult`, `--sign-voxel-passes`.
+  Falls back to the v0.16.0 `make_normals_sign_consistent` path when per-view projection data is absent.
+- **EFFICACY REFUTED on real foliage.** Re-decompose of pxl_144634 (2.4M splats): 8-NN opposition
+  **30.03%** / adaptive **37.65%** at default balance; **29.13% / 37.81%** voxel-dominant
+  (`--sign-vis-min-coherence 0.9`). The ~30% floor is **balance-invariant** and matches the pre-fix
+  v0.16.0 camera-hemisphere result — visibility-witness orientations are high-confidence but
+  neighbor-inconsistent on real grazing normals, and neither camera- nor voxel-dominant balance
+  resolves the front/back ambiguity. The <5% gate correctly REFUSED (fail-closed); hero assets left
+  untouched. **D6 reopened as D7** for the next approach (or an accept-the-look decision). M3 stays gated.
+- **Gate defect #1 — fail-open exit (FIXED):** a FATAL sign/PSNR-gate refusal now exits a NONZERO
+  integer (`GATE_REFUSED_EXIT=3`; any string/0/None code normalized), so automation (`run.py`) cannot
+  read a refusal as success. The FATAL reason is mirrored to stderr as well as stdout.
+- **Gate defect #2 — metrics clobber (FIXED):** the tracked `metrics_decompose.json` describes the
+  SHIPPED artifacts, so a refused run now writes `metrics_decompose_refused.json` (gitignored) and
+  leaves the tracked file byte-identical; the tracked file is written only after all gates pass, and a
+  stale refused file is unlinked on the next success. Both defects proven fail-closed in production by
+  the two real re-decompose runs (both refused, exit 3, no clobber).
+- Tests: `test_resolver_orients_by_peak_witness_not_aggregate` (genuine aggregate-vs-witness trap that
+  fault-injects), refused-run nonzero-exit + no-clobber tests. Suite 107 → 114.
+
 ## [0.17.0] — 2026-07-16
 - **flashlight-orb: aggressive local lighting (point/spot) + engine-lit reference orb
   (`tasks/2026-07-15-flashlight-orb.md`). First change to the relight shading contract since M2a.**

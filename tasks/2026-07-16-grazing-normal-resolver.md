@@ -1,3 +1,16 @@
+> **STATUS (2026-07-17): PARTIAL — infra + gate fixes SHIPPED as v0.18.0; the D6 hybrid EFFICACY is
+> REFUTED on real foliage.** Shipped: the hybrid resolver implementation (visibility-witness orientation
+> `d_peak` + coarse-voxel sign field, replacing the k_cam vote; MAJOR-1 confidently-wrong-sign fix +
+> MAJOR-2 genuine trap test, both independently re-verified by fault injection) and the two gate defects
+> (#1 fail-open exit → nonzero `GATE_REFUSED_EXIT=3`; #2 metrics clobber → refused file + no-clobber),
+> both proven fail-closed in production. **NOT achieved:** the <5% multi-scale acceptance. Re-decompose
+> of pxl_144634 (2.4M): 8-NN **30.03%** / adaptive **37.65%** default, **29.13% / 37.81%** voxel-dominant
+> — a **balance-invariant ~30% floor** ≈ the pre-fix v0.16.0 result. Visibility-witness signs are
+> confident but neighbor-inconsistent on real grazing normals; the voxel field only gets the residual.
+> Assets UNCHANGED (fail-closed). **→ reopened as DECISIONS D7** (accept-the-look / anisotropy-gate /
+> global MST / sign-agnostic shading). **M3 stays gated.** Owner eyeball + re-export/re-mirror NOT done
+> (nothing passed the gate to ship). Refuted metrics: run-#9 handoff `docs/2026-07-17-handoff-9-run9.md`.
+
 # grazing-normal-resolver — hybrid sign resolution (DECIDED D6) + gate exit/metrics fixes
 
 **Size/risk:** M–L / medium-high (in-solve change to decompose + a new post-solve pass; every
