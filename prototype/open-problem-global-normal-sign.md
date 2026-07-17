@@ -2,8 +2,19 @@
 
 Status: OPEN RESEARCH QUESTION (owner, 2026-07-17: keep as a question to solve, not an
 abandonment). Runtime sign-agnostic shading (D7) makes this non-blocking; solving any part
-below upgrades relighting quality further and is genuinely unpublished territory (all four
-D7 research reports: no published system solves or even poses this for foliage).
+below upgrades relighting quality further.
+
+**VALIDATION STANCE (owner, 2026-07-17 — governs this whole track):** the arbiter is
+EMPIRICAL, not bibliographic. Every mechanism here is falsifiable against synthetic
+ground truth (authored plant mesh → known per-face sign → our pipeline → does the estimator
+recover it?) and against the owner eyeball (M-D). Therefore **whether a cited paper actually
+exists does not matter** — the round-2 reports were reasoning passes and their citations are
+unverified, possibly confabulated, and that is FINE. A "hallucinated" method that crystallises
+into code and passes M-0/M-C/M-D validation is a WORKING solution, full stop. Consequence:
+- treat every cited mechanism as a testable HYPOTHESIS, validate it, keep what works;
+- the "novelty / is-it-published" question is DEFERRED and OPTIONAL — it matters ONLY if/when
+  we write this up or pitch it (e.g. MegaGrants), never as a gate on building or shipping;
+- do NOT block M-0/M-A/M-B/M-C on any literature search. Validation is the only gate.
 
 ## Why the classical formulation is ill-posed (settled, 4/4 reports)
 "Assign every splat normal a globally consistent sign" assumes a closed orientable manifold.
@@ -71,8 +82,9 @@ bas-relief ambiguity → binary sign under known light (our env-SH = calibrated 
 - **M-C**: reflectance-asymmetry sign estimator (the novel contribution), per patch, offline,
   beat the free camera-facing baseline.
 - **M-D**: A/B vs the D7 sign-agnostic baseline via lighting-stability + owner eyeball.
-- **Pending**: ONE real web-verified search to convert the convergent-but-unverified novelty
-  claim (Q-C, two-sided surfel) into an established one before any writeup.
+- **Deferred / optional (NOT a gate on any M above)**: ONE real web-verified search — run it
+  ONLY to firm the novelty claim for a writeup / MegaGrants pitch. Building and shipping the
+  working solution does not wait on it (validation stance above).
 
 ---
 

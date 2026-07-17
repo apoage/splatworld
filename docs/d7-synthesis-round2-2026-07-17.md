@@ -4,6 +4,12 @@ Sources: `docs/research02/` — four HIGH-EFFORT-THINKING outputs (owner clarifi
 reasoning passes, NOT web-verified deep search). **All paper citations herein are from model
 memory: treat as LEADS TO VERIFY, not established fact.** Convergent *reasoning* across four
 independent passes is the signal; the "published / unpublished" claims are unverified.
+
+**VALIDATION STANCE (owner, 2026-07-17):** the arbiter is empirical (synthetic-GT + eyeball),
+not bibliographic. A confabulated-but-working mechanism that passes M-0/M-C/M-D is a real
+solution. Novelty verification is DEFERRED/OPTIONAL — writeup-only, never a build gate. Treat
+each cited mechanism below as a testable hypothesis. Full stance in
+`prototype/open-problem-global-normal-sign.md`.
 (One named file, `open-problem-light-stable-orientation-...(1).md`, was a byte-copy of the
 prompt — the real reports are the other three + `foliage_splat_orientation_research/`.)
 
