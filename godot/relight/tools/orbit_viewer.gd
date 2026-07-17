@@ -52,6 +52,15 @@ var _amb := AMBIENT
 var _wrap := WRAP_POWER
 var _color := LIGHT_COLOR
 
+# D7 sign-agnostic prototype (key N cycles): 0 signed (shipped) / 1 sign-free wrap /
+# 2 flip-toward-camera. Mode 3 (confidence blend) is SKIPPED — the pass cannot reach
+# per-splat covariance scales without extending the material buffer (task Gate: do not
+# extend the buffer for a prototype). `_sign_wrap` is mode 1's wrap w (,/. tweak it live
+# while in mode 1; otherwise ,/. keep adjusting the back-term wrap_power as before).
+const SIGN_NAMES := ["signed", "sign-free wrap", "flip-to-cam"]
+var _sign_mode := 0
+var _sign_wrap := 0.4
+
 # Diagnostic isolation toggles (owner debugging of the relit energy budget):
 # V = env-SH ambient on/off (off -> flat AMBIENT fallback), A = sun off
 # (ambient term only), D = ambient off (direct sun term only).
@@ -136,6 +145,9 @@ func _unhandled_input(e: InputEvent) -> void:
 				_color = LIGHT_COLOR
 				_sun_off = false
 				_amb_off = false
+				_sign_mode = 0
+				_sign_wrap = 0.4
+				RelightPass.set_sign_mode(0)
 				if not _env_on and not _env_coeffs.is_empty():
 					RelightPass.set_env_sh(_env_coeffs)
 					_env_on = true
@@ -161,6 +173,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_O:
 				if _orb != null:
 					_orb.visible = not _orb.visible
+			KEY_N:
+				# D7: cycle the sign-agnostic shading mode live (HUD shows it).
+				_sign_mode = (_sign_mode + 1) % SIGN_NAMES.size()
+				RelightPass.set_sign_mode(_sign_mode)
 			KEY_5:
 				# Backlit: sun directly opposite the camera, low over the horizon.
 				_hold_light("backlit")
@@ -178,9 +194,15 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_BRACKETRIGHT:
 				_amb = minf(_amb + 0.03, 1.0)
 			KEY_COMMA:
-				_wrap = maxf(_wrap - 0.25, 0.25)
+				if _sign_mode == 1:
+					_sign_wrap = maxf(_sign_wrap - 0.05, 0.0) # mode 1: tweak sign-free wrap w
+				else:
+					_wrap = maxf(_wrap - 0.25, 0.25)
 			KEY_PERIOD:
-				_wrap = minf(_wrap + 0.25, 8.0)
+				if _sign_mode == 1:
+					_sign_wrap = minf(_sign_wrap + 0.05, 4.0)
+				else:
+					_wrap = minf(_wrap + 0.25, 8.0)
 			_:
 				if PRESETS.has(e.keycode):
 					var p: Dictionary = PRESETS[e.keycode]
@@ -217,6 +239,12 @@ func _process(delta: float) -> void:
 	var eff_energy := 0.0 if _sun_off else _energy
 	var eff_amb := 0.0 if _amb_off else _amb
 	RelightPass.set_light(light_dir_ws, _color * eff_energy, _wrap, eff_amb, _mode, _trans_on)
+	# D7 sign-agnostic prototype: push the camera world pos (mode 2 flip-toward-camera),
+	# the sign wrap w (mode 1), and the active sign mode every frame (camera moves).
+	if _cam != null:
+		RelightPass.set_camera_pos(_cam.global_position)
+	RelightPass.set_sign_wrap(_sign_wrap)
+	RelightPass.set_sign_mode(_sign_mode)
 	_update_flashlight()
 	_refresh_hud()
 
@@ -261,9 +289,13 @@ func _refresh_hud() -> void:
 			roundi(wrapf(rad_to_deg(_sun_az), 0.0, 360.0)), roundi(rad_to_deg(_sun_el)),
 			_energy, _amb, _wrap, _condition,
 		]
+		+ "D7 sign=%d:%s%s\n" % [
+			_sign_mode, SIGN_NAMES[_sign_mode],
+			("  w=%.2f" % _sign_wrap) if _sign_mode == 1 else "",
+		]
 		+ "drag=cam  rdrag=sun  wheel=zoom  SPACE=orbit pause  C=day-cycle\n"
 		+ "1=noon 2=golden 3=overcast 4=moon 5=backlit  +/-=E  [/]=amb  ,/.=wrap  R=reset\n"
-		+ "F=flashlight  O=reference orb  V=envSH/flat  A=sun off  D=ambient off"
+		+ "F=flashlight  O=reference orb  V=envSH/flat  A=sun off  D=ambient off  N=sign mode"
 	)
 
 

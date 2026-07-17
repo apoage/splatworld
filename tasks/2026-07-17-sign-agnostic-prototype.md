@@ -1,3 +1,13 @@
+> **STATUS (2026-07-17): SHIPPED as v0.19.0** (factory run #10). `sign_mode` toggle (0 signed /
+> 1 wrap / 2 flip) in the relight pass + viewer key `N` + HUD; **mode 3 (confidence-blend)
+> SKIPPED** — per-splat scales aren't in a bound buffer and the Gate forbids extending the
+> material buffer for a prototype. Mode 0 byte-identical to v0.18.0 (measured). Analytic sign
+> gate (fault-injection-proven per mode) + per-mode perf probe (~free: 7.95/7.76/7.75 ms @
+> 2.4M/1080p). Panel green (correctness + regression + flow-verifier on the real 3090); suite
+> 114. **REMAINDERS (owner/planner, not factory):** (1) owner A/B eyeball in sun-only mode D on
+> both heroes = the D7 decision evidence — this task produced the toggle, not the verdict;
+> (2) planner writes the D7 findings note in the validation/decisions doc (planner owns docs/).
+
 # sign-agnostic-prototype — D7 shading experiment behind a viewer toggle (owner A/B decides D7)
 
 **Size/risk:** S–M / low-medium (runtime-only, additive, default OFF — the shipped signed

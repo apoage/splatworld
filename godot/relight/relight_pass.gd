@@ -41,6 +41,16 @@ const FLASH_SLOT_BYTES := 48                       # 3 vec4
 const FLASH_META_BYTES := 16                       # ivec4 header
 const FLASH_BYTES := FLASH_META_BYTES + MAX_FLASH_LIGHTS * FLASH_SLOT_BYTES # 208
 
+# D7 sign-agnostic prototype trailer on the SAME binding-5 buffer (headroom, no push-
+# constant change): one extra vec4 after the light slots. meta.y carries sign_mode;
+# cam_sign.xyz = camera WORLD pos (mode 2 flip-toward-camera), cam_sign.w = sign-free
+# wrap w (mode 1). Always emitted (_binding5_bytes) so mode 1/2 params are valid even
+# with the flashlight off. MUST match FlashBuffer in relight.glsl (std430 => the vec4
+# lands at offset 208, 16-aligned).
+const CAM_SIGN_BYTES := 16
+const CAM_SIGN_OFFSET := FLASH_BYTES               # 208
+const BINDING5_BYTES := FLASH_BYTES + CAM_SIGN_BYTES # 224
+
 # DC-normalization (relit-energy): set_env_sh scales ALL 9 c_lm so the sphere-mean
 # luma of ambient_sh(N) becomes 1.0. The sphere-mean of ambient_sh equals SH_C0*c00
 # because every l>=1 SH band integrates to zero over the sphere, so dividing all
@@ -68,6 +78,11 @@ static var _env_version := 0
 static var _flash_bytes := PackedByteArray() # FLASH_BYTES packed, or empty (=> off)
 static var _flash_version := 0
 
+# --- D7 sign-agnostic prototype state (shares binding 5 / _flash_version) ---
+static var _sign_mode := 0            # binding-5 meta.y: 0 signed / 1 wrap / 2 flip
+static var _cam_pos := Vector3.ZERO   # binding-5 cam_sign.xyz (world), used by mode 2
+static var _sign_wrap := 0.4          # binding-5 cam_sign.w, sign-free wrap w (mode 1)
+
 # --- light / shading state (set each frame by the scene) ---
 static var _light_dir := Vector3(0.0, -1.0, 0.0) # travel direction (world)
 static var _light_color := Vector3(1.0, 1.0, 1.0)
@@ -86,7 +101,7 @@ class Bundle:
 	var shader: RID
 	var material_desc     # GdgsRenderingDeviceContext.Descriptor
 	var env_desc          # GdgsRenderingDeviceContext.Descriptor (env-SH buffer, fixed 144 B)
-	var flash_desc        # GdgsRenderingDeviceContext.Descriptor (local-light buffer, fixed 208 B)
+	var flash_desc        # GdgsRenderingDeviceContext.Descriptor (local-light + D7 sign trailer buffer, fixed 224 B)
 	var descriptor_set: RID
 	var pipeline: Callable
 	var point_count := 0
@@ -216,6 +231,39 @@ static func _flash_padded() -> PackedByteArray:
 	return z
 
 
+# D7 sign-agnostic prototype (viewer key N). Shares binding 5 + _flash_version so the
+# per-frame buffer refresh already in run() picks these up. Mode 0 is the shipped signed
+# path (default). Raw mode ignores sign_mode entirely (shader returns before the lobe).
+static func set_sign_mode(mode: int) -> void:
+	_sign_mode = mode
+	_flash_version += 1
+
+
+static func set_camera_pos(pos: Vector3) -> void:
+	_cam_pos = pos
+	_flash_version += 1
+
+
+static func set_sign_wrap(w: float) -> void:
+	_sign_wrap = w
+	_flash_version += 1
+
+
+# Full binding-5 buffer (224 B): the 208-byte flashlight portion (meta.x + slots) plus
+# the sign trailer. meta.y = sign_mode; trailing vec4 = (camera world pos, sign wrap w).
+# Every trailer byte is written explicitly (offsets 4 and 208..223), so correctness does
+# not depend on resize() zero-filling the grown region.
+static func _binding5_bytes() -> PackedByteArray:
+	var b := _flash_padded().duplicate()
+	b.resize(BINDING5_BYTES)
+	b.encode_s32(4, _sign_mode) # meta.y
+	b.encode_float(CAM_SIGN_OFFSET + 0, _cam_pos.x)
+	b.encode_float(CAM_SIGN_OFFSET + 4, _cam_pos.y)
+	b.encode_float(CAM_SIGN_OFFSET + 8, _cam_pos.z)
+	b.encode_float(CAM_SIGN_OFFSET + 12, _sign_wrap)
+	return b
+
+
 static func set_light(light_dir_ws: Vector3, light_color: Color, wrap_power: float,
 		ambient: float, mode: int, trans_on: bool) -> void:
 	_light_dir = light_dir_ws
@@ -259,10 +307,11 @@ static func run(state, point_count: int) -> void:
 		ctx.device.buffer_update(bundle.env_desc.rid, 0, ENV_SH_BYTES, env_data)
 		bundle.env_version = _env_version
 
-	# Refresh local-light contents if they changed (fixed 208 B => no rebuild needed).
+	# Refresh binding-5 contents if they changed (fixed 224 B => no rebuild needed).
+	# Covers the flashlight slots AND the D7 sign trailer (sign_mode / cam pos / wrap).
 	if bundle.flash_version != _flash_version:
-		var flash_data := _flash_padded()
-		ctx.device.buffer_update(bundle.flash_desc.rid, 0, FLASH_BYTES, flash_data)
+		var flash_data := _binding5_bytes()
+		ctx.device.buffer_update(bundle.flash_desc.rid, 0, BINDING5_BYTES, flash_data)
 		bundle.flash_version = _flash_version
 
 	var push := _push_constant(point_count)
@@ -285,7 +334,7 @@ static func _build(state, point_count: int) -> Bundle:
 	b.material_version = _material_version
 	b.env_desc = ctx.create_storage_buffer(ENV_SH_BYTES, _env_padded())
 	b.env_version = _env_version
-	b.flash_desc = ctx.create_storage_buffer(FLASH_BYTES, _flash_padded())
+	b.flash_desc = ctx.create_storage_buffer(BINDING5_BYTES, _binding5_bytes())
 	b.flash_version = _flash_version
 	b.descriptor_set = ctx.create_descriptor_set([
 		state.descriptors["culled_splats"],

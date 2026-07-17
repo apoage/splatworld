@@ -5,6 +5,30 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-07-17
+- **sign-agnostic-prototype: D7 shading experiment behind a live `sign_mode` toggle
+  (`tasks/2026-07-17-sign-agnostic-prototype.md`).** Runtime-only, additive, default OFF —
+  produces the owner A/B eyeball evidence for the OPEN D7 decision; does NOT decide D7.
+- **`sign_mode` uniform in the relight pass** (`godot/relight/relight.glsl`,
+  `relight_pass.gd`) with a `direct_lobe()` helper both the sun and flashlight direct terms
+  route through. Modes match `docs/d7-synthesis-2026-07-17.md` §4:
+  - **0 signed** — `max(dot(N,L),0)`, the shipped v0.18.0 path, **byte-identical** when off.
+  - **1 sign-free WRAP** — `clamp((abs(dot(N,L))+w)/(1+w),0,1)/(1+w)`, w≈0.4 (abs first;
+    NOT half-Lambert, NOT plain abs). Live-tweakable via `,`/`.` while in mode 1.
+  - **2 flip-toward-camera** — `N' = dot(N,V)>=0 ? N : -N` then signed; V = splat→camera
+    from the camera world pos added to the binding-5 UBO (208→224 B; push constant untouched).
+  - **3 confidence-blend — SKIPPED**: per-splat covariance scales aren't in any buffer the
+    pass binds, and extending the material buffer for a prototype is forbidden by the Gate.
+- **Viewer key `N`** cycles modes live with a HUD label (`godot/relight/tools/orbit_viewer.gd`).
+- **Analytic sign gate** (`relight_sign_gate.gd`): closed-form per-mode check on a synthetic
+  ±Z splat cluster; each formula proven by fault injection (drop abs / drop flip → gate FAILs),
+  plus a raw-invariance check (raw output invariant to `sign_mode`). Per-mode perf probe
+  (`relight_sign_perf.gd`): signed 7.95 / wrap 7.76 / flip 7.75 ms @ 2.4M splats, 1080p (~free).
+- Verified on the real GPU (DISPLAY=:0, 3090): SIGN_GATE + RELIGHT_RENDER + FLASH_GATE +
+  RELIGHT_SMOKE PASS; pytest 114 passed. **Remainder: owner A/B eyeball in sun-only mode D on
+  both heroes = the D7 decision evidence** (do patch shadows die in mode 1/2? any mode-2 orbit
+  silhouette pop or ground/bark direction degrade?).
+
 ## [0.18.0] — 2026-07-17
 - **grazing-normal-resolver: D6 hybrid sign resolver + two gate-defect fixes
   (`tasks/2026-07-16-grazing-normal-resolver.md`).** Ships the resolver INFRASTRUCTURE and the

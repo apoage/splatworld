@@ -58,10 +58,23 @@ struct FlashLight {
 	vec4 dir_cone;
 	vec4 color_cone;
 };
+// D7 sign-agnostic prototype (docs/d7-synthesis-2026-07-17.md): the binding-5 buffer
+// also carries the sign mode + the params the sign-agnostic lobes need, so the push
+// constant is NOT touched. meta.y = sign_mode (0 signed / 1 sign-free wrap / 2
+// flip-toward-camera). cam_sign.xyz = camera WORLD position (mode 2 orients the normal
+// toward it); cam_sign.w = the sign-free wrap w (mode 1). Both are always populated
+// (RelightPass._binding5_bytes) so mode 1/2 stay valid regardless of flashlight state.
 layout(std430, set = 0, binding = 5) restrict readonly buffer FlashBuffer {
-	ivec4 meta; // x = active light count
+	ivec4 meta; // x = active light count, y = sign_mode
 	FlashLight lights[MAX_FLASH_LIGHTS];
+	vec4 cam_sign; // xyz = camera world pos (mode 2), w = sign-free wrap w (mode 1)
 } flash;
+
+// D7 sign modes for the diffuse direct lobe. Mode 0 is the shipped signed behavior and
+// MUST stay byte-identical when selected (default).
+const int SIGN_SIGNED = 0; // max(dot(N,L),0)                        — current shipped path
+const int SIGN_WRAP   = 1; // sign-free two-sided wrap (abs first)   — consensus lobe
+const int SIGN_FLIP   = 2; // flip N toward camera, then signed      — published 3DGS convention
 
 // Recovered ambient environment (deg-2 real SH), Godot post-flip frame, with the
 // Lambertian band factors already folded in (c_lm = (A_l/pi)*L_lm). Populated by
@@ -112,6 +125,22 @@ vec3 ambient_sh(vec3 n) {
 	return c;
 }
 
+// D7 diffuse direct lobe with a selectable sign policy. V = splat->camera unit dir,
+// w = sign-free wrap width. SIGN_SIGNED reproduces max(dot(N,L),0) EXACTLY (mode-0
+// byte-identity). SIGN_WRAP takes abs FIRST (half-Lambert on signed N.L is NOT
+// sign-agnostic) then wrap-normalizes by (1+w) twice, so a flat |N.L|==1 face reads
+// 1/(1+w) — not 1.0 (plain abs, which reads flat) and not a signed lobe. SIGN_FLIP
+// orients N toward the camera (published convention) then shades signed.
+float direct_lobe(vec3 N, vec3 L, vec3 V, int sign_mode, float w) {
+	if (sign_mode == SIGN_WRAP) {
+		return clamp((abs(dot(N, L)) + w) / (1.0 + w), 0.0, 1.0) / (1.0 + w);
+	} else if (sign_mode == SIGN_FLIP) {
+		vec3 Nv = (dot(N, V) >= 0.0) ? N : -N;
+		return max(dot(Nv, L), 0.0);
+	}
+	return max(dot(N, L), 0.0);
+}
+
 void main() {
 	uint id = gl_GlobalInvocationID.x;
 	if (id >= uint(pc.misc.y)) return;
@@ -140,7 +169,15 @@ void main() {
 	vec3 N = normalize(model3 * normal_obj);
 	vec3 L = normalize(-pc.light_dir_ws.xyz);
 
-	float direct = max(dot(N, L), 0.0);
+	// D7 sign-agnostic prototype: object->world splat position (also reused by the
+	// flashlight block below), view dir, and the sign mode + wrap from binding 5.
+	// sign_mode == SIGN_SIGNED (0) => direct_lobe is byte-identical to the shipped path.
+	vec3 pos_ws = (model * vec4(m.pos_label.xyz, 1.0)).xyz;
+	vec3 V = normalize(flash.cam_sign.xyz - pos_ws);
+	int sign_mode = flash.meta.y;
+	float sign_w = flash.cam_sign.w;
+
+	float direct = direct_lobe(N, L, V, sign_mode, sign_w);
 	// cheap wrap translucency; inert while trans == 0 (placeholder assets)
 	float back = trans * pow(max(dot(-N, L), 0.0) * 0.5 + 0.5, wrap_power);
 	// CLAUDE.md ambient term: recovered env-SH when a sidecar is bound
@@ -160,7 +197,6 @@ void main() {
 	// RAW mode already returned above, so this never leaks into raw output.
 	int n_flash = flash.meta.x;
 	if (n_flash > 0) {
-		vec3 pos_ws = (model * vec4(m.pos_label.xyz, 1.0)).xyz;
 		for (int i = 0; i < MAX_FLASH_LIGHTS; ++i) {
 			if (i >= n_flash) break;
 			FlashLight fl = flash.lights[i];
@@ -177,7 +213,8 @@ void main() {
 			float cone = smoothstep(fl.dir_cone.w, fl.color_cone.w, cos_a);
 			float w = falloff * cone;
 			if (w <= 0.0) continue;
-			float direct_f = max(dot(N, Lf), 0.0);
+			// Local lights use the SAME sign policy as the sun (byte-identical in mode 0).
+			float direct_f = direct_lobe(N, Lf, V, sign_mode, sign_w);
 			float back_f = trans * pow(max(dot(-N, Lf), 0.0) * 0.5 + 0.5, wrap_power);
 			color += albedo * (direct_f + back_f) * fl.color_cone.rgb * w;
 		}
