@@ -54,25 +54,12 @@ shading, physically-correct transmission ASYMMETRY (top-lit vs bottom-lit leaf r
 differently — sign-agnostic can't), and cleaner mode-B basis baking. Measure the visual
 delta on one asset (Q-C prototype vs runtime-agnostic baseline) before scaling any of this.
 
-## Suggested milestones — REVISED after round-2 research (see `docs/d7-synthesis-round2-2026-07-17.md`)
-Round-2 (4 reasoning passes, 2026-07-17) corrected two things: (1) the cue is REFLECTANCE
-asymmetry (adaxial waxy/dark vs abaxial pale/matte), NOT transmission glow — the latter is
-sign-blind by reciprocity; (2) do NOT drop the sign on merged splats — it's a MATERIAL
-orientation (which side is adaxial), the exact thing the payoff needs; τ̂ (transmittance) is
-the continuous sidedness classifier, dissolving the circular s_min test. Q-B is off-the-shelf
-(Schertler/Metzer; dipole needs no graph connectivity). Q-C is grounded in the generalized
-bas-relief ambiguity → binary sign under known light (our env-SH = calibrated regime).
-- **M-0 (DO FIRST, ~1 afternoon, decisive):** histogram two-sided reflectance contrast on the
-  Tier-A splat population of one asset. Clean separation ⇒ cue real; centered on zero ⇒ STOP.
-- **M-A**: material/sidedness classifier from τ̂ + schema (axis+flip+τ+ρ_ad/ρ_ab); per-asset
-  class populations; feeds the D7 runtime gate.
-- **M-B**: anisotropic-splat patch segmentation + adopt Schertler/Metzer solver + within-patch
-  (boundary-excluded) metric.
-- **M-C**: reflectance-asymmetry sign estimator (the novel contribution), per patch, offline,
-  beat the free camera-facing baseline.
-- **M-D**: A/B vs the D7 sign-agnostic baseline via lighting-stability + owner eyeball.
-- **Pending**: ONE real web-verified search to convert the convergent-but-unverified novelty
-  claim (Q-C, two-sided surfel) into an established one before any writeup.
+## Suggested milestones (each independently valuable)
+1. **M-A**: two-sided classifier in decompose (s_min vs local sheet-thickness estimate) +
+   schema flag; report class populations per asset. Cheap, honest, feeds the runtime gate.
+2. **M-B**: patch segmentation + within-patch consistency + the Q-D metric.
+3. **M-C**: photometric sign vote prototype (one asset, offline, patch-level).
+4. **M-D**: A/B vs the runtime-agnostic baseline via lighting-stability + owner eyeball.
 
 ---
 
