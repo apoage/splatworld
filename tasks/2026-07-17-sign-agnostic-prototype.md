@@ -15,20 +15,25 @@ cheap to A/B. Prototype them behind a mode switch so the owner can flip between 
 the real asset in sun-only diagnostic mode (where the patch shadows are obvious).
 
 ## Approach — a `sign_mode` uniform (int) in the relight pass + viewer key `N` cycling it
-Modes (HUD shows the active one):
+**READ FIRST: `docs/d7-synthesis-2026-07-17.md`** — 4-report research consensus (2026-07-17);
+the mode formulas below are updated to match it. Modes (HUD shows the active one):
 - **0 signed** (current shipped behavior — default, byte-identical output when 0)
-- **1 two-lobe abs**: `direct = abs(dot(N, L))` — sign-agnostic; the physically-sane model
-  for thin scatterers (two-sided foliage lighting).
-- **2 flip-toward-camera**: `N' = (dot(N, V) < 0) ? -N : N` with `V` = splat→camera dir, then
-  the normal signed shading — the standard trick in published relightable-3DGS systems (a
-  splat is only ever visible from one side). Needs camera world pos in the pass — add it to
-  the binding-5 light UBO (there is headroom; do NOT touch the push constant).
-- **3 (stretch, only if a spare material channel exists — do NOT extend the buffer for the
-  prototype)**: confidence blend of 0↔1 (e.g. by ‖pre-normalization smoothed-normal length‖
-  or covariance anisotropy if already available).
-Wrap/backlit note: trans is still 0 (pre-M3), so the `back` term is inert in all modes —
-do not redesign it here; just note in the validation doc how each mode would interact with a
-future two-lobe transmission split (feeds the M3 spec).
+- **1 sign-free WRAP** (the consensus two-sided lobe — NOT plain abs, which reads flat, and
+  NOT half-Lambert on signed N·L, which is NOT sign-agnostic):
+  `direct = saturate((abs(dot(N,L)) + w) / (1+w)) / (1+w)` with `w ≈ 0.4` (a uniform;
+  tweakable via the existing `,`/`.` wrap keys while in mode 1 is a nice-to-have).
+- **2 flip-toward-camera**: `N' = N * sign(dot(N, V))` with `V` = splat→camera dir, then the
+  normal signed shading — the published-3DGS convention (GaussianShader/GIR/2DGS). Needs
+  camera world pos in the pass — add it to the binding-5 light UBO (headroom exists; do NOT
+  touch the push constant). Watch for grazing-angle flicker during camera orbit (known
+  failure mode — worth demonstrating to the owner).
+- **3 (stretch, only if derivable without extending buffers)**: confidence blend of 2↔1 —
+  `mix(mode1, mode2_front_lobe, conf)` with `conf` = a covariance-anisotropy planarity proxy
+  (e.g. `1 − s_min/s_mid` — GDGS holds per-splat scales; if the pass can't reach them
+  cheaply, SKIP mode 3, do not extend the material buffer for a prototype).
+Wrap/backlit note: trans is still 0 (pre-M3), so the `back` term is inert in all modes — do
+not redesign it here. The M3 replacement term is already decided by the research (Frostbite
+phase form, synthesis §3) — note per-mode interactions in the validation doc only.
 
 ## Gates
 - Mode 0 output byte-identical to v0.18.0 (regression); raw mode invariant to `sign_mode`.

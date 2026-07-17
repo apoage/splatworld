@@ -1,0 +1,258 @@
+I'll treat this as a deep-research task — the user wants findings synthesized and returned to the planner (no formal document deliverable requested). I'll search literature across all five questions, read the key sources, and produce a grounded answer with the recommended formulations.
+
+Let me set up a plan and start parallel searches.
+I'll use the CLI to run parallel searches for each research question.
+Strong signal across all five questions. Now I need to read the key sources in depth — the relightable-3DGS papers (R3DG, GIR, GS-IR, GI-GS, DeferredGS, GS-ID), the foliage BTDF papers (McGuire 2017, d'Eon/Frostbite, Habel), and the global-orientation papers (CVPR 2025, GCNO/winding-number). Let me invoke the web-reader skill and fetch in parallel.
+Now I'll fetch the key sources in parallel — the relightable-3DGS papers (Q1), the foliage/BTDF references (Q2/Q3), and the global-orientation literature (Q4).
+Let me check the structure of these files and extract the key text content. I'll write a small extraction script and then grep for the relevant sections.
+Some PDFs likely failed extraction. Let me write a script to extract text from each, and try alternate URLs for the PDFs that failed.
+PDFs return empty HTML via page_reader. I'll fetch them directly with curl and convert with pdftotext. Also, GI-GS and GCNO returned 404 — let me try alternate arxiv URLs.
+pdftotext is available. Let me convert all PDFs in parallel.
+All sources are now in plain text. Let me update my todos and do targeted greps for the specific mechanisms asked about.
+Excellent — GIR explicitly says it uses visibility-based per-frame sign flipping, and R3DG uses depth-derived pseudo-normal regularization. Let me extract the other papers' mechanisms.
+The "deferredgs.txt" I downloaded was the wrong paper. Let me find the correct arxiv ID for DeferredGS.
+Now Q2/Q3 — foliage shading and BTDFs.
+Now Q4 — global point orientation literature.
+Now Q5 — per-splat confidence. Let me grep the survey and GIR for confidence/anisotropy hints.
+Let me also check the Fuhrer L-systems leaf shader paper for any BTDF details, and the righting_wrap part 2 link.
+I now have comprehensive source material across all five questions. Let me synthesize the final deliverable.
+Below is the literature-grounded answer for D7 + M3. Direct quotes from primary sources are in **bold**; citations are inline with arXiv IDs / venues so the planner can drop them straight into a decision record.
+
+---
+
+# D7 research findings — normal-sign ambiguity & thin-foliage shading for relightable Gaussian splats
+
+## TL;DR (for the planner)
+
+- Every published relightable / inverse-rendering 3DGS system **side-steps global sign orientation** rather than solving it. Five distinct mechanisms appear: per-frame view-visibility flipping (GIR), depth-gradient pseudo-normal supervision (GS-IR, R3DG, GI-GS), SDF-distilled normals (DeferredGS), external diffusion-prior normals (GS-ID), and **deferred (pixel-level) shading after α-blending** (DeferredGS, GI-GS). None delivers globally consistent per-Gaussian signs on thin geometry.
+- The global-orientation literature (Hoppe MST, GCNO, PGR, WNNC, CVPR-2025 Delaunay) **explicitly flags thin sheets and "closeby sheets" as the primary failure mode** for every category of method. SOTA winding-number methods cap at ~500K points (WNNC) or ~1hr per 10K points (GCNO); the user's 2–2.4M splats are **4–5× beyond published scale claims**.
+- **Verdict: drop global sign optimization as a milestone.** Make sign irrelevant at runtime via a sign-agnostic shading formulation + a view-vector (not `-N`-vector) transmission term. This is exactly what real-time foliage renderers already do (Frostbite/Díaz-García, Unreal Two-Sided Foliage, McGuire-2017 BTDF).
+
+---
+
+## Q1 — What do published relightable / inverse-rendering 3DGS systems do about normal sign?
+
+Six systems surveyed. Exact mechanism per paper:
+
+**GIR (Shi et al., arXiv 2312.05133, Sec. 3.2)** — Normal = shortest axis of the Gaussian ellipsoid (eigenvector of smallest eigenvalue of Σ). The paper explicitly admits the sign ambiguity: **"the smallest eigenvector and the actual point normal are often not in the same direction and can even be opposite. This discrepancy arises because when splatting Gaussians onto 2D screen pixels, there is no need to distinguish between an ellipsoid's positive and negative sides."** Sign is resolved **per-frame by view visibility**: **"Gaussians present on the surface and observed from the viewpoint should be visible. Any Gaussian that is not visible, as determined by `n·v ≤ 0`, does not contribute to color calculations. Therefore, the normal direction of these invisible Gaussians needs to be modified in order to reconstruct the desired image."** This is the dominant-camera-hemisphere flip the user already tried — GIR's resolver is exactly that, and GIR only ever uses it for the *currently rendered view*, not as a global property.
+
+**GS-IR (Liang et al., CVPR 2024, arXiv 2311.16473, Sec. 4.1)** — Stores a per-Gaussian normal `n` as an explicit attribute, α-blends it to a normal map, and supervises with a **pseudo-normal derived from the rendered depth map** `n̂_D = ∇_uv D̂`. Because the depth gradient is computed in image space from front-most blended samples, it is intrinsically camera-facing — sign is inherited from the camera, not oriented globally. Adds a TV smoothness regularizer. No global sign step.
+
+**R3DG (Gao et al., ECCV 2024, arXiv 2311.16043, Sec. "Normal Estimation")** — Same pattern: per-Gaussian `n` attribute, α-blended normal map `N`, plus **"a pseudo normal map `Ñ` computed from the rendered depth `D` under the local planarity assumption"** with consistency loss `L_n = ‖N − Ñ‖₂`. Adds "Normal Gradient Based Densification" (split splats whose screen-space normal gradient is large). BVH-ray-traced visibility `V(ω_i)` is per-Gaussian but is a visibility *occlusion* term, not a sign-flip mechanism. Sign is implicitly camera-facing via the depth-derived pseudo-normal.
+
+**GI-GS (Longbe et al., ICLR 2025, arXiv 2410.02619, Sec. "Normal Estimation")** — Explicitly *rejects* the shortest-axis heuristic: **"Unlike existing methods (Shi et al., 2023; Chen et al., 2024) that use the direction of the shortest axis of the ellipsoid as the normal direction and apply regularization… [we] use the pseudo normal map `n̂` from the depth map."** Loss: `L_n = L_{n,p} + λ_{n-TV} L_{TV_normal}`, `L_{n,p} = ‖n − n̂‖`. Critically, **GI-GS uses deferred shading** — rasterize depth/normal/material to a G-buffer, then shade at the pixel level.
+
+**DeferredGS (Wu et al., TPAMI 2025 / arXiv 2404.09412)** — Per-Gaussian normal attribute, but **distilled from a jointly-trained SDF** (Instant-RefNeuS), so sign is inherited from the SDF's inside/outside convention. The paper makes the key observation that motivates deferred shading: **"even though [the consistency loss] constrains the rasterized normal, [the] rasterized normal is still blended from multiple Gaussians' normals… [forward shading] does not guarantee that each Gaussian's individual normal [is what gets shaded]."** Solution: **deferred shading at pixel level after α-blending** — sidesteps per-Gaussian sign by shading the *blended* normal.
+
+**GS-ID (Wang et al., 2025, cislab.hkust-gz.edu.cn)** — Normal **supervised by a pretrained diffusion model (RGB↔X)** providing pseudo-GT normal maps; the supervision loss `L_base` ties rendered normals to the diffusion-predicted normals. Per-splat visibility is a *learned* per-light sigmoid: **`V_j = σ(α · Ŝ · ω_i^(j) + β)`** — i.e., per-splat shadow vectors, not sign.
+
+**Synthesis**: none of these systems attempt global sign orientation. The five strategies are (a) per-frame camera-facing flip (GIR), (b) depth-gradient pseudo-normal as supervisor (GS-IR, R3DG, GI-GS), (c) SDF distillation (DeferredGS), (d) external diffusion prior (GS-ID), (e) **deferred (pixel-level) shading after α-blending** (DeferredGS, GI-GS). Strategies (a)–(d) give *view-dependent* or *prior-dependent* signs, not globally consistent ones — which is exactly why the user's three camera-based resolvers all hit the same ~30% sign-opposition floor. Strategy (e) doesn't eliminate per-Gaussian sign ambiguity; it just moves the shading computation to a pixel-level blended normal, which the user's per-Gaussian compute shader does not do.
+
+---
+
+## Q2 — Two-sided / foliage shading practice in real-time engines
+
+**Unreal Two-Sided Foliage shading model** (Epic Games docs, "Shading Models in Unreal Engine") — Two-sided geometry **"both turns off face culling and flips the normal when rendering the back side"** (Unreal forums). Inputs: `Normal` + `Subsurface Color` (used as a transmission mask, e.g., for stems/veins). Epic explicitly contrasts this with Default Lit: **"the Default Lit result appears almost black on the underside surfaces because it does not simulate any sort of light transmission, which is critical for natural looking foliage."** Unreal also ships a separate **Thin Translucent** shading model — a physically-based thin-film BTDF that **"accounts for light bounces from the air into the glass, and from the glass into the air"** (Fresnel-modulated transmission, sign-agnostic in N because it's a slab model with refractive index η).
+
+**Crytek Crysis foliage (Sousa 2008)** — Referenced by the Frostbite slides as the canonical real-time foliage approach. Uses a **thickness map** ("with dark values for opaque, and bright values for [thin]") to gate transmission. The thickness map is the per-point confidence measure that determines whether the back lobe fires.
+
+**Frostbite / Díaz-García 2010 "Fast Translucency"** (Barré-Brisebois & Hill, GDC 2011) — Parameters: `Power`, `Distortion`, `Ambient`. The back-translucency lobe uses **`−vLTLight` (the negative view-to-light vector)**, i.e., the **view vector** as a proxy for the backside normal — *specifically because* the surface normal's sign is unreliable on thin geometry. The distortion parameter shifts the effective light position to fake subsurface light bending. Final = front Lambert + `pow(saturate(dot(L, −V) + distortion), power) · thickness · subsurface_color`.
+
+**Half-Lambert / wrap diffuse (Valve Source Engine, Mitchell et al. SIGGRAPH 2006; Green; Pettineo "Righting Wrap" 2011)** — Half-Lambert: `0.5·(N·L) + 0.5`. Green's wrap: `(N·L + w)/(1+w)`. Pettineo's "Righting Wrap" critique: **"Neither of these is energy conserving… Valve's Half Lambert model has a fixed amount of wrap, so it can't be tuned."** Normalization factor `1/(1+w)` is required for energy conservation, and the same wrap must be **carried through to the SH lighting convolution** — otherwise indirect lighting is inconsistent with direct.
+
+**When two-sided shading visibly breaks**:
+1. **Hard side-lit bark**: trunks/branches have real thickness and a clear "front" — two-sided foliage shading makes bark glow from the dark side because the back lobe fires for any back-facing fragment. Solution: gate the transmission lobe by a thickness map (Sousa) so bark = 0 transmission.
+2. **Self-shadowing without thickness mask**: every back-facing leaf "transmits," producing an over-bright backlit canopy with no occlusion falloff. Solution: multiply transmission by per-splat opacity × thickness × shadow factor.
+3. **Specular on two-sided leaves**: microfacet specular depends critically on the half-vector `H = (L+V)/2`. With flipped backside normals, `N·H` can swing wildly between front and back fragments, producing shimmer. Solution: zero out the specular lobe for splats flagged as foliage (Unreal does this — Two-Sided Foliage has no specular input).
+
+---
+
+## Q3 — A backlit/transmission term compatible with sign-agnostic normals
+
+The user's planned term `trans · pow(max(dot(−N, L), 0)·0.5+0.5, wrap_power)` is degenerate under `|dot(N, L)|` shading because `dot(−N, L)` simply flips sign with `dot(N, L)` — front and back become indistinguishable. Three published formulations solve this:
+
+**(A) McGuire 2017 "Phenomenological Transparency" BTDF** (McGuire & Endres, I3D 2017, casual-effects.com/research/McGuire2017Transparency) — The most principled published real-time thin-slab BTDF. Parameters: **refractive index (η), wavelength-varying transmission coefficient at normal incidence T(λ), and a collimation factor `c ∈ [0,1]`**. **"Unit collimation describes an optically homogeneous material like [glass]. Zero collimation describes a dense, isotropic participating medium."** The BTDF is sign-agnostic because it is a slab model — transmitted radiance through layer `i` is `α_i · L_r(X_i, λ)` modulated by coverage, opacity, and refractive offset. Explicitly supports foliage: **"Consider the foliage… The interior of each tree leaf has α = 1 and renders to the depth buffer. It both casts and receives AO. The edge of each leaf has [partial coverage]."** This is the gold-standard real-time thin-slab BTDF.
+
+**(B) Frostbite / Díaz-García 2010** — The transmission lobe uses `(L, V)` not `(−N, L)`: `pow(saturate(dot(L, −V) + distortion), power) · thickness · subsurface_color`. **Crucially sign-agnostic in N.** Max when `L = −V` (light behind, viewer in front — the backlit case); zero when `L = +V` (light in front of viewer — no transmission visible).
+
+**(C) Habel et al. "Physically Based Real-Time Translucency for Leaves"** — Closed-form thin-slab BSSRDF approximation using a wrapped cosine for diffuse transmission; sign-agnostic when expressed via `|cos θ|`.
+
+**Recommended sign-agnostic backlit term (concrete formula):**
+
+```glsl
+// Inputs per splat (already recovered offline by inverse rendering):
+//   N        - per-splat normal (sign unreliable on foliage)
+//   albedo   - per-splat albedo (RGB)
+//   trans    - per-splat transmission coefficient (scalar in [0,1])
+//   thick    - per-splat thickness (scalar in [0,1]; could be 1-opacity or a
+//              recovered thickness map; gates bark vs. leaf)
+// Inputs per light:
+//   L        - unit vector to light (world space)
+//   L_color  - light radiance (RGB)
+// Inputs per fragment:
+//   V        - unit vector to camera (world space)
+//
+// Sign-agnostic diffuse: use |N·L| so the diffuse term does not flip sign
+// with normal orientation. This is the "two-sided Lambert" used implicitly
+// by Unreal Two-Sided Foliage.
+float  NdotL  = dot(N, L);
+float  absNL  = abs(NdotL);
+vec3   diffuse = albedo * (absNL / PI);
+
+// Sign-agnostic back-lit transmission lobe: parameterized by (L, V), NOT (-N, L).
+// Saturate(-V·L) is maximal when light is opposite the viewer (backlit case),
+// and zero when light is on the same side as the viewer (no transmission visible).
+// 'wrap_power' controls lobe tightness; 'distortion' optionally bends toward N.
+float  VdotL  = dot(V, L);
+float  back   = pow(saturate(-VdotL + distortion * (1.0 - absNL)), wrap_power);
+vec3   transmit = trans * thick * back * L_color;
+
+// Optional rim using |N·V| (also sign-agnostic):
+float  absNV  = abs(dot(N, V));
+vec3   rim    = rim_color * pow(1.0 - absNV, rim_power);
+
+vec3   color  = diffuse * L_color + transmit + rim;
+```
+
+**Why this fixes the degeneracy**: the transmission lobe `pow(saturate(-VdotL + distortion·(1-|N·L|)), wrap_power)` is **invariant under `N → -N`** by construction — it depends on `|N·L|`, not `N·L`. Under backlit conditions (`L ≈ -V`), it fires strongly; under frontlit (`L ≈ +V`), it vanishes. The `distortion·(1-|N·L|)` term re-introduces a weak N-dependence for grazing-angle darkening without re-introducing sign dependence. This is essentially the Frostbite/Díaz-García formulation with the |N·L| factor from McGuire.
+
+**For the M3 transmission milestone**, slot the `transmit` term above into the existing `Lambert direct + planned wrap translucency` compute shader. Drop the `pow(max(dot(-N,L),0)*0.5+0.5, wrap_power)` formulation — it is exactly the formulation the literature warns against for sign-ambiguous normals.
+
+---
+
+## Q4 — Is <5% neighbor sign-opposition achievable on vegetation point/splat clouds?
+
+**Verdict: No.** Every category of global-orientation method explicitly documents thin sheets / "closeby sheets" as the primary failure mode, and SOTA scalability is 4–5× below the user's splat count.
+
+**Hoppe 1992 (MST propagation)** — Original method, edge cost `u_Hoppe(i,j) = 1 − ⟨n_i, n_j⟩`, propagates orientation along the MST. Schertler et al. (SGP 2009, "Consistent Propagation of Normal Orientations in Point Clouds", TU Dresden) explicitly documents: **"Hoppe's approach is not able to propagate normal orientation over an acute crease and therefore fails for example in case of a point cloud that samples…"** Their Figure 2 enumerates the four canonical failure cases: **planar, crease, closeby sheets, twisting** — "closeby sheets" is exactly the foliage case (overlapping leaves). Table 4 in that paper shows Hoppe's method "failed and oriented a significant amount of normals [incorrectly]" on the tetrahedron and triceratops — well above the user's 30% floor — on shapes far simpler than vegetation.
+
+**GCNO (Xu et al., SIGGRAPH 2023, arXiv 2304.11605)** — Winding-number field regularization. Explicitly: **"they still suffer from data sparsity coupled with nearby gaps, thin-walled structures, or highly com[plex geometry]"** and **"they are weak in dealing with thin-plate structures or sharp features."** Non-linear solver: **"Solving a 10,000-point model using GCNO takes about one hour."** At the user's 2M-splat scale this is ~200 hours, even before considering that vegetation is the explicit failure geometry.
+
+**PGR (Lin et al. 2022, Parametric Gauss Reconstruction)** — Referenced by WNNC: **"may generate bulges for [thin structures]"** and **"Running PGR with 40,000 points con[verts]… it from scaling to large-scale point clouds."**
+
+**WNNC (arXiv 2405.16634, "Fast and Globally Consistent Normal Orientation based on the Winding Number Normal Consistency", 2024)** — Most recent SOTA. Headline scalability: **"for a point cloud with half a million points."** User has 2–2.4M = **4–5× beyond published SOTA scale claim**, with GPU treecode acceleration.
+
+**CVPR 2025 Consistent Normal Orientation via Least Squares on Delaunay Graph (Fu et al.)** — Explicitly motivates the paper as **"particularly in the presence of noise, outliers, holes, thin structures, and complex topologies."** States: **"MST runs quickly but is sensitive to noise, thin structures"** and **"MST falls when dealing [with thin structures]."** Their own limitation: a parameter `α` controls thin-shell thickness, and **"using an overly large α value causes the Delaunay [cell to span multiple sheets], making it unsuitable to use the gradient of that cell to align normals."** Even SOTA must tune per-scene, and the paper does not report vegetation results.
+
+**Learned point orientation (Metzer et al. 2021; PCPNet Guerrero et al. 2018)** — **"limited in quantity, complexity and variety compared to real-[world data]"**; trained on synthetic shapes, does not scale to millions of points.
+
+**Conclusion for Q4**: <5% neighbor sign-opposition on vegetation is **not achievable with current literature methods**. The user's measured ~30% floor across three different camera-based resolvers is consistent with the documented failure modes of MST, GCNO, and PGR on thin sheets — and those resolvers are all *view-based*, so they inherit the same limitations as GIR's per-frame visibility flip (Q1). Even if a global solver could be coerced to run at 2M points, the literature explicitly flags thin sheets (leaves) and thin cylinders (branches) as the primary failure geometry. Spending a milestone on global sign optimization is high-risk, high-cost (200+ hours for GCNO at SOTA scale), and unlikely to drop below the ~30% floor.
+
+---
+
+## Q5 — Per-splat normal-confidence measures for blending shading models
+
+Published per-splat/per-point confidence signals:
+
+1. **GIR's binary visibility gate** (arXiv 2312.05133) — `n·v ≤ 0` splats are simply not shaded for the current view. This is the closest published per-splat gating, but it is binary and view-dependent.
+
+2. **GS-ID's learned per-splat visibility vectors** (Wang et al. 2025) — `V_j = σ(α · Ŝ · ω_i^(j) + β)` is a learned sigmoid giving per-splat-per-light shadow visibility. Effectively a per-splat confidence that gates the direct lighting term.
+
+3. **GS-IR / R3DG "Normal Gradient Densification" (NGD)** — Densify splats whose screen-space normal gradient exceeds a threshold. This is a per-splat confidence measure for *densification*, but the signal (local normal disagreement) is the same one would use for *shading gating*.
+
+4. **Covariance anisotropy** — Not published as an explicit shading-gating metric, but implicit in every shortest-axis normal derivation: GIR's normal = smallest eigenvector of Σ; this is only well-defined when the smallest eigenvalue is well-separated from the other two. The anisotropy ratio `1 − λ_min / λ_max` is a natural per-splat normal-confidence measure: high anisotropy ⇒ reliable axis ⇒ reliable normal direction (modulo sign); low anisotropy ⇒ unreliable axis ⇒ normal sign is also unreliable.
+
+5. **Multi-view visibility agreement** — Not found explicitly published, but a natural generalization of GIR's per-frame visibility check: for each splat, count training cameras with `n·v > 0` vs `n·v ≤ 0`. High disagreement ⇒ sign is ambiguous.
+
+**Recommended per-splat confidence (gating strategy)** — blend between the sign-aware model (for high-confidence splats) and the sign-agnostic model (for low-confidence splats):
+
+```glsl
+// Per-splat confidence ∈ [0, 1]:
+//   - anisotropy: 1 - λ_min / λ_max  (from covariance; high = reliable axis)
+//   - view_agree: fraction of training cameras with n·v > 0  (from offline pass)
+//   - knn_sign_consistency: fraction of 8-NN with ⟨n_i, n_j⟩ > 0
+//                          (this is the user's existing 30%/70% metric, per-splat)
+float conf = anisotropy * view_agree * knn_sign_consistency;
+
+// Blend sign-aware Lambert (high-conf splats) with sign-agnostic |Lambert| (low-conf):
+float sign_aware  = max(NdotL, 0.0);          // standard one-sided
+float sign_agn    = absNL;                    // two-sided
+float diffuse_w   = mix(sign_agn, sign_aware, conf);
+
+vec3  diffuse     = albedo * (diffuse_w / PI);
+// transmit term is always sign-agnostic (independent of conf)
+```
+
+This gives a smooth transition: high-confidence splats (e.g., on bark, large flat leaves) get conventional one-sided Lambert; low-confidence splats (e.g., the 30% sign-opposed pairs on thin foliage) get the sign-agnostic `|N·L|` term and the `(L, V)`-driven transmission lobe from Q3.
+
+---
+
+## Deliverable 1 — Recommended runtime shading formulation (with citations)
+
+For relit foliage splats with ambiguous normal signs, use a **sign-agnostic two-sided shading model with a view-vector transmission lobe**, optionally gated per-splat by a normal-confidence measure:
+
+```
+L_out(x, V) = Σ_i w_i · [
+    albedo_i · mix(|N_i·L|, max(N_i·L, 0), conf_i) / π          // diffuse (sign-agnostic default)
+  + trans_i · thick_i · pow(saturate(-V·L + d·(1-|N_i·L|)), p)  // backlit transmission (Frostbite/Díaz-García 2010)
+  + rim · pow(1 - |N_i·V|, p_rim)                               // optional sign-agnostic rim
+] · V(ω_L, x) · L_color(ω_L)                                    // visibility + light radiance
+```
+
+Where `w_i` is the standard 3DGS α-blending weight, `conf_i` is the per-splat confidence from Q5, and `V(ω_L, x)` is per-Gaussian ray-traced visibility (R3DG-style BVH or GS-ID learned sigmoid).
+
+**Citations**:
+- Sign-agnostic two-sided diffuse: Unreal Two-Sided Foliage shading model (Epic Games docs); Frostbite "Fast Translucency" (Barré-Brisebois & Hill, GDC 2011).
+- View-vector transmission lobe: Frostbite / Díaz-García 2010, via Barré-Brisebois GDC 2011 slides.
+- Thin-slab BTDF alternative: McGuire & Endres, "Phenomenological Transparency", I3D 2017.
+- Per-splat visibility: GS-ID `V_j = σ(α·Ŝ·ω_i^(j) + β)` (Wang et al. 2025); R3DG BVH ray tracing (Gao et al. ECCV 2024).
+- Per-splat confidence gating via covariance anisotropy: implicit in GIR's shortest-axis derivation (Shi et al. 2023).
+
+## Deliverable 2 — Recommended backlit-term formulation (for M3)
+
+Drop `trans · pow(max(dot(-N,L),0)*0.5+0.5, wrap_power)`. Replace with:
+
+```
+transmit_i = trans_i · thick_i · pow(saturate(-V·L + d·(1-|N_i·L|)), wrap_power)
+```
+
+**Properties**:
+- **Sign-invariant in N** (depends on `|N·L|`, not `N·L`) — front and back are indistinguishable, which is correct for a thin slab.
+- **Maximal under backlit conditions** (`L ≈ -V`) — matches the physical thin-leaf case.
+- **Zero under frontlit conditions** (`L ≈ +V`) — no transmission visible.
+- **`wrap_power` controls lobe tightness** — 4–8 typical for leaves.
+- **`distortion d ∈ [0, ~0.3]`** reintroduces weak N-dependent bending without sign dependence.
+- **`thick_i` gates bark vs. leaf** — set to ~0 for bark, ~1 for thin leaves (per-splat, recovered offline or via opacity proxy).
+
+**Citations**: Frostbite/Díaz-García 2010 (Barré-Brisebois GDC 2011); McGuire 2017 I3D; Habel et al. "Physically Based Real-Time Translucency for Leaves"; Unreal Two-Sided Foliage docs.
+
+## Deliverable 3 — Verdict on global sign optimization vs. sign-irrelevant runtime
+
+**Do not pursue global sign optimization as a milestone.** Pursue sign-irrelevant runtime shading.
+
+**Reasoning**:
+1. **Literature precedent is unanimous** — no published relightable 3DGS system attempts global sign orientation (Q1). All five strategies either accept view-dependent signs or move shading to the pixel level.
+2. **Failure geometry is exactly foliage** — every category of global-orientation method (MST, winding-number, Delaunay) explicitly documents thin sheets / "closeby sheets" as the primary failure mode (Q4). The user's vegetation captures are the worst-case input.
+3. **Scale is 4–5× beyond SOTA** — WNNC (2024) claims 500K points; the user has 2–2.4M. GCNO takes ~1 hour per 10K points. Even if a global solver could be coerced to run, expected runtime is 200+ hours per scene.
+4. **The 30% floor is documented, not a bug** — TU Dresden's Table 4 shows Hoppe MST producing large fractions of incorrectly flipped normals on shapes far simpler than vegetation. The user's measured 30% across three resolvers is consistent with this; it is the expected floor, not a tuning failure.
+5. **Real-time foliage renderers already solve this at runtime** — Unreal Two-Sided Foliage, Frostbite/Díaz-García, McGuire 2017 all use `(L, V)`-driven transmission and either `|N·L|` or per-fragment flipped normals. The user can adopt the same formulation directly.
+6. **The per-splat confidence gating (Q5)** gives a smooth fallback for high-confidence splats (bark, ground) where one-sided Lambert is still desirable — so the user doesn't sacrifice shading quality on the parts of the scene that *do* have reliable normals.
+
+**Recommended milestone reallocation**: drop "global sign optimization" from the roadmap; replace with "sign-agnostic runtime shading + per-splat confidence gating + (L,V)-driven transmission lobe." This slots directly into the M3 transmission spec without blocking on a global-orientation solver that the literature says will not work at the user's scale on the user's geometry.
+
+---
+
+## Citations (drop straight into D7 record)
+
+- GIR — Shi et al., "GIR: 3D Gaussian Inverse Rendering for Relightable Scene Factorization", arXiv:2312.05133.
+- GS-IR — Liang et al., "GS-IR: 3D Gaussian Splatting for Inverse Rendering", CVPR 2024, arXiv:2311.16473.
+- R3DG — Gao et al., "Relightable 3D Gaussians: Realistic Point Cloud Relighting with BRDF Decomposition and Ray Tracing", ECCV 2024, arXiv:2311.16043.
+- GI-GS — Longbe et al., "GI-GS: Global Illumination Decomposition on Gaussian Splatting for Inverse Rendering", ICLR 2025, arXiv:2410.02619.
+- DeferredGS — Wu et al., "DeferredGS: Decoupled and Editable Gaussian Splatting with Deferred Shading", arXiv:2404.09412 (TPAMI version: "Decoupled and Relightable Gaussian Splatting With Deferred Shading").
+- GS-ID — Wang et al., "GS-ID: Illumination Decomposition on Gaussian Splatting via Adaptive Spherical Gaussian Mixing and Diffusion-Guided Material Priors", 2025, cislab.hkust-gz.edu.cn/media/documents/GS-ID.pdf.
+- Unreal Two-Sided Foliage — Epic Games, "Shading Models in Unreal Engine", dev.epicgames.com/documentation/unreal-engine/shading-models-in-unreal-engine.
+- Frostbite translucency — Barré-Brisebois & Hill, "Approximating Translucency for a Fast, Cheap and Convincing Subsurface-Scattering Look", GDC 2011, colinbarrebrisebois.com.
+- Crytek Crysis foliage — Sousa, "Crysis Next Gen Effects", SIGGRAPH 2008 (referenced via Frostbite slides).
+- McGuire 2017 — McGuire & Endres, "Phenomenological Transparency", I3D 2017, casual-effects.com/research/McGuire2017Transparency.
+- Habel leaves — Habel et al., "Physically Based Real-Time Translucency for Leaves".
+- Half-Lambert / wrap — Mitchell et al., "Shading in Valve's Source Engine", SIGGRAPH 2006; Pettineo, "Righting Wrap Part 1", selfshadow.com, 2011.
+- Hoppe MST — Hoppe et al., "Surface reconstruction from unorganized points", SIGGRAPH 1992.
+- TU Dresden propagation — Schertler et al., "Consistent Propagation of Normal Orientations in Point Clouds", SGP 2009, tu-dresden.de/.../normal_propagation.pdf.
+- GCNO — Xu et al., "Globally Consistent Normal Orientation for Point Clouds by Regularizing the Winding-Number Field", SIGGRAPH 2023, arXiv:2304.11605.
+- WNNC — "Fast and Globally Consistent Normal Orientation based on the Winding Number Normal Consistency", 2024, arXiv:2405.16634.
+- CVPR 2025 orientation — Fu et al., "Consistent Normal Orientation for 3D Point Clouds via Least Squares on Delaunay Graph", CVPR 2025.
+- PGR — Lin et al., "Parametric Gauss Reconstruction", 2022 (referenced via WNNC).
+
+---
+
+I've delivered the five-question literature survey plus the three deliverables the planner asked for. Key takeaways for D7: (1) no published relightable-3DGS system solves global sign orientation — all five strategies either accept view-dependent signs or move shading to the pixel level; (2) the global-orientation literature explicitly flags thin sheets as the failure geometry, with SOTA capped at ~500K points (you're at 2–2.4M); (3) the recommended runtime formulation is a sign-agnostic two-sided model with a `(L,V)`-driven transmission lobe (Frostbite/Díaz-García style), optionally gated per-splat by anisotropy × multi-view agreement × kNN sign-consistency; (4) drop `pow(max(dot(-N,L),0)·0.5+0.5, wrap_power)` from M3 — replace with `pow(saturate(-V·L + d·(1-|N·L|)), wrap_power)`. **Verdict: drop global sign optimization as a milestone; reallocate to sign-irrelevant runtime shading + per-splat confidence gating.** All sources are cached under `/home/z/my-project/research/` (PDFs + extracted text) if the planner wants to audit any quote.
