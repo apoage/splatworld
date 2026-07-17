@@ -83,6 +83,9 @@ static var _sign_mode := 0            # binding-5 meta.y: 0 signed / 1 wrap / 2 
 static var _cam_pos := Vector3.ZERO   # binding-5 cam_sign.xyz (world), used by mode 2
 static var _sign_wrap := 0.4          # binding-5 cam_sign.w, sign-free wrap w (mode 1)
 
+# --- facing-debug overlay state (sandbox stage 1; binding-5 meta.z, shares _flash_version) ---
+static var _viz_mode := 0             # binding-5 meta.z: 0 off / 1 N.L / 2 N.V / 3 N.up
+
 # --- light / shading state (set each frame by the scene) ---
 static var _light_dir := Vector3(0.0, -1.0, 0.0) # travel direction (world)
 static var _light_color := Vector3(1.0, 1.0, 1.0)
@@ -249,6 +252,13 @@ static func set_sign_wrap(w: float) -> void:
 	_flash_version += 1
 
 
+# Facing-debug overlay (sandbox stage 1, viewer key G). binding-5 meta.z, orthogonal to
+# raw/relit (misc.x): 0 off / 1 N.L / 2 N.V / 3 N.up. 0 => byte-identical shipped output.
+static func set_viz_mode(mode: int) -> void:
+	_viz_mode = mode
+	_flash_version += 1
+
+
 # Full binding-5 buffer (224 B): the 208-byte flashlight portion (meta.x + slots) plus
 # the sign trailer. meta.y = sign_mode; trailing vec4 = (camera world pos, sign wrap w).
 # Every trailer byte is written explicitly (offsets 4 and 208..223), so correctness does
@@ -257,6 +267,7 @@ static func _binding5_bytes() -> PackedByteArray:
 	var b := _flash_padded().duplicate()
 	b.resize(BINDING5_BYTES)
 	b.encode_s32(4, _sign_mode) # meta.y
+	b.encode_s32(8, _viz_mode)  # meta.z (facing-debug overlay)
 	b.encode_float(CAM_SIGN_OFFSET + 0, _cam_pos.x)
 	b.encode_float(CAM_SIGN_OFFSET + 4, _cam_pos.y)
 	b.encode_float(CAM_SIGN_OFFSET + 8, _cam_pos.z)

@@ -65,7 +65,7 @@ struct FlashLight {
 // toward it); cam_sign.w = the sign-free wrap w (mode 1). Both are always populated
 // (RelightPass._binding5_bytes) so mode 1/2 stay valid regardless of flashlight state.
 layout(std430, set = 0, binding = 5) restrict readonly buffer FlashBuffer {
-	ivec4 meta; // x = active light count, y = sign_mode
+	ivec4 meta; // x = active light count, y = sign_mode, z = viz_mode (facing-debug overlay)
 	FlashLight lights[MAX_FLASH_LIGHTS];
 	vec4 cam_sign; // xyz = camera world pos (mode 2), w = sign-free wrap w (mode 1)
 } flash;
@@ -176,6 +176,24 @@ void main() {
 	vec3 V = normalize(flash.cam_sign.xyz - pos_ws);
 	int sign_mode = flash.meta.y;
 	float sign_w = flash.cam_sign.w;
+
+	// D7 facing-debug overlay (viewer key G; binding-5 meta.z, orthogonal to raw/relit so
+	// no mode-field collision). Colors the RAW world normal's facing vs a reference —
+	// green = front/toward, magenta = back/away, brightness ~|dot| — so the shader's sign
+	// DOMAINS and the isolated flipped splats behind the closeup noise are directly visible.
+	// Uses raw N (before any sign policy) => shows the DATA's sign, independent of sign_mode.
+	// viz 1 = N.L (sun; == the signed lobe's lit/shadow map), 2 = N.V (camera; == mode-2's
+	// flip target set), 3 = N.up (world up; the "lit from underground" absolute view).
+	// viz 0 => off (byte-identical). RAW mode already returned above, so it never leaks there.
+	int viz_mode = flash.meta.z;
+	if (viz_mode != 0) {
+		vec3 vref = (viz_mode == 2) ? V : ((viz_mode == 3) ? vec3(0.0, 1.0, 0.0) : L);
+		float vd = dot(N, vref);
+		vec3 vc = (vd >= 0.0) ? vec3(0.15, 1.0, 0.25) : vec3(1.0, 0.10, 0.55);
+		vc *= mix(0.30, 1.0, clamp(abs(vd), 0.0, 1.0));
+		culled_buffer[id].color = vec4(vc, prev.a);
+		return;
+	}
 
 	float direct = direct_lobe(N, L, V, sign_mode, sign_w);
 	// cheap wrap translucency; inert while trans == 0 (placeholder assets)
