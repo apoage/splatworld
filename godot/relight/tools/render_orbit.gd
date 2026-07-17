@@ -133,6 +133,8 @@ func _initialize() -> void:
 	var gs := GaussianSplatNode.new()
 	gs.gaussian = _res
 	root.add_child(gs)
+	gs.transform = Transform3D.IDENTITY   # D3 rule: suppress GDGS's conditional -180deg Z flip on our
+	                                      # already-Godot-convention .relightply (else grounded assets orbit upside down)
 
 	var ab: AABB = _res.aabb
 	var center := ab.position + ab.size * 0.5

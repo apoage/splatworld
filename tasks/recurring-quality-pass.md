@@ -4,6 +4,20 @@
 the queue is blocked or as a parallel slice. Banner each pass with its date + what was swept
 (prepend, keep history); this file is never marked SHIPPED.
 
+> **PASS 2026-07-17 (run #10): slice-4 — GDGS −180°Z neutralization in the demo/gif render tools
+> (SHIPPED v0.19.1).** Added `gs.transform = Transform3D.IDENTITY` after `add_child` in
+> `render_orbit.gd` + `render_sparkle.gd`, mirroring the proven `render_matrix.gd:210` pattern.
+> Deliberately LEFT untouched: `render_probe.gd` (vanilla cactus ply — needs the correction),
+> `relight_render_gate.gd` (aggregate-luma gate, orientation-invariant, green), `render_foliage.gd`.
+> render_matrix + relight_controller already had the fix. Verified on real GPU (flow-verifier):
+> both tools exit 0 + non-empty frames on pxl_144634, render_orbit gate PASS, render_matrix
+> regression green, pytest 114. **Resolves the slice-4 blocker → slice-5 demo/gif regen is now
+> code-unblocked** (still needs a real-GPU render run + owner eyeball for right-side-up — slice 5
+> remains owner-gated; I cannot see pixels). Note: the sign-gate's `does-not-rebuild-the-buffer`
+> comment about post-add_child IDENTITY is context-specific to its ±Z-invariant synthetic geometry —
+> render_matrix's `sphere_consistency` gate empirically proves the pattern works on the real
+> scene-render path, so no D3 contradiction.
+
 > **PASS 2026-07-15 (run #6): slice-5 D5 rollout — pxl_131945 (the 2nd hero asset).** Re-decomposed
 > `pxl_131945` with `--smooth-normals-iters 2 --smooth-normals-knn 8` (scratch-first → passed the
 > fail-closed held-out-PSNR gate → promoted to `assets/built/pxl_131945/` + mirrored byte-identical

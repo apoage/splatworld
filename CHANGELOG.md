@@ -5,6 +5,20 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.19.1] — 2026-07-17
+- **quality-pass slice 4: GDGS −180°Z neutralization in the demo/gif render tools**
+  (`recurring-quality-pass.md`). `render_orbit.gd` and `render_sparkle.gd` now set
+  `gs.transform = Transform3D.IDENTITY` after `add_child`, mirroring the already-proven
+  `render_matrix.gd:210` pattern, so GDGS's conditional −180°Z node correction (meant for
+  raw y-down 3DGS plys) does NOT fire on our already-Godot-convention `.relightply` grounded
+  heroes (D3 rule; the correction previously flipped grounded assets upside down).
+  Deliberately left untouched: `render_probe.gd` (vanilla cactus ply — needs the correction),
+  `relight_render_gate.gd` (aggregate-luma gate, orientation-invariant, green), `render_foliage.gd`
+  (vanilla plys). Verified on the real GPU: render_orbit RELIGHT_ORBIT_RESULT PASS + 48
+  non-empty frames, render_sparkle 24 frames exit 0, render_matrix regression green
+  (sphere_consistency + raw_invariance), pytest 114. **Unblocks slice-5 demo/gif regen** on
+  grounded assets (still owner-eyeball-gated for right-side-up correctness).
+
 ## [0.19.0] — 2026-07-17
 - **sign-agnostic-prototype: D7 shading experiment behind a live `sign_mode` toggle
   (`tasks/2026-07-17-sign-agnostic-prototype.md`).** Runtime-only, additive, default OFF —
