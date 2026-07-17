@@ -4,9 +4,12 @@
 > material buffer for a prototype. Mode 0 byte-identical to v0.18.0 (measured). Analytic sign
 > gate (fault-injection-proven per mode) + per-mode perf probe (~free: 7.95/7.76/7.75 ms @
 > 2.4M/1080p). Panel green (correctness + regression + flow-verifier on the real 3090); suite
-> 114. **REMAINDERS (owner/planner, not factory):** (1) owner A/B eyeball in sun-only mode D on
-> both heroes = the D7 decision evidence — this task produced the toggle, not the verdict;
-> (2) planner writes the D7 findings note in the validation/decisions doc (planner owns docs/).
+> 114. **EYEBALL DONE 2026-07-17 → D7 DECIDED = KEEP SIGNED (mode 0).** Owner A/B on pxl_144634
+> sun-only: signed best (strong shadow force + self-cast clustering, still noisy); wrap too weak;
+> flip-to-cam noisier. This OVERRIDES the 4-report sign-agnostic consensus (empirical arbiter).
+> Closeup salt-and-pepper accepted as a property. The sign modes remain diagnostic tools, not the
+> default. See DECISIONS D7 (DECIDED). Follow-on: sandbox to study closeup noise + isolate
+> front/back (owner ask, planner building).
 
 # sign-agnostic-prototype — D7 shading experiment behind a viewer toggle (owner A/B decides D7)
 
