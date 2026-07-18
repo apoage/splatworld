@@ -129,6 +129,49 @@ static func clear_materials() -> void:
 	_material_version += 1
 
 
+# Multi-variant materials (M4 carpet). `resources` is an ORDERED Array of
+# RelightGaussianResource whose order MUST equal the GaussianSceneRegistry's unique-
+# resource FIRST-SEEN order (= the carpet_loader's spawn order). Concats each unique
+# resource's per-splat material buffer (`attr_data_byte`) back-to-back so that a merged
+# global data index `si.y` (relight.glsl:170-171) indexes into the SAME variant's
+# material region the registry uploaded its point data into. The registry dedups by
+# resource OBJECT identity, so materials are per UNIQUE resource (NOT per instance):
+# _material_count = Σ point_count over the ordered resources, matching
+# merged_point_data.size() / 240. Byte-identical to set_materials(res.attr_data_byte,
+# res.point_count) when given a single-element array (single-asset regression safety).
+#
+# OWNERSHIP PRECONDITION: this OVERWRITES the single global material buffer with ONLY
+# these resources in THIS order. The GPU indexes it by the registry's GLOBAL first-seen
+# order over ALL registered splat nodes, so the caller must own every registered node and
+# pass resources in that exact order (see carpet_loader.load_carpet). A leading unlisted
+# resource shifts every si.y and mis-shades the whole scene.
+#
+# REJECT-ON-DOUBT (fail-closed): a net-new gate must not silently ship a shortened /
+# misaligned buffer. If ANY element is null, not a resource, or has an inconsistent
+# attr_data_byte size (!= point_count * 48) or non-positive point_count, this ABORTS
+# leaving _material_bytes/_material_count/_material_version UNCHANGED and returns false —
+# NEVER drop-and-continue (a dropped element would slide every later variant's region).
+# Returns true on success.
+static func set_materials_multi(resources: Array) -> bool:
+	var merged := PackedByteArray()
+	var total := 0
+	for res in resources:
+		if res == null or not (res is RelightGaussianResource):
+			push_error("[relight] set_materials_multi: null/invalid resource in ordered list -> abort (no mutation)")
+			return false
+		var ab: PackedByteArray = res.attr_data_byte
+		var pc := int(res.point_count)
+		if pc <= 0 or ab.size() != pc * 48: # 48 = 3 x vec4 material stride
+			push_error("[relight] set_materials_multi: resource attr/count mismatch (pc=%d attr=%d) -> abort" % [pc, ab.size()])
+			return false
+		merged.append_array(ab)
+		total += pc
+	_material_bytes = merged
+	_material_count = total
+	_material_version += 1
+	return true
+
+
 # coeffs_rgb = 27 floats [c0.r,c0.g,c0.b, c1.r, ...] (9 coeffs x RGB), Godot-frame,
 # A_l/pi already folded (see RelightEnvSH / core.sh_env). Empty / wrong length =>
 # flat-ambient fallback. Packs to 9 x vec4 (w pad) for std430 binding 4.

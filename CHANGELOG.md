@@ -5,6 +5,34 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-07-18
+- **M4 task 1 — THE SPINE: multi-variant carpet instancing** (`tasks/2026-07-18-m4-carpet-authoring.md`).
+  De-risks the one fragile coupling all three M4 design proposals flagged. Godot-side only; GDGS
+  untouched; no PLY schema change.
+- **`RelightPass.set_materials_multi(resources) -> bool`** (`godot/relight/relight_pass.gd`, additive):
+  concatenates each unique resource's `attr_data_byte` in array (= registry first-seen) order and sets
+  `_material_count = Σ point_count`. Fail-closed: aborts without mutating any static state on a
+  null / non-`RelightGaussianResource` element or an `attr_data_byte`/`point_count` size mismatch.
+  Byte-identical to `set_materials` for a single-element array (single-asset path unchanged).
+- **`godot/relight/carpet_loader.gd`** (new): `CarpetLoader.load_carpet(json_path, parent)` instances a
+  hand-written `instances.json` (schema `splat_carpet 1`, frame `godot`) into GaussianSplatNodes that
+  SHARE Gaussian data by resource-object identity (one VRAM upload per unique variant, cached by path),
+  registering concatenated per-variant materials so the shader's `materials[si.y]` resolves to the
+  correct variant. TRS-only (pos + Y-yaw + uniform scale), transform set AFTER `add_child` (D3).
+  **All-or-nothing**: a full validation pass (variant resolve, lazy resource load, `pos`/`yaw`/`scale`
+  numeric-type + finiteness checks via a shared `_as_number` guard) runs before any `add_child` or
+  RelightPass mutation — any bad instance returns `{ok:false}` having changed nothing.
+- **The coupling — verified**: material-concat order MUST equal GDGS's registry first-seen (node
+  add_child) order or splats past the first variant silently mis-shade. Flow-verified on the hard cases
+  the happy-path smoke can't isolate — first-instance-references-later-declared-variant (`[B,A]`),
+  interleaved reuse, declared-but-unused variant (excluded, offsets unshifted), and two ids sharing one
+  path (deduped) — by decoding each node's albedo out of the concatenated buffer at its `si.y`.
+- **Verification**: 4-lens panel (correctness / regression / fail-closed / flow-verifier) + 2 fix→verify
+  cycles. Fixed a non-atomic-partial-spawn BLOCKER and pos/yaw/scale input-validation gaps found by the
+  fail-closed lens. Headless gate `godot/relight/tools/carpet_smoke.gd` (synthetic coupling + atomicity/
+  wrong-type failure gates + the real 2.4M/2.0M hero happy-path); `relight_smoke.gd` regression PASS;
+  pytest 141 passed. Remaining M4 slices (Splat Studio, cleanup-select mode, Blender addon, perf) OPEN.
+
 ## [0.22.0] — 2026-07-18
 - **M4 task 2 — `precompute/tools/clean_relight.py`** (`tasks/2026-07-18-m4-carpet-authoring.md`):
   new CLI tool that reads one extended `.relightply` asset, applies removal filters, and writes a

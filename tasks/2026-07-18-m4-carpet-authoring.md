@@ -1,8 +1,11 @@
-> **STATUS (2026-07-18): PARTIAL — task 2 SHIPPED as v0.22.0.** `precompute/tools/clean_relight.py`
-> (splat-cleanup + variant-minting decimator) landed; adversarial panel green; golden tests +
-> real 2.08M-asset decimation verified. **Remainders OPEN:** task 1 (the spine —
-> `set_materials_multi` + `carpet_loader.gd`, in verification at time of writing), tasks 3–6
-> (carpet_perf.gd, Splat Studio, cleanup-select mode, Blender addon — all NOW), tasks 7–8 (gated).
+> **STATUS (2026-07-18): PARTIAL — task 1 (SPINE) SHIPPED as v0.23.0; task 2 SHIPPED as v0.22.0.**
+> Task 1: `RelightPass.set_materials_multi` + `carpet_loader.gd` (+ headless `carpet_smoke.gd`) — the
+> multi-variant material-concat coupling verified correct on all hard cases (B-first / interleaved /
+> declared-unused / shared-path), all-or-nothing fail-closed load; 4-lens panel green after 2
+> fix→verify cycles. Task 2: `precompute/tools/clean_relight.py` (splat-cleanup + variant-minting
+> decimator). **Remainders OPEN (all NOW-eligible, build on the spine):** task 3 (`carpet_perf.gd`
+> hero-baseline + fps target), task 4 (Splat Studio in-viewer scatter), task 5 (cleanup-select mode),
+> task 6 (Blender bpy addon); tasks 7–8 gated.
 
 # M4 — carpet as AUTHORING TOOLS (instance-space + splat cleanup), not an auto-scene builder
 
