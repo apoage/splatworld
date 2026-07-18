@@ -4,19 +4,21 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-18 evening** — reconciled run #12 (GDGS tile-dropout v0.21.0 SHIPPED → moved to the runs
-block); **DECISIONS D8 RATIFIED** (owner "D8 yes → green for factory"), so the whole M4 authoring
-spine is now factory-takeable and promoted to **Ready #1** (spine was already dependency-free; the
-7 walls that gated Splat Studio / cleanup / Blender addon are now open at their spec defaults).
-Upstream GDGS report/PR = **parked pending owner cross-validation** (owner will review before any
-external filing). Earlier: reconcile run #11 (M3 transmission CODE v0.20.0 pushed; acceptance
-owner-gated on the a-vs-b eyeball + hero re-export).
+**2026-07-18 evening** — reconciled **run #13** (M4 spine `set_materials_multi`+`carpet_loader.gd`
+**v0.23.0** + `clean_relight.py` decimator **v0.22.0** SHIPPED; independent pytest **141✓**, delta
+scan clean, pushed, tags v0.22/v0.23 published). M4 tasks 1+2 done → the next factory-completable
+slice is **task 3 `carpet_perf`** (build the harness now; measurement is a scheduled GPU one-shot).
+Authoring tasks 4/5 are **owner-attended WYSIWYG** (visual eyeball, not unattended-factory work).
+NEW wall **D9** (mixed-scene material-buffer ownership) seeded from the run-#13 finding, gated to
+Moon-Stone. Earlier: run #12 GDGS v0.21.0; **D8 RATIFIED**; upstream GDGS report/PR = **parked
+pending owner cross-validation**; run #11 M3 transmission v0.20.0 (acceptance owner-gated).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-18-m4-carpet-authoring.md` | L (phased) | **★ TOP FACTORY JOB — MILESTONE M4, authoring tools, DESIGNED (`wf_ed5f9c8a-f62`), D8 RATIFIED 2026-07-18.** Spine (do FIRST, testable NOW on the 2 heroes): `RelightPass.set_materials_multi` (concat unique resources' attr_data_byte in registry first-seen order) + minimal `carpet_loader.gd` (shared-resource instancing from a hand-written instances.json, transforms AFTER add_child per D3). De-risks the one fragile coupling. Then `clean_relight.py` (prune/crop + variant-minting) + `carpet_perf.gd` baseline. Then — **now unblocked by D8** — Splat Studio in-viewer scatter, cleanup mode (Godot-select→Python-write), Blender bpy addon, all at the spec's sub-wall defaults. GDGS untouched. |
+| 1 | `tasks/2026-07-18-m4-carpet-authoring.md` (task 3 — perf) | M | **★ TOP FACTORY-COMPLETABLE M4 SLICE.** Spine (task 1) + decimator (task 2) SHIPPED (v0.23.0 / v0.22.0, run #13). Next: build `carpet_perf.gd` — frame-time harness (2.4M hero @1080p, then a ~1.5M decimated carpet minted via the new `clean_relight.py`, assert **≥60 fps @1080p**). Factory BUILDS the harness; **DoD measurement is a scheduled GPU one-shot on `DISPLAY=:0`** (validation tier — `--headless` = dummy renderer, won't rasterize) → dated findings doc. Answers the "perf constant unmeasured" risk **before** any authoring UI is worth building. Respect **D9** if a mixed scene is set up. |
+| — | **M4 tasks 4/5/6 — authoring UI (owner-attended, NOT unattended-factory)** | L+M+M | Task 4 Splat Studio in-viewer scatter + task 5 cleanup-select mode = WYSIWYG; acceptance is owner **visual eyeball** (screenshots never a factory gate) → build WITH the owner in the loop, **prefer after the task-3 perf number** sets the real splat budget. Task 6 Blender `bpy` addon = secondary producer, needs a headless-blender tooling check first (rabbit-hole risk). All build on the shipped spine and **must respect D9** (mixed-scene material-buffer ownership) |
 | ~~1~~ | ~~`tasks/2026-07-13-normal-quality.md` (STEP 2)~~ | M | ✅ **SHIPPED v0.13.0 (run #5, 2026-07-15).** D5 fix = k-NN normal smoothing folded into `decompose` (decompose-side, not export — reuses the trusted held-out-PSNR gate). Opt-in `--smooth-normals-iters` (default 0 = no-op). Real re-decompose of pxl_144634: PSNR −0.11 dB, shimmer 48.77 (−75%), coherence 0.579→0.922. **Fix is default-OFF ⇒ built/mirrored viewer asset UNCHANGED — rollout = filler slice 5 (now unblocked).** `docs/validation-normal-quality-step2-2026-07-15.md` |
 | ~~2~~ | ~~`tasks/2026-07-14-lighting-stability.md`~~ | M | ✅ **SHIPPED v0.14.0 (run #6)** — repeatable 10/10 gate, 53 conditions, fault-injection-proven checks. Follow-on = quality-pass slice 7 (shimmer baseline table). `docs/validation-lighting-stability-2026-07-15.md` |
 | ~~1~~ | ~~`tasks/2026-07-15-relit-energy.md`~~ | S–M | ✅ **SHIPPED v0.15.0 (run #7, 2026-07-16).** DC-normalized the env-SH ambient (unit sphere-mean) + scaled by the ambient slider in `relight.glsl`/`set_env_sh`; the ~4× "bloom" is gone. Panel green (correctness+regression+flow-verifier); render_matrix 10/10 on the 3090, `\|env-flat\|=0.00014`. **Remainders:** planner adds the D4-runtime note to docs/decisions.md; owner eyeball (V toggle = subtle shape/tint, not an energy jump). `docs/2026-07-16-handoff-7-run7.md` |
@@ -57,6 +59,12 @@ stage + runtime backlit A/B; runtime stack now feature-complete in code —
 radix-sort pair buffers (3-file logged vendored diff); empirical proof 794 holes→0, 3.3× headroom
 (`docs/2026-07-18-gdgs-tile-dropout-validation.md`). Our relight pass exonerated. **Upstream PR
 parked pending owner cross-validation.**
+**Run #13 (2026-07-18):** MILESTONE M4 spine — `RelightPass.set_materials_multi` +
+`carpet_loader.gd` (v0.23.0) + `clean_relight.py` splat-cleanup/variant decimator (v0.22.0). The
+multi-variant material-concat coupling (shader `materials[si.y]` ↔ registry first-seen order)
+verified on all hard cases (B-first / interleaved / declared-unused / shared-path); all-or-nothing
+fail-closed load. NEW finding → **D9** (mixed-scene buffer ownership) —
+`docs/2026-07-18-handoff-run13-m4-spine-decimator.md`.
 
 ## Filler — anytime, parallel-safe
 
