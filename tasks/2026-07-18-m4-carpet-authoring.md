@@ -70,9 +70,19 @@ and a procedural scatter is just a fourth producer of the same file:
    write via `ply_io.write_asset_ply`. Fail-closed range/NaN gate + metrics (n_before/after/
    by_criterion). Doubles as the variant-minting decimator (2.4M → ~150-300k). Reuse the ~50-Gaussian
    golden test.
-3. **[godot, S, NOW] `carpet_perf.gd` + measured hero baseline** — render 2.4M @1080p on the 3090
-   for the real frame time (answers the open fps question), then instance to ~1.5M total, assert
-   ≥60fps. Calibrates the authoring budget meter.
+3. **[godot] `carpet_perf.gd` — SPLIT build (factory) + measure (scheduled GPU):**
+   - **3a [factory, unattended, S, NOW] build the harness.** `carpet_perf.gd`: load N instances via
+     `carpet_loader` (heroes + a ~1.5M-total decimated variant minted by `clean_relight.py`), average
+     frame time over a fixed camera path, print `count / frame-ms / fps` + an assert-scaffold for a
+     `PERF_FPS_MIN` (default 60). **DoD is the tool + a STRUCTURE/coverage self-check on a small
+     instance count** (the harness runs, loads, reports, asserts) — NOT an fps number: `--headless`
+     is the dummy renderer and won't rasterize, so a headless fps reading is meaningless. Do not
+     fabricate or gate on a headless frame time.
+   - **3b [scheduled GPU one-shot, NOT a factory gate] the real measurement.** Run `carpet_perf.gd`
+     on `DISPLAY=:0` (real 3090) at 1080p: 2.4M hero baseline, then ~1.5M carpet, record real frame
+     time, assert ≥60fps → dated findings doc. Answers the open fps question + calibrates the
+     authoring budget meter. Owner/planner runs it (or a scheduled idle job); the factory never
+     marks itself blocked on this step.
 4. **[godot, L, NOW] Splat Studio** — in-viewer scatter: weighted variants, region rect, density +
    yaw/uniform-scale ranges + Poisson spacing + seed; live WYSIWYG relit spawn; hand-nudge/delete;
    live ≤1.5M budget meter; "Save layout" → instances.json (frame=godot). PRIMARY producer.
