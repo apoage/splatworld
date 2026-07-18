@@ -14,6 +14,12 @@ const FLOATS_PER_SPLAT := 60
 const FLOATS_PER_CULLED_SPLAT := 16
 const BYTES_PER_FLOAT := 4
 const MAX_SORT_ELEMENTS_PER_SPLAT := 10
+# splat-relight vendored fix (tile-dropout): the tile-gaussian sort-pair buffers must
+# scale with the render tile grid, not splat count alone, or high-res/zoomed frames
+# overflow the fixed budget and drop 16px tiles. REFERENCE_TILE_COUNT = the tile grid
+# at/below which the original point_count*MAX_SORT_ELEMENTS_PER_SPLAT budget is kept
+# (80*45 = 1280x720). Above it the budget scales by tile-grid area. See docs/decisions.md.
+const REFERENCE_TILE_COUNT := 3600
 
 const SHADER_PATH_PROJECTION := "res://addons/gdgs/runtime/render/shaders/compute/gsplat_projection.glsl"
 const SHADER_PATH_RADIX_UPSWEEP := "res://addons/gdgs/runtime/render/shaders/compute/radix_sort_upsweep.glsl"
@@ -27,6 +33,7 @@ class RenderState:
 
 	var texture_size := Vector2i.ONE
 	var tile_dims := Vector2i.ONE
+	var sort_capacity_per_half := 0 # splat-relight: per-half sort-pair capacity (see rebuild_gpu_state)
 	var camera_projection: Projection
 	var camera_view: Projection
 	var camera_push_constants := PackedByteArray()
@@ -91,7 +98,14 @@ func rebuild_gpu_state(state, point_count: int, unique_data_size: int, instance_
 	state.shaders["boundaries"] = state.context.load_shader(SHADER_PATH_BOUNDARIES)
 	state.shaders["render"] = state.context.load_shader(SHADER_PATH_RENDER)
 
-	var num_sort_elements_max := point_count * MAX_SORT_ELEMENTS_PER_SPLAT
+	# splat-relight vendored fix (tile-dropout): scale the sort-pair budget by the
+	# current tile-grid area vs REFERENCE_TILE_COUNT, floored at 1.0 so small windows
+	# keep the original point_count*MAX_SORT_ELEMENTS_PER_SPLAT budget. The number of
+	# tile-gaussian pairs grows ~quadratically with render dims (gsplat_projection.glsl
+	# focal scales with dims), so a splat-count-only budget overflows at high res/zoom.
+	var _area_scale := maxf(1.0, float(state.tile_dims.x * state.tile_dims.y) / float(REFERENCE_TILE_COUNT))
+	var num_sort_elements_max := int(ceil(point_count * MAX_SORT_ELEMENTS_PER_SPLAT * _area_scale))
+	state.sort_capacity_per_half = num_sort_elements_max
 	var num_partitions := (num_sort_elements_max + PARTITION_SIZE - 1) / PARTITION_SIZE
 	var block_dims := PackedInt32Array()
 	block_dims.resize(6)

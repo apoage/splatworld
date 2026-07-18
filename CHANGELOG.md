@@ -5,6 +5,34 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-07-18
+- **GDGS fullscreen/zoom tile-dropout FIXED** (`tasks/2026-07-18-gdgs-tile-dropout.md`;
+  root-cause `docs/2026-07-18-gdgs-tile-dropout-report.md`). At fullscreen/4K the rasterizer
+  dropped rectangular 16px-tile-aligned holes to background. Cause: GDGS sizes the radix-sort
+  tile-gaussian **pair** buffers by splat count only (`point_count*10`), but the pair count is
+  resolution/zoom-dependent → the unchecked `atomicAdd` allocator wrote out of bounds
+  (silently discarded under `robustBufferAccess`) → those tiles read `num_splats=0` and
+  rendered `final_alpha=0`. Our relight pass was exonerated (per-splat, resolution-independent).
+- **Vendored GDGS diff — 3 coordinated edits (logged; re-apply on any re-vendor):**
+  (1) `runtime/render/gaussian_gpu_state_cache.gd` — sort-pair budget now scales by
+  `maxf(1.0, tile_grid_area / REFERENCE_TILE_COUNT=3600)` (1280×720 grid), floored to the
+  original budget below the reference grid; stored in `RenderState.sort_capacity_per_half`.
+  (2) `runtime/render/gaussian_renderer.gd` — the radix ping-pong half-stride now uses
+  `sort_capacity_per_half` (load-bearing: must match (1) or the sort reads the wrong half →
+  scrambled depth); trailing uniform slot carries the capacity. (3)
+  `shaders/compute/gsplat_projection.glsl` — Uniforms pad → `int sort_capacity` + a safety-net
+  clamp after the atomicAdd so any residual overflow is a clean tile drop, not an OOB write.
+- **Empirical proof (DoD)** on the real 3090 (`relight/tools/render_probe.gd` extended to read
+  back `sort_buffer_size` + count interior 16px holes): repro over the old capacity dropped
+  ~750–800 tiles; post-fix same demand fits under capacity (≥3.3× headroom at the overflowing
+  resolutions) → 0 holes. Reverting the 3 files reintroduces the holes (causal proof).
+  Controlled re-validation at 1280×720 (demo render resolution) + deep zoom: max ratio 0.68
+  (~1.5× headroom), 0 holes — the "zoomed in" symptom is covered at demo resolution.
+  Worst-case VRAM ~8.6 GB (1.5M splats × 4K × 4 cached states), fine on the 24 GB 3090.
+  `smoke_test.gd` PASS; `pytest precompute/tests` 120 passed. Full detail +
+  `docs/decisions.md` paste-ready diff record: `docs/2026-07-18-gdgs-tile-dropout-validation.md`.
+- Upstream report/PR to `ReconWorldLab/godot-gaussian-splatting` remains owner-gated (external).
+
 ## [0.20.0] — 2026-07-18
 - **MILESTONE M3 (transmission — code): backlit grass/leaf glow stage + runtime A/B**
   (`tasks/2026-07-17-m3-transmission.md`). Gate opened by M2✓ + D5✓ + D7 DECIDED (keep

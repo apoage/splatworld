@@ -1,3 +1,16 @@
+> **STATUS (2026-07-18): SHIPPED as v0.21.0.** 3-file vendored GDGS diff (resolution-aware
+> sort-pair budget + matching ping-pong stride + shader overflow clamp). DoD met — empirical
+> before/after on the 3090: repro dropped ~750–800 tiles over the old capacity; post-fix 0 holes
+> with ≥3.3× headroom; reverting the 3 files reintroduces the holes (causal). Controlled
+> re-validation at 1280×720 demo res + deep zoom = 0 holes (~1.5× headroom), refuting the panel's
+> zoom-at-reference-grid regression concern. Panel green (correctness / regression / flow-verifier).
+> `smoke_test` PASS, pytest 120 passed. Validation + paste-ready `docs/decisions.md` record:
+> `docs/2026-07-18-gdgs-tile-dropout-validation.md`. **REMAINDERS (planner/owner):** (1) append the
+> vendored-diff entry to `docs/decisions.md` (implementer/planner lane blocked me — text is in the
+> validation doc); (2) owner-gated upstream report/PR to GDGS; (3) optional: drop the now-unused
+> `MAX_SORT_ELEMENTS_PER_SPLAT` const in `gaussian_renderer.gd`; (4) optional zoom-headroom floor
+> only if a future use case needs guaranteed holes-free *extreme* low-res zoom (VRAM tradeoff).
+
 # GDGS fullscreen/zoom tile-dropout — resolution-aware sort-pair buffer
 
 **Size/risk:** M / medium (vendored-plugin edit + one empirical tuning constant + a load-bearing

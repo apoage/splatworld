@@ -86,7 +86,7 @@ layout (std140, set = 0, binding = 8) restrict uniform Uniforms {
 	float time;
 	ivec2 dims; // Texture size
 	int point_count;
-	int _uniform_pad0;
+	int sort_capacity; // splat-relight: per-half sort-pair buffer capacity (overflow clamp)
 };
 
 layout(push_constant) restrict readonly uniform PushConstants {
@@ -218,6 +218,10 @@ void main() {
 	if (num_tiles_touched == 0 /*|| num_tiles_touched > grid_size.x*grid_size.y/3*/) return;
 
 	const uint buffer_size = atomicAdd(sort_buffer_size, num_tiles_touched);
+	// splat-relight vendored fix (tile-dropout): safety net. Sizing the buffers per tile
+	// grid (host side) is the real fix; this clamps any residual overflow to a clean drop
+	// instead of an out-of-bounds write (silently discarded under robustBufferAccess).
+	if (buffer_size + num_tiles_touched > uint(sort_capacity)) return;
 	uint sort_buffer_offset = buffer_size;
 	vec3 view_dir = normalize(world_pos.xyz - camera_pos);
 

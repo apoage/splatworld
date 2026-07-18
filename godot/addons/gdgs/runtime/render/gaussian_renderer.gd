@@ -65,7 +65,7 @@ func _rasterize_state(state, point_count: int) -> void:
 		state.texture_size.x,
 		state.texture_size.y,
 		point_count,
-		0
+		state.sort_capacity_per_half # splat-relight: sort-pair capacity for the projection overflow clamp
 	])
 	state.context.device.buffer_update(state.descriptors["uniforms"].rid, 0, 8 * 4, uniforms)
 	state.context.device.buffer_clear(state.descriptors["histogram"].rid, 0, 4 + 4 * RADIX * 4)
@@ -79,8 +79,12 @@ func _rasterize_state(state, point_count: int) -> void:
 
 	compute_list = state.context.compute_list_begin()
 	for radix_shift_pass in range(4):
-		var in_offset := point_count * MAX_SORT_ELEMENTS_PER_SPLAT * (radix_shift_pass % 2)
-		var out_offset := point_count * MAX_SORT_ELEMENTS_PER_SPLAT * (1 - (radix_shift_pass % 2))
+		# splat-relight vendored fix (tile-dropout): the ping-pong half-stride MUST equal
+		# the per-half sort-pair capacity (state.sort_capacity_per_half), NOT
+		# point_count*MAX_SORT_ELEMENTS_PER_SPLAT. Buffers are sized 2*capacity; a stride
+		# mismatch makes the radix passes read/write the wrong half -> scrambled depth.
+		var in_offset: int = state.sort_capacity_per_half * (radix_shift_pass % 2)
+		var out_offset: int = state.sort_capacity_per_half * (1 - (radix_shift_pass % 2))
 		# Godot 4.7: each push constant must match its shader block size exactly:
 		#   upsweep {pass,in_offset}=8B  spine {pass}=4B  downsweep {pass,in,out}=12B
 		var up_pc := RenderingDeviceContext.create_push_constant([radix_shift_pass, in_offset])
