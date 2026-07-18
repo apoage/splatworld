@@ -4,15 +4,18 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-18 morning** (reconcile run #11 — M3 transmission CODE shipped v0.20.0 + pushed;
-milestone acceptance now owner-gated on the a-vs-b eyeball + hero re-export; runtime stack
-feature-complete in code, so the Ready section is now filler/scheduled/owner-gated until the
-a/b pick lands + M4 opens).
+**2026-07-18 midday** (added Ready #1 = GDGS tile-dropout fix — real bug root-caused via
+`wf_93bf8a1c-a50`, factory-ready with an empirical-proof DoD + report; **M4 design in flight**
+via `wf_ed5f9c8a-f62` (authoring-tools approach per owner steer: instance-space + splat-cleanup
+tools in Blender/Godot, NOT an auto-scene builder) — M4 task rows land here when it synthesizes).
+Earlier: reconcile run #11 (M3 transmission CODE v0.20.0 pushed; acceptance owner-gated on the
+a-vs-b eyeball + hero re-export).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
+| 1 | `tasks/2026-07-18-gdgs-tile-dropout.md` | M | **★ TOP FACTORY JOB — real, root-caused bug (HIGH confidence).** Fullscreen/zoom tile-dropout = GDGS sizes radix-sort pair buffers by splat count (`point_count*10`), not resolution → unchecked `atomicAdd` OOB → dropped tiles = background holes. Fix = resolution-aware pair-buffer sizing (+ ping-pong stride + shader clamp), a small **logged** vendored diff. **DoD = empirical proof** (`sort_buffer_size` readback crosses capacity at the failing res; interior-hole tile count → ~0 post-fix). Full report `docs/2026-07-18-gdgs-tile-dropout-report.md`. Then owner-gated **upstream report/PR** to GDGS after test. Visible in the fullscreen demo |
 | ~~1~~ | ~~`tasks/2026-07-13-normal-quality.md` (STEP 2)~~ | M | ✅ **SHIPPED v0.13.0 (run #5, 2026-07-15).** D5 fix = k-NN normal smoothing folded into `decompose` (decompose-side, not export — reuses the trusted held-out-PSNR gate). Opt-in `--smooth-normals-iters` (default 0 = no-op). Real re-decompose of pxl_144634: PSNR −0.11 dB, shimmer 48.77 (−75%), coherence 0.579→0.922. **Fix is default-OFF ⇒ built/mirrored viewer asset UNCHANGED — rollout = filler slice 5 (now unblocked).** `docs/validation-normal-quality-step2-2026-07-15.md` |
 | ~~2~~ | ~~`tasks/2026-07-14-lighting-stability.md`~~ | M | ✅ **SHIPPED v0.14.0 (run #6)** — repeatable 10/10 gate, 53 conditions, fault-injection-proven checks. Follow-on = quality-pass slice 7 (shimmer baseline table). `docs/validation-lighting-stability-2026-07-15.md` |
 | ~~1~~ | ~~`tasks/2026-07-15-relit-energy.md`~~ | S–M | ✅ **SHIPPED v0.15.0 (run #7, 2026-07-16).** DC-normalized the env-SH ambient (unit sphere-mean) + scaled by the ambient slider in `relight.glsl`/`set_env_sh`; the ~4× "bloom" is gone. Panel green (correctness+regression+flow-verifier); render_matrix 10/10 on the 3090, `\|env-flat\|=0.00014`. **Remainders:** planner adds the D4-runtime note to docs/decisions.md; owner eyeball (V toggle = subtle shape/tint, not an energy jump). `docs/2026-07-16-handoff-7-run7.md` |
