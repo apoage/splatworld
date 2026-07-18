@@ -309,3 +309,39 @@ multiplies the env branch by the ambient slider. NOT touched: `sh_env.py`, sidec
 recalibrated. Verified: `relight_smoke.gd` unit sphere-mean gate + `relight_render_gate.gd`
 (|env−flat|=0.0001, slider Δ=0.13) + `render_matrix.gd` 10/10. (Entry authored by run #7, placed by the
 planner per the two-thread contract; CLAUDE.md runtime-shading section updated in the same run.)
+
+**2026-07-18 — GDGS vendored diff: resolution-aware sort-pair buffers (fixes fullscreen/zoom tile-dropout).**
+Symptom: at fullscreen/zoom, rectangular 16px-tile-aligned holes drop to background (worse on overlap/zoom).
+Cause: GDGS sizes the radix-sort tile-gaussian **pair** buffers by splat count only
+(`point_count*MAX_SORT_ELEMENTS_PER_SPLAT`, =10), but the pair count is resolution/zoom-dependent
+(`gsplat_projection.glsl` focal scales with render dims → `num_tiles_touched` grows ~quadratically). Once
+the frame-total pair count exceeds the fixed budget, the unchecked `atomicAdd(sort_buffer_size,…)` hands out
+offsets past the buffer end; the writes are dropped OOB (robustBufferAccess), those tiles read `num_splats=0`
+and render `final_alpha=0` = background. Full root-cause: `docs/2026-07-18-gdgs-tile-dropout-report.md`.
+**GDGS plugin diff — 3 files (re-apply on any re-vendor):**
+- `runtime/render/gaussian_gpu_state_cache.gd` — added `const REFERENCE_TILE_COUNT := 3600` (the 1280×720
+  tile grid = 80×45; at/below it the original budget is kept) + `var sort_capacity_per_half` on `RenderState`;
+  in `rebuild_gpu_state` the pair budget `num_sort_elements_max` is now scaled by
+  `maxf(1.0, tile_dims.x*tile_dims.y / REFERENCE_TILE_COUNT)` and stored in `state.sort_capacity_per_half`
+  (histogram/`num_partitions`/indirect-dispatch already derive from it).
+- `runtime/render/gaussian_renderer.gd` — `_rasterize_state`: the radix ping-pong half-stride
+  (`in_offset`/`out_offset`) now uses `state.sort_capacity_per_half` (buffers are 2×capacity) instead of
+  `point_count*MAX_SORT_ELEMENTS_PER_SPLAT` — MUST match the sizing change or the sort reads the wrong half
+  (scrambled depth); and the uniforms buffer's trailing pad slot now carries `sort_capacity_per_half` (was 0).
+- `shaders/compute/gsplat_projection.glsl` — renamed uniform pad `_uniform_pad0` → `int sort_capacity`
+  (threaded via the existing Uniforms buffer, NOT the push constant which is already 128B-max) and added a
+  safety-net clamp after the atomicAdd: `if (buffer_size + num_tiles_touched > uint(sort_capacity)) return;`
+  (converts any residual overflow from an OOB write into a clean drop). Left the commented-out `:218`
+  per-splat guard OFF (upstream disabled it; reinstating risks dropping legitimate large splats at zoom).
+**Empirical proof** (`relight/tools/render_probe.gd`, extended to sweep resolutions + read back
+`sort_buffer_size` and count enclosed ~0-alpha 16px tiles; `DISPLAY=:0`, cactus_142k, display-clamped to
+2494×1371): repro at zoom = BEFORE `sort_buffer_size=1,572,948 > capacity 1,394,100` → **794 interior hole
+tiles**; AFTER same demand `1,572,948 <= capacity 5,195,346` (**3.30× headroom**) → **0 holes**. Non-zoom
+phases unchanged (before/after pixel-identical to ~0.002 mean-abs-diff, so the ping-pong change did not
+scramble depth). Worst-case VRAM: `sort_keys+sort_values = 2·capacity·8 B`; at 1.5M splats × 4K (area_scale
+9) ≈ 2.2 GB/state × `MAX_RENDER_STATES=4` ≈ 8.6 GB (fine on the 24 GB 3090). `REFERENCE_TILE_COUNT=3600`
+gives 3.3× headroom at the worst zoom case while preserving exact low-res behavior below the reference grid.
+Validation + empirical detail: `docs/2026-07-18-gdgs-tile-dropout-validation.md`. Shipped **v0.21.0** (run
+#12, implementer `8030116`). Upstream report/PR to `ReconWorldLab/godot-gaussian-splatting` remains gated on
+owner approval (external action). (Entry authored by the implementer in the validation doc; placed here by
+the planner per the two-thread contract — the implementer's lane guard blocks `docs/decisions.md`.)

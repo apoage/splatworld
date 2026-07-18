@@ -5,9 +5,12 @@ truth for what's done; this file only orders what's OPEN. The factory takes from
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
 **2026-07-18 midday** (added Ready #1 = GDGS tile-dropout fix — real bug root-caused via
-`wf_93bf8a1c-a50`, factory-ready with an empirical-proof DoD + report; **M4 design in flight**
-via `wf_ed5f9c8a-f62` (authoring-tools approach per owner steer: instance-space + splat-cleanup
-tools in Blender/Godot, NOT an auto-scene builder) — M4 task rows land here when it synthesizes).
+`wf_93bf8a1c-a50`, factory-ready with an empirical-proof DoD + report; **M4 DESIGNED**
+via `wf_ed5f9c8a-f62` → spec `tasks/2026-07-18-m4-carpet-authoring.md` (Contract-First hybrid:
+Godot in-viewer scatter PRIMARY + Blender bpy addon SECONDARY + `instances.json` contract; cleanup
+= Godot-select→Python-write; net-new = `RelightPass.set_materials_multi`; GDGS untouched). 7 OPEN
+walls (D-AUTHORING-HOME … D-BLOCK-CULLING) in the spec. Added as Ready #2 (spine task testable NOW
+on the 2 heroes).
 Earlier: reconcile run #11 (M3 transmission CODE v0.20.0 pushed; acceptance owner-gated on the
 a-vs-b eyeball + hero re-export).
 
@@ -15,6 +18,7 @@ a-vs-b eyeball + hero re-export).
 
 | # | Task | Size | Note |
 |---|------|------|------|
+| 2 | `tasks/2026-07-18-m4-carpet-authoring.md` | L (phased) | **MILESTONE M4 — authoring tools, DESIGNED (`wf_ed5f9c8a-f62`).** FIRST/spine task testable NOW on the 2 heroes: `RelightPass.set_materials_multi` (concat unique resources' attr_data_byte in registry first-seen order) + minimal `carpet_loader.gd` (shared-resource instancing from a hand-written instances.json, transforms AFTER add_child per D3). De-risks the one fragile coupling. Then `clean_relight.py` (prune/crop + variant-minting) + `carpet_perf.gd` baseline, all NOW. GDGS untouched. **7 OPEN walls in the spec — owner ratifies before the later tasks** (Splat Studio, cleanup mode, Blender addon). |
 | 1 | `tasks/2026-07-18-gdgs-tile-dropout.md` | M | **★ TOP FACTORY JOB — real, root-caused bug (HIGH confidence).** Fullscreen/zoom tile-dropout = GDGS sizes radix-sort pair buffers by splat count (`point_count*10`), not resolution → unchecked `atomicAdd` OOB → dropped tiles = background holes. Fix = resolution-aware pair-buffer sizing (+ ping-pong stride + shader clamp), a small **logged** vendored diff. **DoD = empirical proof** (`sort_buffer_size` readback crosses capacity at the failing res; interior-hole tile count → ~0 post-fix). Full report `docs/2026-07-18-gdgs-tile-dropout-report.md`. Then owner-gated **upstream report/PR** to GDGS after test. Visible in the fullscreen demo |
 | ~~1~~ | ~~`tasks/2026-07-13-normal-quality.md` (STEP 2)~~ | M | ✅ **SHIPPED v0.13.0 (run #5, 2026-07-15).** D5 fix = k-NN normal smoothing folded into `decompose` (decompose-side, not export — reuses the trusted held-out-PSNR gate). Opt-in `--smooth-normals-iters` (default 0 = no-op). Real re-decompose of pxl_144634: PSNR −0.11 dB, shimmer 48.77 (−75%), coherence 0.579→0.922. **Fix is default-OFF ⇒ built/mirrored viewer asset UNCHANGED — rollout = filler slice 5 (now unblocked).** `docs/validation-normal-quality-step2-2026-07-15.md` |
 | ~~2~~ | ~~`tasks/2026-07-14-lighting-stability.md`~~ | M | ✅ **SHIPPED v0.14.0 (run #6)** — repeatable 10/10 gate, 53 conditions, fault-injection-proven checks. Follow-on = quality-pass slice 7 (shimmer baseline table). `docs/validation-lighting-stability-2026-07-15.md` |
