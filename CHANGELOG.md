@@ -5,6 +5,25 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-07-18
+- **M4 task 2 — `precompute/tools/clean_relight.py`** (`tasks/2026-07-18-m4-carpet-authoring.md`):
+  new CLI tool that reads one extended `.relightply` asset, applies removal filters, and writes a
+  smaller cleaned asset + `metrics_clean.json`. Doubles as the variant-minting decimator that turns
+  a 2.4M hero into a carpet-block variant (verified: 2.08M → 1.07M in one pass). Precompute-side
+  only; nothing under `godot/` touched; no PLY schema change.
+- **Filters** (all combine by logical AND on one keep mask): floater prune (reuses
+  `stages.export.floater_prune_mask` verbatim — opacity/scale-std/isolation-std), AABB crop
+  (keep-inside) / exclude (drop-inside) with per-axis unbounded components, label keep/drop
+  whitelist/blacklist, and an explicit `--keep-index` selection (JSON array or newline ints) that
+  INTERSECTS the rest — the feed for the later Godot cleanup mode (task 5).
+- **Fail-closed**: a range/NaN/non-unit-normal/out-of-schema-label/out-of-range-index violation, or
+  a zero-splat result without `--allow-empty`, exits nonzero and writes NOTHING (no-clobber of any
+  pre-existing `--out`); every gate runs before `write_asset_ply`. All PLY bytes go through
+  `core/ply_io.py`; `--in`/`--out` are required with no source-pointing defaults.
+- **Verification**: adversarial panel green (correctness + regression + flow-verifier); flow-verifier
+  exercised 6 filter cases with independently-computed keep-counts + a real 2.08M-asset decimation.
+  Golden tests `precompute/tests/test_clean_relight.py` (20); full suite 141 passed.
+
 ## [0.21.0] — 2026-07-18
 - **GDGS fullscreen/zoom tile-dropout FIXED** (`tasks/2026-07-18-gdgs-tile-dropout.md`;
   root-cause `docs/2026-07-18-gdgs-tile-dropout-report.md`). At fullscreen/4K the rasterizer

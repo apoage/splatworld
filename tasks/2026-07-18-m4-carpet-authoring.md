@@ -1,3 +1,9 @@
+> **STATUS (2026-07-18): PARTIAL — task 2 SHIPPED as v0.22.0.** `precompute/tools/clean_relight.py`
+> (splat-cleanup + variant-minting decimator) landed; adversarial panel green; golden tests +
+> real 2.08M-asset decimation verified. **Remainders OPEN:** task 1 (the spine —
+> `set_materials_multi` + `carpet_loader.gd`, in verification at time of writing), tasks 3–6
+> (carpet_perf.gd, Splat Studio, cleanup-select mode, Blender addon — all NOW), tasks 7–8 (gated).
+
 # M4 — carpet as AUTHORING TOOLS (instance-space + splat cleanup), not an auto-scene builder
 
 **Milestone M4.** **Owner steer (2026-07-18):** proper tools to design the meadow in Blender AND/OR
