@@ -1,11 +1,16 @@
-> **STATUS (2026-07-18): PARTIAL — task 1 (SPINE) SHIPPED as v0.23.0; task 2 SHIPPED as v0.22.0.**
+> **STATUS (2026-07-18): PARTIAL — task 1 (SPINE) SHIPPED as v0.23.0; task 2 SHIPPED as v0.22.0;
+> task 3a (perf harness) SHIPPED as v0.24.0.**
 > Task 1: `RelightPass.set_materials_multi` + `carpet_loader.gd` (+ headless `carpet_smoke.gd`) — the
 > multi-variant material-concat coupling verified correct on all hard cases (B-first / interleaved /
 > declared-unused / shared-path), all-or-nothing fail-closed load; 4-lens panel green after 2
 > fix→verify cycles. Task 2: `precompute/tools/clean_relight.py` (splat-cleanup + variant-minting
-> decimator). **Remainders OPEN (all NOW-eligible, build on the spine):** task 3 (`carpet_perf.gd`
-> hero-baseline + fps target), task 4 (Splat Studio in-viewer scatter), task 5 (cleanup-select mode),
-> task 6 (Blender bpy addon); tasks 7–8 gated.
+> decimator). Task 3a: `godot/relight/tools/carpet_perf.gd` — deterministic-orbit frame-time harness,
+> `count/frame-ms/fps` line + `PERF_FPS_MIN` scaffold; headless is non-authoritative (dummy renderer),
+> sentinel = STRUCTURE self-check only, real ≥60fps enforcement fires only on `DISPLAY=:0`; medium
+> panel green (1 MINOR fixed). **Remainders OPEN:** task 3b (the REAL fps measurement — a SCHEDULED
+> GPU one-shot on `DISPLAY=:0`, NOT unattended-factory work), task 4 (Splat Studio in-viewer scatter),
+> task 5 (cleanup-select mode), task 6 (Blender bpy addon); tasks 7–8 gated. All owner-attended or
+> scheduled — see wrap-up.
 
 # M4 — carpet as AUTHORING TOOLS (instance-space + splat cleanup), not an auto-scene builder
 

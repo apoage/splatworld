@@ -5,6 +5,28 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-07-18
+- **M4 task 3a — `carpet_perf.gd` frame-time HARNESS** (`tasks/2026-07-18-m4-carpet-authoring.md`).
+  Godot-side only; no PLY schema change; GDGS untouched. Builds the perf measurement tool; the real
+  ≥60 fps @1080p measurement is task 3b, a SCHEDULED GPU one-shot on `DISPLAY=:0` (NOT a factory gate).
+- **`godot/relight/tools/carpet_perf.gd`** (new): loads a carpet via the shipped
+  `CarpetLoader.load_carpet`, drives a FIXED DETERMINISTIC camera orbit (union-AABB bounding sphere,
+  one revolution as the timed window), and prints a machine-readable
+  `CARPET_PERF count=<Σ point_count> frame-ms=<mean> fps=<derived>` line. Carpet resolution:
+  `CARPET_JSON` env (3b points this at the real decimated fleet) → else a 3×3 hero grid when both
+  heroes are present → else a tiny synthetic 3×3 grid that runs anywhere. `CARPET_PERF_SYNTHETIC=1`
+  forces the light synthetic path; `CARPET_PERF_REQUIRE_ASSET=1` fails closed when no real carpet exists.
+- **Headless is honest about the dummy renderer**: `--headless` does not rasterize, so its frame time
+  is meaningless. The harness marks it `HEADLESS — frame time not authoritative` and NEVER fabricates
+  or gates on it. The `CARPET_PERF_RESULT PASS/FAIL` sentinel is driven by a STRUCTURE self-check ONLY
+  (load ok · ≥1 instance · ≥1 variant · `node_variant` parity · Σ count > 0 · exact 9 for self-authored
+  carpets); the `PERF_FPS_MIN` (default 60) assert-scaffold enforces the budget and exits nonzero ONLY
+  on a real display (`DisplayServer.get_name() != "headless"`). A real-display perf miss drives the exit
+  code alone — the sentinel stays structure-only so 3b can distinguish "harness worked" from "perf passed".
+- **Verification**: medium panel (correctness / regression / flow-verifier), all green; 1 borderline
+  MINOR (sentinel/perf conflation on a real display) found + fixed + re-verified. Additive-only (suite
+  141 passed; sibling `carpet_smoke.gd` still PASS; no shared `user://` fixture collision).
+
 ## [0.23.0] — 2026-07-18
 - **M4 task 1 — THE SPINE: multi-variant carpet instancing** (`tasks/2026-07-18-m4-carpet-authoring.md`).
   De-risks the one fragile coupling all three M4 design proposals flagged. Godot-side only; GDGS
