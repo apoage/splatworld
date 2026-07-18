@@ -4,22 +4,19 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-18 midday** (added Ready #1 = GDGS tile-dropout fix — real bug root-caused via
-`wf_93bf8a1c-a50`, factory-ready with an empirical-proof DoD + report; **M4 DESIGNED**
-via `wf_ed5f9c8a-f62` → spec `tasks/2026-07-18-m4-carpet-authoring.md` (Contract-First hybrid:
-Godot in-viewer scatter PRIMARY + Blender bpy addon SECONDARY + `instances.json` contract; cleanup
-= Godot-select→Python-write; net-new = `RelightPass.set_materials_multi`; GDGS untouched). 7 OPEN
-walls (D-AUTHORING-HOME … D-BLOCK-CULLING) in the spec. Added as Ready #2 (spine task testable NOW
-on the 2 heroes).
-Earlier: reconcile run #11 (M3 transmission CODE v0.20.0 pushed; acceptance owner-gated on the
-a-vs-b eyeball + hero re-export).
+**2026-07-18 evening** — reconciled run #12 (GDGS tile-dropout v0.21.0 SHIPPED → moved to the runs
+block); **DECISIONS D8 RATIFIED** (owner "D8 yes → green for factory"), so the whole M4 authoring
+spine is now factory-takeable and promoted to **Ready #1** (spine was already dependency-free; the
+7 walls that gated Splat Studio / cleanup / Blender addon are now open at their spec defaults).
+Upstream GDGS report/PR = **parked pending owner cross-validation** (owner will review before any
+external filing). Earlier: reconcile run #11 (M3 transmission CODE v0.20.0 pushed; acceptance
+owner-gated on the a-vs-b eyeball + hero re-export).
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 2 | `tasks/2026-07-18-m4-carpet-authoring.md` | L (phased) | **MILESTONE M4 — authoring tools, DESIGNED (`wf_ed5f9c8a-f62`).** FIRST/spine task testable NOW on the 2 heroes: `RelightPass.set_materials_multi` (concat unique resources' attr_data_byte in registry first-seen order) + minimal `carpet_loader.gd` (shared-resource instancing from a hand-written instances.json, transforms AFTER add_child per D3). De-risks the one fragile coupling. Then `clean_relight.py` (prune/crop + variant-minting) + `carpet_perf.gd` baseline, all NOW. GDGS untouched. **7 OPEN walls in the spec — owner ratifies before the later tasks** (Splat Studio, cleanup mode, Blender addon). |
-| 1 | `tasks/2026-07-18-gdgs-tile-dropout.md` | M | **★ TOP FACTORY JOB — real, root-caused bug (HIGH confidence).** Fullscreen/zoom tile-dropout = GDGS sizes radix-sort pair buffers by splat count (`point_count*10`), not resolution → unchecked `atomicAdd` OOB → dropped tiles = background holes. Fix = resolution-aware pair-buffer sizing (+ ping-pong stride + shader clamp), a small **logged** vendored diff. **DoD = empirical proof** (`sort_buffer_size` readback crosses capacity at the failing res; interior-hole tile count → ~0 post-fix). Full report `docs/2026-07-18-gdgs-tile-dropout-report.md`. Then owner-gated **upstream report/PR** to GDGS after test. Visible in the fullscreen demo |
+| 1 | `tasks/2026-07-18-m4-carpet-authoring.md` | L (phased) | **★ TOP FACTORY JOB — MILESTONE M4, authoring tools, DESIGNED (`wf_ed5f9c8a-f62`), D8 RATIFIED 2026-07-18.** Spine (do FIRST, testable NOW on the 2 heroes): `RelightPass.set_materials_multi` (concat unique resources' attr_data_byte in registry first-seen order) + minimal `carpet_loader.gd` (shared-resource instancing from a hand-written instances.json, transforms AFTER add_child per D3). De-risks the one fragile coupling. Then `clean_relight.py` (prune/crop + variant-minting) + `carpet_perf.gd` baseline. Then — **now unblocked by D8** — Splat Studio in-viewer scatter, cleanup mode (Godot-select→Python-write), Blender bpy addon, all at the spec's sub-wall defaults. GDGS untouched. |
 | ~~1~~ | ~~`tasks/2026-07-13-normal-quality.md` (STEP 2)~~ | M | ✅ **SHIPPED v0.13.0 (run #5, 2026-07-15).** D5 fix = k-NN normal smoothing folded into `decompose` (decompose-side, not export — reuses the trusted held-out-PSNR gate). Opt-in `--smooth-normals-iters` (default 0 = no-op). Real re-decompose of pxl_144634: PSNR −0.11 dB, shimmer 48.77 (−75%), coherence 0.579→0.922. **Fix is default-OFF ⇒ built/mirrored viewer asset UNCHANGED — rollout = filler slice 5 (now unblocked).** `docs/validation-normal-quality-step2-2026-07-15.md` |
 | ~~2~~ | ~~`tasks/2026-07-14-lighting-stability.md`~~ | M | ✅ **SHIPPED v0.14.0 (run #6)** — repeatable 10/10 gate, 53 conditions, fault-injection-proven checks. Follow-on = quality-pass slice 7 (shimmer baseline table). `docs/validation-lighting-stability-2026-07-15.md` |
 | ~~1~~ | ~~`tasks/2026-07-15-relit-energy.md`~~ | S–M | ✅ **SHIPPED v0.15.0 (run #7, 2026-07-16).** DC-normalized the env-SH ambient (unit sphere-mean) + scaled by the ambient slider in `relight.glsl`/`set_env_sh`; the ~4× "bloom" is gone. Panel green (correctness+regression+flow-verifier); render_matrix 10/10 on the 3090, `\|env-flat\|=0.00014`. **Remainders:** planner adds the D4-runtime note to docs/decisions.md; owner eyeball (V toggle = subtle shape/tint, not an energy jump). `docs/2026-07-16-handoff-7-run7.md` |
@@ -56,6 +53,10 @@ REFUTED on real foliage → reopened D7).
 **Run #11 (2026-07-18):** MILESTONE M3 transmission CODE (v0.20.0) — constant-per-label trans
 stage + runtime backlit A/B; runtime stack now feature-complete in code —
 `docs/2026-07-18-handoff-run11-m3-transmission.md`.
+**Run #12 (2026-07-18):** GDGS fullscreen/zoom tile-dropout fix (v0.21.0) — resolution-aware
+radix-sort pair buffers (3-file logged vendored diff); empirical proof 794 holes→0, 3.3× headroom
+(`docs/2026-07-18-gdgs-tile-dropout-validation.md`). Our relight pass exonerated. **Upstream PR
+parked pending owner cross-validation.**
 
 ## Filler — anytime, parallel-safe
 
@@ -89,6 +90,11 @@ stage + runtime backlit A/B; runtime stack now feature-complete in code —
 
 ## Parked — owner-gated (NOT factory work; the owner/planner executes these)
 
+- **GDGS upstream report/PR (owner postponed 2026-07-18)**: the v0.21.0 tile-dropout fix is
+  validated (794 holes→0), and `docs/2026-07-18-gdgs-tile-dropout-report.md` already doubles as a
+  paste-ready issue/PR to `ReconWorldLab/godot-gaussian-splatting`. Owner wants to **cross-validate
+  it themselves before any external filing** — hold until the owner reviews and green-lights. External
+  action (public issue/PR) regardless, so never factory work.
 - **M3 acceptance — hero re-export + a-vs-b eyeball (THE milestone gate, run #11)**: (1) re-export
   the heroes with nonzero leaf trans (in-place overwrite was classifier-blocked in the factory →
   owner runs it; exact loop in `docs/2026-07-18-handoff-run11-m3-transmission.md` remainder #1);
