@@ -15,13 +15,20 @@ authoring (tasks 4/5 Splat Studio), owner-attended WYSIWYG** — now unblocked w
 NOT unattended-factory work. So the factory's next unattended pickup remains FILLER (quality-pass
 slice 6/7, docs-guide) or the pixel5 one-shot. NEW wall **D9** (mixed-scene material-buffer
 ownership) gated to Moon-Stone. Earlier: run #13 M4 spine v0.22/v0.23; run #12 GDGS v0.21.0; **D8
-RATIFIED**; upstream GDGS report/PR = **parked pending owner cross-validation**.
+RATIFIED**; upstream GDGS report/PR = **parked pending owner cross-validation**. **NOW QUEUED: a
+SCOPED single-task run = M4 task 4 `Splat Studio` ONLY** (`tasks/2026-07-18-splat-studio.md`,
+alternative-model eval, owner 2026-07-18) — Ready #1, filler off-limits this run.
 
 ## Ready — take from the top
 
+> ⚠️ **SCOPED RUN (2026-07-18, owner — alternative-model evaluation): build ONLY the Splat Studio
+> task below (Ready #1). Do NOT take any Filler, docs, or other row this run.** One task, full
+> verification panel. This is a deliberate single-task run to evaluate an alternative implementer model.
+
 | # | Task | Size | Note |
 |---|------|------|------|
-| — | **M4 tasks 4/5/6 — authoring UI (owner-attended, NOT unattended-factory) — NEXT M4 TRACK** | L+M+M | Task 4 Splat Studio in-viewer scatter + task 5 cleanup-select mode = WYSIWYG; acceptance is owner **visual eyeball** (screenshots never a factory gate) → build WITH the owner in the loop. **Now UNBLOCKED: the 3b perf number is in hand** — budget meter uses a confident ≤1.5M "green" cap (4.6× headroom at 1080p). Task 6 Blender `bpy` addon = secondary producer, needs a headless-blender tooling check first (rabbit-hole risk). All build on the shipped spine and **must respect D9** (mixed-scene material-buffer ownership) |
+| 1 | `tasks/2026-07-18-splat-studio.md` (M4 **task 4 — Splat Studio**) | L | ★ **THE ONLY FACTORY TASK THIS RUN.** In-viewer scatter authoring tool → `carpet/<name>.instances.json` the runtime already loads. Builds ON the shipped spine (`carpet_loader.gd`), the ratified contract (D8), and the known perf budget (≤1.5M green cap, 4.6× headroom — 3b). **DoD split (like task 3):** 4a = deterministic scatter CORE + save/load + a headless smoke (`splat_studio_smoke.gd`: determinism, Poisson spacing, region/TRS, budget, round-trip through `CarpetLoader`) = **the factory gate**; 4b = the interactive WYSIWYG panel/preview, WIRED but its visual feel is owner-attended (never a factory gate). **Respect D9** (preview must fully tear down the prior carpet before re-scatter). GDGS + PLY schema untouched. Full spec in the task file. |
+| — | M4 tasks 5 (cleanup-select) / 6 (Blender addon) — **NOT this run** | M+M | Deferred behind the scoped run. Task 5 = owner-attended WYSIWYG; task 6 needs a headless-blender tooling check first. Pick up after Splat Studio lands. |
 | ~~—~~ | ~~**M4 task 3b — REAL perf measurement (GPU one-shot)**~~ | S | ✅ **DONE 2026-07-18 (owner-greenlit).** Verified true 1080p on the 3090: **budget carpet 1.45M = 277 fps (4.6×)**, full 2.4M hero = 180.6 fps — ≤1.5M budget clears 60fps with wide headroom. Minted stride-14 variants via `clean_relight.py`; found+fixed a harness resolution defect mid-run (**hotfix v0.24.1**). `docs/2026-07-18-perf-3b-findings.md` |
 | ~~1~~ | ~~`tasks/2026-07-18-m4-carpet-authoring.md` (task 3a — perf harness)~~ | M | ✅ **SHIPPED v0.24.0 (run #14, 2026-07-18).** `godot/relight/tools/carpet_perf.gd` — deterministic union-AABB orbit, prints `CARPET_PERF count/frame-ms/fps` + a `PERF_FPS_MIN` (60) assert-scaffold. **DoD = the tool + a STRUCTURE self-check** (`CARPET_PERF_RESULT` = load/parity/count only); the fps gate enforces (nonzero exit) **only on a real display**, so headless never fabricates a number (MINOR fix: perf miss drives exit code alone, sentinel stays structure-only, so 3b tells "harness worked" from "perf passed"). Additive-only; GDGS/loader/relight_pass untouched. Real measurement = **task 3b** (above). `docs/2026-07-18-handoff-run14-carpet-perf.md` |
 | ~~1~~ | ~~`tasks/2026-07-13-normal-quality.md` (STEP 2)~~ | M | ✅ **SHIPPED v0.13.0 (run #5, 2026-07-15).** D5 fix = k-NN normal smoothing folded into `decompose` (decompose-side, not export — reuses the trusted held-out-PSNR gate). Opt-in `--smooth-normals-iters` (default 0 = no-op). Real re-decompose of pxl_144634: PSNR −0.11 dB, shimmer 48.77 (−75%), coherence 0.579→0.922. **Fix is default-OFF ⇒ built/mirrored viewer asset UNCHANGED — rollout = filler slice 5 (now unblocked).** `docs/validation-normal-quality-step2-2026-07-15.md` |
@@ -82,6 +89,9 @@ defect (window landed 1152×648 not 1080p) → v0.24.1 (screen placement + `wind
 readback gate; headless byte-identical). `docs/2026-07-18-perf-3b-findings.md`.
 
 ## Filler — anytime, parallel-safe
+
+> **NOT for the 2026-07-18 scoped Splat Studio run** — see the directive at the top of Ready. These
+> resume as normal filler after the scoped run.
 
 - `tasks/recurring-quality-pass.md` — **recurring** code-quality / structure / doc-drift sweep
   (owner mandate 2026-07-12). One bounded pass per pickup; banner with date; never "done".
