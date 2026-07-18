@@ -4,8 +4,10 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-14 late** (owner: orientation eyeball PASSED on the fixed viewer + D2 decided →
-pixel5-variants ungated to Ready #3; step-2 GO on #1; lighting-stability #2; unreal parked).
+**2026-07-18 morning** (reconcile run #11 — M3 transmission CODE shipped v0.20.0 + pushed;
+milestone acceptance now owner-gated on the a-vs-b eyeball + hero re-export; runtime stack
+feature-complete in code, so the Ready section is now filler/scheduled/owner-gated until the
+a/b pick lands + M4 opens).
 
 ## Ready — take from the top
 
@@ -17,12 +19,12 @@ pixel5-variants ungated to Ready #3; step-2 GO on #1; lighting-stability #2; unr
 | ~~2~~ | ~~`tasks/2026-07-15-normal-sign-consistency.md`~~ | M | ✅ **SHIPPED v0.16.0 (run #7, 2026-07-16)** — sign-consistency INFRA (init+post-solve camera-hemisphere orient, sign-aware smoothing) + a density-invariant **fail-closed** multi-scale gate. Suite 107; verified across 3 fix/verify cycles (caught 2 gate fail-opens). **Efficacy on real foliage UNPROVEN** — camera-orient resolves only the along-view component; ~17–49% synthetic residual at grazing normals → gated on the scheduled re-decompose (**D6**, fail-closed). `docs/2026-07-16-handoff-7-run7.md` |
 | ~~1~~ | ~~`tasks/2026-07-16-grazing-normal-resolver.md`~~ | M–L | ⚠️ **PARTIAL v0.18.0 (run #9)** — resolver infra + both gate-defect fixes SHIPPED (FATAL → exit 3; refused metrics → sidecar; both proven twice in production); **the D6 hybrid itself REFUTED on real foliage (~30% balance-invariant floor) → reopened as D7**. Assets untouched (fail-closed). Banner on the task file |
 | ~~1~~ | ~~`tasks/2026-07-17-sign-agnostic-prototype.md`~~ | S–M | ✅ **SHIPPED v0.19.0 (run #10). D7 DECIDED = KEEP SIGNED** (owner eyeball 2026-07-17 overrode the sign-agnostic consensus; DECISIONS D7). Sign modes remain diagnostic tools |
-| 1 | `tasks/2026-07-17-m3-transmission.md` | M | **TOP factory job — MILESTONE M3, gate now OPEN** (M2✓ + D5✓ + D7 decided KEEP SIGNED un-breaks the `dot(−N,L)` backlit term). New `transmission` stage (v1 constant-per-label trans for grass/leaf) + re-export; runtime backlit term ALREADY wired (inert at trans=0). A/B the backlit formula (shipped dot(−N,L) vs sign-robust Frostbite phase form) — owner eyeball picks. The Moon-Stone fireball-glow prerequisite. Check the JAX contributor lane first |
-| — | **demo/gif regen (factory-ready, ungated)** | S | Slice 4 fixed render_orbit/render_sparkle orientation (v0.19.1) → regenerate the demo video + README gif on the grounded/smoothed/energy-calibrated/D7-signed hero. Visible payoff. (Was quality-slice 5 remainder) |
+| ~~1~~ | ~~`tasks/2026-07-17-m3-transmission.md`~~ | M | ✅ **CODE SHIPPED v0.20.0 (run #11, 2026-07-18).** New `transmission` stage (v1 constant-per-label trans, leaf/grass→0.5 default, bark/ground exactly 0; non-vacuous landed-assignment gate) + runtime backlit A/B (`back_lobe`, binding-5 `meta.w`: mode 0 shipped `dot(−N,L)` wrap byte-identical default, mode 1 sign-robust Frostbite phase; viewer key **T**). Suite 120 ✓, panel green. JAX contributor lane had NOT landed → factory built the torch/numpy fallback per the task's clause. **MILESTONE ACCEPTANCE still owner-gated** → see Parked. `docs/2026-07-18-handoff-run11-m3-transmission.md` |
+| — | **demo/gif regen (NOW gated on the M3 a/b pick)** | S | Slice 4 fixed render_orbit/render_sparkle orientation (v0.19.1) → regenerate the demo video + README gif on the grounded/smoothed/energy-calibrated/D7-signed hero, **now showing M3 backlit glow**. Sequence AFTER the owner picks the a/b backlit formula (run #11 handoff remainder #4) — the fireball money-shot is a direct input to that call (formula (a) inherits the D7 ~30% wrong-sign mis-glow; (b) avoids it). Visible payoff |
 | — | **sandbox / viewer A/B (planner tooling, stage 1 DONE 2026-07-17)** | M | Facing-debug overlay (key G, binding-5 meta.z) + light-from-below (sun el −1.55..1.55 + gimbal guard + key 6) + clickable A/B panel (toggles + az/el/energy/amb sliders + sign/dbg dropdowns) + WASD/arrows fly-through. Gates green, signed byte-identity held. **STAGES 2–3 (unbuilt, speced in the design workflow):** controlled synthetic known-orientation scene (dial wrong-sign fraction, A/B vs GT, two-sided grass) + numeric single-splat inspector. Overlaps `synthetic-plant-gt` (shared synthetic-GT substrate) |
 | — | **weird-shadow diagnostic (owner report 2026-07-17, cheap)** | S | Owner: "weird shadows in sun az 180–359°." Planner hypothesis = sign-domain clustering when the sun swings to the back hemisphere. Self-check via G→N.L overlay sweeping az; if magenta blooms in 180–359 = the known D7 property, if uncorrelated = a real new bug (then investigate). Also: floater/tall-grass dark streaks = dot(N,L)<0 (same sign artifact) + stray floaters → floater half fixed by quality slice 6 opacity prune |
 | ~~3~~ | ~~`tasks/2026-07-15-flashlight-orb.md`~~ | M | ✅ **SHIPPED v0.17.0 (run #8, 2026-07-16)** — camera point/spot + engine-lit reference orb; per-splat world pos added to OUR material buffer (32→48 B, no PLY/GDGS change); light params in a binding-5 UBO = the N=2–4 fireball extension point. Frame cost within noise @ 2.4M. **REMAINDER: owner F/O eyeball** (acceptance gate). `docs/validation-flashlight-orb-2026-07-16.md` |
-| 4 | `tasks/2026-07-12-pixel5-variants.md` | M–L | **Run as a SCHEDULED overnight/idle one-shot** (validation-tier rule — full pipeline per clip, hours; run #6 handoff). D2 note: heroes keep full count; the 500k + opacity-0.02 budget applies to VARIANT exports (M4 carpet blocks). Decompose fresh with `--smooth-normals-iters 2` — **prefer AFTER Ready #2 ships so variants inherit sign-consistent normals** |
+| 4 | `tasks/2026-07-12-pixel5-variants.md` | M–L | **Run as a SCHEDULED overnight/idle one-shot** (validation-tier rule — full pipeline per clip, hours; run #6 handoff). D2 note: heroes keep full count; the 500k + opacity-0.02 budget applies to VARIANT exports (M4 carpet blocks). Decompose fresh with `--smooth-normals-iters 2` — **prefer AFTER Ready #2 ships so variants inherit sign-consistent normals**. **Drift (run #11): `--stages all` now APPENDS `transmission`** → an end-to-end rebuild yields leaf `trans=0.5` assets (`metrics_transmission.json` supersedes `metrics_export.json`'s trans=0). Intended M3 direction; and since export currently labels every Gaussian leaf(2), the WHOLE variant becomes trans=0.5 until a real `label` stage lands — fine for all-foliage clips |
 | — | **recurring-quality-pass slice 5 — asset rollout DONE** | S–M | pxl_144634 (planner, reconcile #5) + pxl_131945 (factory run #6, rode the gate: −0.50 dB, headroom 0.48 — owner eyeball pending, trivially reversible via `.bak` + `git checkout` of 4 JSONs). **REMAINING: demo/gif regen — gated on slice 4** (the −180°Z sweep of the 4 remaining render tools). Doc-drift note: export docstring usage omits the required `--in` in the from-decompose example |
 | — | **quality-pass slice 7** | S | per-condition **shimmer BASELINE table** (gaussian_twinkle over short orbit bursts at 3–4 matrix corners) — the de-scoped lighting-stability remainder, baseline-only, never a gate |
 | — | **quality-pass slice 6 (aesthetic, owner 2026-07-15, LOW priority)** | S | **Splat cleanup on the hero assets** — "just aesthetic" per owner: run export's existing prune flags (`--prune-opacity 0.02`, try `--prune-scale-std` / `--prune-isolation-std` per the v0.5.0 sweep findings — isolation/scale were harmful on FOLIAGE PSNR but the goal here is visual tidiness, so eyeball-gate it) on pxl_144634/pxl_131945; owner eyeball decides keep/revert (originals stay in built/, mirrors swappable) |
@@ -39,6 +41,14 @@ drafted WIP (6/10 checks pass, 4 harness fixes pending) — `docs/2026-07-15-han
 **Run #7 (2026-07-16):** relit-energy env-SH energy calibration (v0.15.0) + normal-sign infra +
 fail-closed multi-scale gate (v0.16.0; efficacy gated on the D6 re-decompose) —
 `docs/2026-07-16-handoff-7-run7.md`.
+**Run #8 (2026-07-16):** flashlight-orb point/spot + reference orb (v0.17.0).
+**Run #9 (2026-07-16):** grazing-normal resolver infra + gate-defect fixes (v0.18.0; D6 hybrid
+REFUTED on real foliage → reopened D7).
+**Run #10 (2026-07-17):** D7 sign-agnostic prototype (v0.19.0) + slice-4 orient fix (v0.19.1);
+**D7 DECIDED = KEEP SIGNED** (owner eyeball).
+**Run #11 (2026-07-18):** MILESTONE M3 transmission CODE (v0.20.0) — constant-per-label trans
+stage + runtime backlit A/B; runtime stack now feature-complete in code —
+`docs/2026-07-18-handoff-run11-m3-transmission.md`.
 
 ## Filler — anytime, parallel-safe
 
@@ -72,6 +82,14 @@ fail-closed multi-scale gate (v0.16.0; efficacy gated on the D6 re-decompose) �
 
 ## Parked — owner-gated (NOT factory work; the owner/planner executes these)
 
+- **M3 acceptance — hero re-export + a-vs-b eyeball (THE milestone gate, run #11)**: (1) re-export
+  the heroes with nonzero leaf trans (in-place overwrite was classifier-blocked in the factory →
+  owner runs it; exact loop in `docs/2026-07-18-handoff-run11-m3-transmission.md` remainder #1);
+  (2) viewer: pose **5** (backlit) + Transmission ON + key **T** to switch (a) `dot(−N,L)` wrap ↔
+  (b) Frostbite phase — does backlit glow read right, which formula wins? `wrap_power` live-tunable
+  (`,`/`.`), `TRANS_DISTORT=0.3` shader const. (3) GPU backlit render check (sun az≈180, needs
+  `DISPLAY=:0`). The a/b pick then unblocks the demo/gif regen. Default `trans=0.5` for leaf is a
+  starting strength — owner may want it dialed before the demo regen.
 - **synthetic-plant-gt (owner idea 2026-07-17, `tasks/2026-07-17-synthetic-plant-gt.md`)**:
   Blender L-system plant (two-sided leaves, distinct adaxial/abaxial materials) → multi-view
   render under known sun → reconstruct via our pipeline → per-splat GT sign by nearest-face.
