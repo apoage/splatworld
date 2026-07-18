@@ -31,6 +31,7 @@ import json
 import numpy as np
 
 from precompute.core import ply_io, schema
+from precompute.core.normals import smooth_normals_knn, local_coherence
 from precompute.stages.export import shortest_axis_normals
 
 
@@ -72,6 +73,12 @@ def main() -> None:
                     choices=("outward", "up", "raw"), default="outward",
                     help="resolve the shortest-axis normal sign (D7): outward from the "
                          "cloud centroid (default), toward +Y, or leave raw/ambiguous.")
+    ap.add_argument("--smooth-normals-iters", dest="smooth_iters", type=int, default=0,
+                    help="sign-aware k-NN normal smoothing passes (D5, core.normals). 0=off. "
+                         "Tames the moving-light 'traveling spot' shimmer on unrefined "
+                         "shortest-axis normals; runs AFTER --normal-orient sets the sign.")
+    ap.add_argument("--smooth-normals-k", dest="smooth_k", type=int, default=8,
+                    help="k for the smoothing neighbourhood (default 8).")
     args = ap.parse_args()
 
     if args.label not in schema.LABELS:
@@ -98,6 +105,15 @@ def main() -> None:
 
     normal = orient_normals(normal, xyz, args.normal_orient)
     normal /= np.clip(np.linalg.norm(normal, axis=1, keepdims=True), 1e-9, None)
+
+    # Sign-aware k-NN normal smoothing (D5): reduces the per-splat normal jitter that
+    # makes a moving light produce 'traveling bright/dark spots'. Runs after the sign
+    # orient so it reinforces (never inverts) the chosen hemisphere. rigid-equivariant.
+    coh_before = float(local_coherence(xyz, normal, k=args.smooth_k).mean())
+    if args.smooth_iters > 0:
+        normal = smooth_normals_knn(xyz, normal, k=args.smooth_k, iters=args.smooth_iters)
+        normal /= np.clip(np.linalg.norm(normal, axis=1, keepdims=True), 1e-9, None)
+    coh_after = float(local_coherence(xyz, normal, k=args.smooth_k).mean())
 
     asset = ply_io.AssetGaussians(
         xyz=xyz,
@@ -127,6 +143,8 @@ def main() -> None:
     metrics = {
         "source": args.inp, "out": args.out, "count": n,
         "coord": args.coord, "normal_orient": args.normal_orient,
+        "smooth_iters": int(args.smooth_iters), "smooth_k": int(args.smooth_k),
+        "coherence_before": round(coh_before, 4), "coherence_after": round(coh_after, 4),
         "label": int(args.label), "rough": float(args.rough), "trans": float(args.trans),
         "albedo_min": [float(asset.albedo[:, c].min()) for c in range(3)],
         "albedo_max": [float(asset.albedo[:, c].max()) for c in range(3)],
