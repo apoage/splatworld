@@ -69,6 +69,13 @@ var _sign_wrap := 0.4
 const DBG_NAMES := ["off", "N·L (sun)", "N·V (cam)", "N·up (world)"]
 var _dbg := 0
 
+# M3 backlit-transmission formula A/B (key T cycles): 0 = shipped dot(-N,L) wrap (a),
+# 1 = Frostbite view–light phase (b). Owner eyeballs a vs b on the backlit pose (5) with
+# the Transmission toggle on. Needs a re-exported asset with nonzero leaf/grass trans to
+# show anything (placeholder heroes still ship trans=0). Mode 0 is byte-identical.
+const TRANS_NAMES := ["wrap (a)", "phase (b)"]
+var _trans_mode := 0
+
 # Fly camera: WASD / arrows move in the camera plane, E/Q up/down, SHIFT sprints. Moves
 # BOTH the camera and its orbit pivot (_center) so left-drag orbit still works after you
 # fly somewhere. Speed scales with the asset extent. (A/D freed from the old sun/ambient
@@ -171,8 +178,10 @@ func _unhandled_input(e: InputEvent) -> void:
 				_sign_mode = 0
 				_sign_wrap = 0.4
 				_dbg = 0
+				_trans_mode = 0
 				RelightPass.set_sign_mode(0)
 				RelightPass.set_viz_mode(0)
+				RelightPass.set_trans_mode(0)
 				if not _env_on and not _env_coeffs.is_empty():
 					RelightPass.set_env_sh(_env_coeffs)
 					_env_on = true
@@ -198,6 +207,10 @@ func _unhandled_input(e: InputEvent) -> void:
 				# Sandbox stage 1: cycle the facing-debug overlay (isolate front/back).
 				_dbg = (_dbg + 1) % DBG_NAMES.size()
 				RelightPass.set_viz_mode(_dbg)
+			KEY_T:
+				# M3: cycle the backlit-transmission formula (a wrap / b phase) live.
+				_trans_mode = (_trans_mode + 1) % TRANS_NAMES.size()
+				RelightPass.set_trans_mode(_trans_mode)
 			KEY_5:
 				# Backlit: sun directly opposite the camera, low over the horizon.
 				_hold_light("backlit")
@@ -270,6 +283,7 @@ func _process(delta: float) -> void:
 		RelightPass.set_camera_pos(_cam.global_position)
 	RelightPass.set_sign_wrap(_sign_wrap)
 	RelightPass.set_sign_mode(_sign_mode)
+	RelightPass.set_trans_mode(_trans_mode)
 	_update_flashlight()
 	_refresh_hud()
 	_sync_ui()
@@ -340,15 +354,16 @@ func _refresh_hud() -> void:
 			roundi(wrapf(rad_to_deg(_sun_az), 0.0, 360.0)), roundi(rad_to_deg(_sun_el)),
 			_energy, _amb, _wrap, _condition,
 		]
-		+ "D7 sign=%d:%s%s   dbg=%s%s\n" % [
+		+ "D7 sign=%d:%s%s   dbg=%s%s   trans-lobe=%s\n" % [
 			_sign_mode, SIGN_NAMES[_sign_mode],
 			("  w=%.2f" % _sign_wrap) if _sign_mode == 1 else "",
 			DBG_NAMES[_dbg],
 			"  (green=front/toward  magenta=back/away)" if _dbg != 0 else "",
+			TRANS_NAMES[_trans_mode],
 		]
 		+ "drag=cam  rdrag=sun (now goes BELOW horizon)  wheel=zoom  SPACE=orbit pause  C=day-cycle\n"
 		+ "1=noon 2=golden 3=overcast 4=moon 5=backlit 6=underground  +/-=E  [/]=amb  ,/.=wrap  R=reset\n"
-		+ "F=flashlight  O=orb  V=envSH/flat  A=sun off  D=ambient off  N=sign mode  G=facing debug"
+		+ "F=flashlight  O=orb  V=envSH/flat  A=sun off  D=ambient off  N=sign mode  G=facing debug  T=trans lobe"
 	)
 
 
@@ -442,6 +457,7 @@ func _build_control_panel() -> void:
 
 	_ui["sign"] = _add_option(box, "sign mode", SIGN_NAMES, _sign_mode, _on_sign_ui)
 	_ui["dbg"] = _add_option(box, "facing debug", DBG_NAMES, _dbg, _on_dbg_ui)
+	_ui["trans_mode"] = _add_option(box, "trans lobe", TRANS_NAMES, _trans_mode, _on_transmode_ui)
 
 
 func _add_check(parent: Node, text: String, pressed: bool, cb: Callable) -> CheckButton:
@@ -541,6 +557,10 @@ func _on_dbg_ui(i: int) -> void:
 	_dbg = i
 	RelightPass.set_viz_mode(_dbg)
 
+func _on_transmode_ui(i: int) -> void:
+	_trans_mode = i
+	RelightPass.set_trans_mode(_trans_mode)
+
 
 # Mirror current state into the panel each frame (keys + day-cycle keep it live) without
 # re-emitting the control signals.
@@ -559,3 +579,4 @@ func _sync_ui() -> void:
 	_ui["amb"].set_value_no_signal(_amb)
 	_ui["sign"].selected = _sign_mode
 	_ui["dbg"].selected = _dbg
+	_ui["trans_mode"].selected = _trans_mode

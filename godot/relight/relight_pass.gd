@@ -86,6 +86,9 @@ static var _sign_wrap := 0.4          # binding-5 cam_sign.w, sign-free wrap w (
 # --- facing-debug overlay state (sandbox stage 1; binding-5 meta.z, shares _flash_version) ---
 static var _viz_mode := 0             # binding-5 meta.z: 0 off / 1 N.L / 2 N.V / 3 N.up
 
+# --- M3 backlit-transmission formula A/B (binding-5 meta.w, shares _flash_version) ---
+static var _trans_mode := 0          # binding-5 meta.w: 0 wrap (shipped) / 1 Frostbite phase
+
 # --- light / shading state (set each frame by the scene) ---
 static var _light_dir := Vector3(0.0, -1.0, 0.0) # travel direction (world)
 static var _light_color := Vector3(1.0, 1.0, 1.0)
@@ -259,15 +262,24 @@ static func set_viz_mode(mode: int) -> void:
 	_flash_version += 1
 
 
+# M3 backlit-transmission formula selector (viewer A/B). binding-5 meta.w, shares
+# _flash_version so run()'s per-frame buffer refresh picks it up. Mode 0 is the shipped
+# dot(-N,L) wrap (byte-identical). Raw mode ignores it (shader returns before the lobe).
+static func set_trans_mode(mode: int) -> void:
+	_trans_mode = mode
+	_flash_version += 1
+
+
 # Full binding-5 buffer (224 B): the 208-byte flashlight portion (meta.x + slots) plus
-# the sign trailer. meta.y = sign_mode; trailing vec4 = (camera world pos, sign wrap w).
-# Every trailer byte is written explicitly (offsets 4 and 208..223), so correctness does
-# not depend on resize() zero-filling the grown region.
+# the sign trailer. meta.y = sign_mode, meta.z = viz_mode, meta.w = trans_mode; trailing
+# vec4 = (camera world pos, sign wrap w). Every trailer byte is written explicitly
+# (offsets 4/8/12 and 208..223), so correctness does not depend on resize() zero-filling.
 static func _binding5_bytes() -> PackedByteArray:
 	var b := _flash_padded().duplicate()
 	b.resize(BINDING5_BYTES)
 	b.encode_s32(4, _sign_mode) # meta.y
 	b.encode_s32(8, _viz_mode)  # meta.z (facing-debug overlay)
+	b.encode_s32(12, _trans_mode) # meta.w (M3 backlit-transmission formula A/B)
 	b.encode_float(CAM_SIGN_OFFSET + 0, _cam_pos.x)
 	b.encode_float(CAM_SIGN_OFFSET + 4, _cam_pos.y)
 	b.encode_float(CAM_SIGN_OFFSET + 8, _cam_pos.z)

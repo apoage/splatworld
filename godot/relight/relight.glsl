@@ -65,7 +65,7 @@ struct FlashLight {
 // toward it); cam_sign.w = the sign-free wrap w (mode 1). Both are always populated
 // (RelightPass._binding5_bytes) so mode 1/2 stay valid regardless of flashlight state.
 layout(std430, set = 0, binding = 5) restrict readonly buffer FlashBuffer {
-	ivec4 meta; // x = active light count, y = sign_mode, z = viz_mode (facing-debug overlay)
+	ivec4 meta; // x = active light count, y = sign_mode, z = viz_mode, w = trans_mode (M3 A/B)
 	FlashLight lights[MAX_FLASH_LIGHTS];
 	vec4 cam_sign; // xyz = camera world pos (mode 2), w = sign-free wrap w (mode 1)
 } flash;
@@ -75,6 +75,13 @@ layout(std430, set = 0, binding = 5) restrict readonly buffer FlashBuffer {
 const int SIGN_SIGNED = 0; // max(dot(N,L),0)                        — current shipped path
 const int SIGN_WRAP   = 1; // sign-free two-sided wrap (abs first)   — consensus lobe
 const int SIGN_FLIP   = 2; // flip N toward camera, then signed      — published 3DGS convention
+
+// M3 backlit-transmission lobe A/B (binding-5 meta.w, previously free). Mode 0 is the
+// shipped dot(-N,L) wrap and MUST stay byte-identical when selected (default).
+const int TRANS_WRAP  = 0; // trans * pow(max(dot(-N,L),0)*0.5+0.5, wrap_power) — shipped (a)
+const int TRANS_PHASE = 1; // Frostbite view–light phase form                  — sign-robust (b)
+// Frostbite/DICE normal-distortion for the phase form (d≈0.2–0.4, docs/d7-synthesis).
+const float TRANS_DISTORT = 0.3;
 
 // Recovered ambient environment (deg-2 real SH), Godot post-flip frame, with the
 // Lambertian band factors already folded in (c_lm = (A_l/pi)*L_lm). Populated by
@@ -141,6 +148,21 @@ float direct_lobe(vec3 N, vec3 L, vec3 V, int sign_mode, float w) {
 	return max(dot(N, L), 0.0);
 }
 
+// M3 backlit-transmission lobe with a selectable formula (viewer A/B; meta.w). Always
+// trans-gated (bark/ground have trans==0 from the transmission stage, so neither mode
+// glows opaque geometry — no separate thickness term is needed for the constant-per-label
+// v1). TRANS_WRAP reproduces the shipped `trans*pow(max(dot(-N,L),0)*0.5+0.5,w)` EXACTLY
+// (mode-0 byte-identity). TRANS_PHASE sources backlitness from the VIEW–LIGHT geometry
+// (Frostbite/DICE), not the stored normal, so the glow does not inherit the ~30% sign
+// noise of dot(-N,L); the normal enters only as a small distortion.
+float back_lobe(vec3 N, vec3 L, vec3 V, float trans, float wrap_power, int trans_mode) {
+	if (trans_mode == TRANS_PHASE) {
+		vec3 Lt = normalize(L + TRANS_DISTORT * N);
+		return trans * pow(clamp(dot(V, -Lt), 0.0, 1.0), wrap_power);
+	}
+	return trans * pow(max(dot(-N, L), 0.0) * 0.5 + 0.5, wrap_power);
+}
+
 void main() {
 	uint id = gl_GlobalInvocationID.x;
 	if (id >= uint(pc.misc.y)) return;
@@ -176,6 +198,8 @@ void main() {
 	vec3 V = normalize(flash.cam_sign.xyz - pos_ws);
 	int sign_mode = flash.meta.y;
 	float sign_w = flash.cam_sign.w;
+	// M3 backlit-transmission formula selector (meta.w; 0 = shipped wrap, byte-identical).
+	int trans_mode = flash.meta.w;
 
 	// D7 facing-debug overlay (viewer key G; binding-5 meta.z, orthogonal to raw/relit so
 	// no mode-field collision). Colors the RAW world normal's facing vs a reference —
@@ -196,8 +220,9 @@ void main() {
 	}
 
 	float direct = direct_lobe(N, L, V, sign_mode, sign_w);
-	// cheap wrap translucency; inert while trans == 0 (placeholder assets)
-	float back = trans * pow(max(dot(-N, L), 0.0) * 0.5 + 0.5, wrap_power);
+	// cheap backlit translucency (A/B: shipped wrap vs Frostbite phase); inert while
+	// trans == 0 (placeholder assets / trans_on off).
+	float back = back_lobe(N, L, V, trans, wrap_power, trans_mode);
 	// CLAUDE.md ambient term: recovered env-SH when a sidecar is bound
 	// (pc.misc.w != 0), else the flat scalar fallback. N is the world-space
 	// normal already used by the direct term; the sidecar coeffs are in the same
@@ -233,7 +258,7 @@ void main() {
 			if (w <= 0.0) continue;
 			// Local lights use the SAME sign policy as the sun (byte-identical in mode 0).
 			float direct_f = direct_lobe(N, Lf, V, sign_mode, sign_w);
-			float back_f = trans * pow(max(dot(-N, Lf), 0.0) * 0.5 + 0.5, wrap_power);
+			float back_f = back_lobe(N, Lf, V, trans, wrap_power, trans_mode);
 			color += albedo * (direct_f + back_f) * fl.color_cone.rgb * w;
 		}
 	}

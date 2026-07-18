@@ -5,6 +5,40 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-07-18
+- **MILESTONE M3 (transmission — code): backlit grass/leaf glow stage + runtime A/B**
+  (`tasks/2026-07-17-m3-transmission.md`). Gate opened by M2✓ + D5✓ + D7 DECIDED (keep
+  signed, which un-breaks the `dot(−N,L)` backlit term). Ships the code deliverable; hero
+  re-export on real data and the owner a-vs-b eyeball are the orchestrator/owner acceptance
+  steps that follow.
+- **New `precompute/stages/transmission.py`** — v1 CONSTANT-PER-LABEL `trans` (CLAUDE.md
+  stage 5 accepts this; the thin-leaf backlit-residual estimate is a deliberately-deferred
+  stretch). leaf(2)/grass(1) → configurable `--trans-leaf`/`--trans-grass` (default 0.5);
+  bark(3)/ground(0) and any out-of-schema label stay exactly 0. Operates on the built
+  extended `asset.ply` post-export (trans is a scalar, no coordinate conversion → frame-safe);
+  reads/writes PLY bytes ONLY via `core.ply_io`. No schema change (`trans` already exists).
+- **`metrics_transmission.json` with a non-vacuous fail-if-broken metric** (invariant #7):
+  besides per-label counts / range / NaN and the opaque-label guard, a POSITIVE
+  landed-assignment gate asserts that each requested constant > 0 with ≥1 Gaussian of that
+  label actually landed (`trans_min == trans_max == expected`, exact f32) — the guard that
+  fires on real (uniformly-leaf) pipeline data where the bark/ground==0 check is vacuous.
+  Plus total-consistency accounting (`n_other_label`, `counts_consistent`). All gates
+  fail-closed (`raise SystemExit`) pre-write → a broken run never clobbers a prior good asset.
+- **`run.py`**: `transmission` wired into `STAGE_ORDER` after `export`; `--trans-leaf` /
+  `--trans-grass` passthrough. NOTE: `--stages all` now appends transmission, so an
+  end-to-end rebuild produces transmissive (leaf trans=0.5) assets — `metrics_export.json`
+  (trans=0) is superseded by `metrics_transmission.json` afterward.
+- **Runtime backlit A/B** (`godot/relight/relight.glsl`, `relight_pass.gd`,
+  `tools/orbit_viewer.gd`): backlit term factored into `back_lobe(N,L,V,trans,wrap_power,
+  trans_mode)` used at BOTH the sun and flashlight-loop sites. `trans_mode` on binding-5
+  `meta.w` (was free; push constant untouched): **mode 0 TRANS_WRAP** = shipped
+  `trans*pow(max(dot(−N,L),0)*0.5+0.5,wrap_power)`, **byte-identical** default; **mode 1
+  TRANS_PHASE** = Frostbite view–light phase `trans*pow(clamp(dot(V,−normalize(L+0.3·N)),0,1),
+  wrap_power)` (sign-robust, view-driven — does not inherit the D7 ~30% wrong-sign noise).
+  Viewer key **T** cycles the formula (+ "trans lobe" dropdown); default mode 0. GDGS untouched.
+- Suite: 120 passed (118 prior + 2 new, incl. a negative-proof test that fails if the
+  landed-assignment gate is removed).
+
 ## [0.19.1] — 2026-07-17
 - **quality-pass slice 4: GDGS −180°Z neutralization in the demo/gif render tools**
   (`recurring-quality-pass.md`). `render_orbit.gd` and `render_sparkle.gd` now set

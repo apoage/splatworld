@@ -32,8 +32,9 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(REPO, "assets", "raw")
 BUILT = os.path.join(REPO, "assets", "built")
 
-# Stages implemented so far. label/transmission/bake_basis are M2+ TODO.
-STAGE_ORDER = ["ingest", "train_base", "decompose", "export"]
+# Stages implemented so far. label/bake_basis are M2+ TODO. transmission runs AFTER
+# export (it rewrites the built asset.ply's per-Gaussian `trans`; scalar, no coord conv).
+STAGE_ORDER = ["ingest", "train_base", "decompose", "export", "transmission"]
 
 
 def _normalize_asset(name: str) -> str:
@@ -76,6 +77,12 @@ def _cmd(stage, name, gpu, extra, built_root, with_decompose=False):
         return [sys.executable, "-m", "precompute.stages.export",
                 "--in", os.path.join(built, "train_base.ply"),
                 "--out", os.path.join(built, "asset.ply"), *decompose_args, *extra]
+    if stage == "transmission":
+        # operates on the BUILT asset.ply (post-export). `trans` is a per-Gaussian scalar
+        # (no coordinate conversion), so rewriting it in place after export is frame-safe.
+        return [sys.executable, "-m", "precompute.stages.transmission",
+                "--in", os.path.join(built, "asset.ply"),
+                "--out", os.path.join(built, "asset.ply"), *extra]
     raise ValueError(f"unknown/unimplemented stage: {stage}")
 
 
@@ -135,6 +142,11 @@ def main():
                     help="export: drop isolated splats (kNN dist > median+N*std).")
     ap.add_argument("--prune-isolation-k", type=int,
                     help="export: k for the isolation kNN test (default 4).")
+    # transmission knobs (M3); omit = stage defaults (leaf/grass 0.5)
+    ap.add_argument("--trans-leaf", type=float,
+                    help="transmission: constant trans for leaf (label 2) gaussians [0,1].")
+    ap.add_argument("--trans-grass", type=float,
+                    help="transmission: constant trans for grass (label 1) gaussians [0,1].")
     ap.add_argument("--out-root", default=None,
                     help="write built outputs under <out-root>/<name>/ instead of "
                          "assets/built/<name>/ (default). Lets smoke/CI runs land in a "
@@ -189,8 +201,14 @@ def main():
         export_extra += ["--prune-isolation-std", str(args.prune_isolation_std)]
     if args.prune_isolation_k is not None:
         export_extra += ["--prune-isolation-k", str(args.prune_isolation_k)]
+    transmission_extra = []
+    if args.trans_leaf is not None:
+        transmission_extra += ["--trans-leaf", str(args.trans_leaf)]
+    if args.trans_grass is not None:
+        transmission_extra += ["--trans-grass", str(args.trans_grass)]
     extra = {"ingest": ingest_extra, "train_base": train_base_extra,
-             "decompose": decompose_extra, "export": export_extra}
+             "decompose": decompose_extra, "export": export_extra,
+             "transmission": transmission_extra}
 
     if args.all_assets:
         names = sorted(d for d in os.listdir(RAW)
