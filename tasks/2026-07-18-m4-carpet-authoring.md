@@ -67,34 +67,19 @@ and a procedural scatter is just a fourth producer of the same file:
   tile-dropout bug, `tasks/2026-07-18-gdgs-tile-dropout.md`). Keep the carpet middle-distance; the
   authoring tool warns if an instance AABB enters a near ring.
 
-## Task breakdown (ordered; 5 testable NOW on the 2 heroes)
-1. **[godot, M, NOW] `set_materials_multi` + minimal `carpet_loader.gd` (THE SPINE / first task).**
-   Concat unique resources' `attr_data_byte` in first-seen order; parse a hand-written
-   instances.json; load+cache each variant ONCE; spawn a node per instance, `add_child`, THEN set
-   yaw+uniform-scale+pos. Smoke on 2 heroes as 2 variants: assert VRAM dedup (one upload/resource),
-   concat size == Σ attr_data_byte, total pts == Σ, every basis != identity, **each variant shades
-   with its OWN materials** (catches silent mis-offset — the highest-risk coupling).
-2. **[precompute, M, NOW] `clean_relight.py`** — read .relightply → `floater_prune_mask`
-   (opacity/scale-std/isolation-std/k) + AABB crop/exclude + label filter + optional keep-index →
-   write via `ply_io.write_asset_ply`. Fail-closed range/NaN gate + metrics (n_before/after/
-   by_criterion). Doubles as the variant-minting decimator (2.4M → ~150-300k). Reuse the ~50-Gaussian
-   golden test.
-3. **[godot] `carpet_perf.gd` — SPLIT build (factory) + measure (scheduled GPU):**
-   - **3a [factory, unattended, S, NOW] build the harness.** `carpet_perf.gd`: load N instances via
-     `carpet_loader` (heroes + a ~1.5M-total decimated variant minted by `clean_relight.py`), average
-     frame time over a fixed camera path, print `count / frame-ms / fps` + an assert-scaffold for a
-     `PERF_FPS_MIN` (default 60). **DoD is the tool + a STRUCTURE/coverage self-check on a small
-     instance count** (the harness runs, loads, reports, asserts) — NOT an fps number: `--headless`
-     is the dummy renderer and won't rasterize, so a headless fps reading is meaningless. Do not
-     fabricate or gate on a headless frame time.
-   - **3b [scheduled GPU one-shot, NOT a factory gate] the real measurement.** Run `carpet_perf.gd`
-     on `DISPLAY=:0` (real 3090) at 1080p: 2.4M hero baseline, then ~1.5M carpet, record real frame
-     time, assert ≥60fps → dated findings doc. Answers the open fps question + calibrates the
-     authoring budget meter. Owner/planner runs it (or a scheduled idle job); the factory never
-     marks itself blocked on this step.
-4. **[godot, L, NOW] Splat Studio** — in-viewer scatter: weighted variants, region rect, density +
-   yaw/uniform-scale ranges + Poisson spacing + seed; live WYSIWYG relit spawn; hand-nudge/delete;
-   live ≤1.5M budget meter; "Save layout" → instances.json (frame=godot). PRIMARY producer.
+## Task breakdown — tasks 1–3 SHIPPED; task 4 is the current scoped run; 5–8 later
+1. ✅ **SHIPPED v0.23.0 (run #13). [godot] `set_materials_multi` + `carpet_loader.gd` (THE SPINE).**
+   Multi-variant concat in first-seen order, all-or-nothing load; coupling verified on all hard cases.
+2. ✅ **SHIPPED v0.22.0 (run #13). [precompute] `clean_relight.py`** — floater prune + AABB crop +
+   label filter + keep-index; fail-closed gate + metrics; doubles as the variant-minting decimator.
+3. ✅ **DONE — `carpet_perf.gd` (3a harness v0.24.0, run #14) + 3b measurement + resolution hotfix
+   v0.24.1.** Verified true 1080p on the 3090: budget carpet 1.45M = **277 fps (4.6× the 60 floor)**,
+   full 2.4M hero = 180.6 fps → ≤1.5M budget is generous; "perf constant unmeasured" risk RESOLVED
+   (`docs/2026-07-18-perf-3b-findings.md`). **Nothing open here — do not re-take task 3.**
+4. **[godot, XL, NOW] Splat Studio — PRIMARY producer. → FULLY SPECED (authoritative) in
+   `tasks/2026-07-18-splat-studio.md`** (op/stroke model, `scatter_core` toolkit, `resync_materials`,
+   `studio` block, fill·paint·stamp·nudge belt). **This one-line stub is SUPERSEDED — build from that
+   file, not from here.** It is the ONLY factory row for the current scoped run (see `QUEUE.md`).
 5. **[godot, M, NOW] Cleanup mode (select+preview half)** — new `set_viz_mode` prune-preview
    (red=drop/green=keep, no mutation) + AABB crop/exclude gizmo + per-label toggles + stat sliders
    mirroring `floater_prune_mask` (loader retains opacity/scale arrays). Commit → cleanup.json for (2).
