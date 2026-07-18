@@ -1,5 +1,19 @@
 # M3 — transmission: backlit grass/leaf glow + UI toggle
 
+> **STATUS (2026-07-18): CODE SHIPPED as v0.20.0 (run #11).** New `precompute/stages/transmission.py`
+> (v1 constant-per-label trans: leaf/grass → 0.5, all else 0; non-vacuous landed-assignment metric
+> gate per invariant #7) + run.py wiring; runtime backlit A/B (`trans_mode` on binding-5 `meta.w`:
+> mode 0 shipped `dot(−N,L)` wrap byte-identical default, mode 1 Frostbite view-light phase; viewer
+> key **T**). Panel green (correctness + regression + flow-verifier + fix-reverify); suite 120 passed;
+> real-data CPU validation on pxl_144634 (2.4M leaf → trans=0.5, `assigned_ok`, no NaN).
+> **REMAINDERS (owner-gated / GPU-scheduled real-data tier — NOT shipped):** (1) hero re-export +
+> re-mirror to `godot/gs_assets/*.relightply` — the in-place hero overwrite was classifier-blocked,
+> deferred to owner (they may want different trans or to keep originals); commands in the run #11
+> handoff. (2) **Owner a-vs-b eyeball** (viewer: pose 5 backlit + Transmission toggle + press T) —
+> the acceptance gate; picks (a) wrap vs (b) phase. (3) GPU backlit render check (sun az≈180). (4)
+> demo/gif regen showing M3 glow (sequence after the owner picks a/b). The thin-leaf per-splat
+> backlit-residual estimate was deliberately NOT built (flagged stretch).
+
 **Size/risk:** M / medium (new precompute stage + re-export + runtime is already wired). **Status:**
 READY — gate OPEN: M2 decompose shipped ✓, D5 normals fixed ✓, **D7 decided KEEP SIGNED** (2026-07-17)
 which UN-BREAKS the `dot(−N,L)` backlit term (it was only degenerate under the rejected sign-agnostic
