@@ -5,6 +5,19 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.24.1] — 2026-07-18
+- **`carpet_perf.gd` resolution verification (planner hotfix, out-of-band from the factory).**
+  The 3a harness printed a HARDCODED `res=1920x1080` and only did `root.size = 1920x1080`, which
+  on a real multi-monitor display leaves the OS window at Godot's 1152×648 default (window !=
+  viewport) and can drop a too-wide window onto a smaller secondary — so the first task-3b run
+  measured at an unknown, non-1080p resolution. Fix: on a real display the harness now (a) places
+  the window on a screen that fits the target (auto, or `CARPET_PERF_SCREEN=<i>`), (b) forces
+  `DisplayServer.window_set_size(1920×1080)` + pins `content_scale_factor=1` so window == viewport,
+  (c) reads the TRUE size back and treats any mismatch as a STRUCTURE failure (`CARPET_PERF_RESULT
+  FAIL`, exit 1) rather than reporting a resolution it never checked; the startup line now prints
+  the real `res=WxH`. **Headless path byte-identical** (dummy renderer keeps the target verbatim,
+  gate SKIPPED). Enabled the verified task-3b result — `docs/2026-07-18-perf-3b-findings.md`.
+
 ## [0.24.0] — 2026-07-18
 - **M4 task 3a — `carpet_perf.gd` frame-time HARNESS** (`tasks/2026-07-18-m4-carpet-authoring.md`).
   Godot-side only; no PLY schema change; GDGS untouched. Builds the perf measurement tool; the real

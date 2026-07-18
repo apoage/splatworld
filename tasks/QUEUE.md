@@ -4,23 +4,25 @@ The factory's single entry point (planner-maintained). STATUS banners on task fi
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-18 late** — reconciled **run #14** (M4 **task 3a** `carpet_perf.gd` frame-time HARNESS
-**v0.24.0** SHIPPED; independent pytest **141✓**, delta scan clean, pushed, tag v0.24.0 published).
-**Task 3a (build the harness) is now DONE** → the M4 perf track's only remainder is **task 3b, the
-REAL ≥60 fps @1080p measurement, a SCHEDULED GPU one-shot on `DISPLAY=:0`** — owner/planner work,
-NOT unattended-factory (dummy renderer won't rasterize). **No purely-unattended M4 row remains:**
-tasks 4/5/6 (Splat Studio / cleanup-select / Blender addon) are **owner-attended WYSIWYG**, and 3b
-is scheduled — so the factory's next unattended pickup is FILLER (quality-pass slice 6/7, docs-guide)
-or the pixel5 scheduled one-shot until the owner steers 3b/authoring. NEW wall **D9** (mixed-scene
-material-buffer ownership) gated to Moon-Stone. Earlier: run #13 M4 spine v0.22/v0.23; run #12 GDGS
-v0.21.0; **D8 RATIFIED**; upstream GDGS report/PR = **parked pending owner cross-validation**.
+**2026-07-18 late** — reconciled **run #14** (task 3a harness **v0.24.0**) AND executed **task 3b**
+(the real perf measurement, owner-greenlit GPU one-shot). **M4 task 3 is now FULLY CLOSED.**
+Verified at true 1080p on the 3090: **1.45M budget carpet = 277 fps (4.6× the 60fps floor)**, full
+2.4M hero = 180.6 fps — the "perf constant unmeasured" risk is RESOLVED and the ≤1.5M budget is
+generous (`docs/2026-07-18-perf-3b-findings.md`). Found+fixed a harness resolution defect during
+3b (hardcoded `res=1920x1080`, window landed at 1152×648) → **planner hotfix v0.24.1** (screen
+placement + `window_set_size` + true-size readback gate; headless byte-identical). **Next M4 track =
+authoring (tasks 4/5 Splat Studio), owner-attended WYSIWYG** — now unblocked with a known ≤1.5M cap;
+NOT unattended-factory work. So the factory's next unattended pickup remains FILLER (quality-pass
+slice 6/7, docs-guide) or the pixel5 one-shot. NEW wall **D9** (mixed-scene material-buffer
+ownership) gated to Moon-Stone. Earlier: run #13 M4 spine v0.22/v0.23; run #12 GDGS v0.21.0; **D8
+RATIFIED**; upstream GDGS report/PR = **parked pending owner cross-validation**.
 
 ## Ready — take from the top
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| — | **M4 task 3b — REAL perf measurement (scheduled GPU one-shot, owner/planner, NOT factory)** | S | **The harness is BUILT (task 3a, v0.24.0, run #14).** Remainder = run it for real on `DISPLAY=:0` (3090, 1080p): mint a ~1.5M-total decimated fleet via `clean_relight.py` → author a `carpet/<name>.instances.json` → `PERF_FPS_MIN=60 CARPET_JSON=<fleet>.instances.json DISPLAY=:0 ~/godot/godot --path godot --script res://relight/tools/carpet_perf.gd` (baseline a single-2.4M-hero carpet first, then the ~1.5M carpet) → **dated findings doc**. Enforces `fps>=60`, exits nonzero on a miss. Answers the "perf constant unmeasured" risk + sizes the authoring budget meter. **Owner-steered (see run #14 handoff Qs).** |
-| — | **M4 tasks 4/5/6 — authoring UI (owner-attended, NOT unattended-factory)** | L+M+M | Task 4 Splat Studio in-viewer scatter + task 5 cleanup-select mode = WYSIWYG; acceptance is owner **visual eyeball** (screenshots never a factory gate) → build WITH the owner in the loop, **prefer after the 3b perf number** sets the real splat budget. Task 6 Blender `bpy` addon = secondary producer, needs a headless-blender tooling check first (rabbit-hole risk). All build on the shipped spine and **must respect D9** (mixed-scene material-buffer ownership) |
+| — | **M4 tasks 4/5/6 — authoring UI (owner-attended, NOT unattended-factory) — NEXT M4 TRACK** | L+M+M | Task 4 Splat Studio in-viewer scatter + task 5 cleanup-select mode = WYSIWYG; acceptance is owner **visual eyeball** (screenshots never a factory gate) → build WITH the owner in the loop. **Now UNBLOCKED: the 3b perf number is in hand** — budget meter uses a confident ≤1.5M "green" cap (4.6× headroom at 1080p). Task 6 Blender `bpy` addon = secondary producer, needs a headless-blender tooling check first (rabbit-hole risk). All build on the shipped spine and **must respect D9** (mixed-scene material-buffer ownership) |
+| ~~—~~ | ~~**M4 task 3b — REAL perf measurement (GPU one-shot)**~~ | S | ✅ **DONE 2026-07-18 (owner-greenlit).** Verified true 1080p on the 3090: **budget carpet 1.45M = 277 fps (4.6×)**, full 2.4M hero = 180.6 fps — ≤1.5M budget clears 60fps with wide headroom. Minted stride-14 variants via `clean_relight.py`; found+fixed a harness resolution defect mid-run (**hotfix v0.24.1**). `docs/2026-07-18-perf-3b-findings.md` |
 | ~~1~~ | ~~`tasks/2026-07-18-m4-carpet-authoring.md` (task 3a — perf harness)~~ | M | ✅ **SHIPPED v0.24.0 (run #14, 2026-07-18).** `godot/relight/tools/carpet_perf.gd` — deterministic union-AABB orbit, prints `CARPET_PERF count/frame-ms/fps` + a `PERF_FPS_MIN` (60) assert-scaffold. **DoD = the tool + a STRUCTURE self-check** (`CARPET_PERF_RESULT` = load/parity/count only); the fps gate enforces (nonzero exit) **only on a real display**, so headless never fabricates a number (MINOR fix: perf miss drives exit code alone, sentinel stays structure-only, so 3b tells "harness worked" from "perf passed"). Additive-only; GDGS/loader/relight_pass untouched. Real measurement = **task 3b** (above). `docs/2026-07-18-handoff-run14-carpet-perf.md` |
 | ~~1~~ | ~~`tasks/2026-07-13-normal-quality.md` (STEP 2)~~ | M | ✅ **SHIPPED v0.13.0 (run #5, 2026-07-15).** D5 fix = k-NN normal smoothing folded into `decompose` (decompose-side, not export — reuses the trusted held-out-PSNR gate). Opt-in `--smooth-normals-iters` (default 0 = no-op). Real re-decompose of pxl_144634: PSNR −0.11 dB, shimmer 48.77 (−75%), coherence 0.579→0.922. **Fix is default-OFF ⇒ built/mirrored viewer asset UNCHANGED — rollout = filler slice 5 (now unblocked).** `docs/validation-normal-quality-step2-2026-07-15.md` |
 | ~~2~~ | ~~`tasks/2026-07-14-lighting-stability.md`~~ | M | ✅ **SHIPPED v0.14.0 (run #6)** — repeatable 10/10 gate, 53 conditions, fault-injection-proven checks. Follow-on = quality-pass slice 7 (shimmer baseline table). `docs/validation-lighting-stability-2026-07-15.md` |
@@ -73,6 +75,11 @@ deterministic union-AABB orbit, `CARPET_PERF count/frame-ms/fps` + `PERF_FPS_MIN
 tool + structure self-check (headless never fabricates fps; the gate enforces only on a real
 display — MINOR fix separated the structure sentinel from the perf exit code). Additive-only.
 Real ≥60 fps measurement = task 3b (scheduled GPU one-shot). `docs/2026-07-18-handoff-run14-carpet-perf.md`.
+**Task 3b + hotfix v0.24.1 (2026-07-18, planner/owner, out-of-band from the factory):** executed the
+real perf one-shot (owner-greenlit DISPLAY=:0) — **1.45M budget carpet = 277 fps, 2.4M hero = 180.6
+fps, verified 1080p, ≤1.5M budget clears 60fps by 4.6×**. Mid-run found+fixed a harness resolution
+defect (window landed 1152×648 not 1080p) → v0.24.1 (screen placement + `window_set_size` + true-size
+readback gate; headless byte-identical). `docs/2026-07-18-perf-3b-findings.md`.
 
 ## Filler — anytime, parallel-safe
 

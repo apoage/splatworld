@@ -60,6 +60,9 @@ godot/gs_assets/*.ply
 godot/gs_assets/*.relightply
 # env-SH ambient sidecars mirrored next to gs_assets/*.relightply (derived, not tracked)
 godot/gs_assets/*_env_sh.json
+# M4 perf-scratch carpets + clean_relight metrics (local, derived — not tracked)
+godot/gs_assets/*.instances.json
+godot/gs_assets/metrics_clean.json
 *.bak
 
 # synthetic GT renders (large; regenerate via precompute/synthetic/make_plant.py)

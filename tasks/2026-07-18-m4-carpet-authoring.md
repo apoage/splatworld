@@ -1,5 +1,10 @@
-> **STATUS (2026-07-18): PARTIAL — task 1 (SPINE) SHIPPED as v0.23.0; task 2 SHIPPED as v0.22.0;
-> task 3a (perf harness) SHIPPED as v0.24.0.**
+> **STATUS (2026-07-18): PARTIAL — task 1 (SPINE) v0.23.0; task 2 v0.22.0; task 3 FULLY CLOSED
+> (3a harness v0.24.0 + 3b measurement + resolution hotfix v0.24.1).**
+> **Task 3b DONE (owner-greenlit GPU one-shot):** verified true 1080p on the 3090 — budget carpet
+> 1.45M = **277 fps (4.6× the 60fps floor)**, full 2.4M hero = 180.6 fps → ≤1.5M budget is generous,
+> "perf constant unmeasured" risk RESOLVED (`docs/2026-07-18-perf-3b-findings.md`). Mid-run found+fixed
+> a harness resolution defect (window landed 1152×648, not 1080p) → **v0.24.1** (screen placement +
+> `window_set_size` + true-size readback gate; headless byte-identical).
 > Task 1: `RelightPass.set_materials_multi` + `carpet_loader.gd` (+ headless `carpet_smoke.gd`) — the
 > multi-variant material-concat coupling verified correct on all hard cases (B-first / interleaved /
 > declared-unused / shared-path), all-or-nothing fail-closed load; 4-lens panel green after 2
@@ -7,10 +12,9 @@
 > decimator). Task 3a: `godot/relight/tools/carpet_perf.gd` — deterministic-orbit frame-time harness,
 > `count/frame-ms/fps` line + `PERF_FPS_MIN` scaffold; headless is non-authoritative (dummy renderer),
 > sentinel = STRUCTURE self-check only, real ≥60fps enforcement fires only on `DISPLAY=:0`; medium
-> panel green (1 MINOR fixed). **Remainders OPEN:** task 3b (the REAL fps measurement — a SCHEDULED
-> GPU one-shot on `DISPLAY=:0`, NOT unattended-factory work), task 4 (Splat Studio in-viewer scatter),
-> task 5 (cleanup-select mode), task 6 (Blender bpy addon); tasks 7–8 gated. All owner-attended or
-> scheduled — see wrap-up.
+> panel green (1 MINOR fixed). **Remainders OPEN (all owner-attended, NOT unattended-factory):** task 4
+> (Splat Studio in-viewer scatter) + task 5 (cleanup-select mode) — WYSIWYG, now UNBLOCKED by the 3b
+> budget number; task 6 (Blender bpy addon, needs a headless-blender tooling check first); tasks 7–8 gated.
 
 # M4 — carpet as AUTHORING TOOLS (instance-space + splat cleanup), not an auto-scene builder
 

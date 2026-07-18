@@ -49,6 +49,8 @@ const TINY_JSON := "user://carpet_perf_tiny.json"
 const HERO_JSON := "user://carpet_perf_hero.json"
 
 const DEFAULT_FPS_MIN := 60.0
+const TARGET_W := 1920                # perf spec resolution (CLAUDE.md: 60 fps @ 1080p)
+const TARGET_H := 1080
 const WARMUP := 30                    # frames to settle before the timed orbit
 const ORBIT_FRAMES := 180             # one full deterministic revolution, timed as the window
 
@@ -72,6 +74,7 @@ var _cam: Camera3D
 var _total_count := 0
 var _instance_count := 0
 var _variant_count := 0
+var _render_size := Vector2i(TARGET_W, TARGET_H)   # ACTUAL window/viewport size, read back
 
 var _stage := 0                       # 0 warm, 1 measure, 2 done
 var _frames := 0
@@ -86,7 +89,30 @@ func _initialize() -> void:
 	var root := get_root()
 	if _authoritative:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-	root.size = Vector2i(1920, 1080)
+		# Put the window on a screen that can actually host TARGET_W x TARGET_H BEFORE sizing:
+		# a window bigger than the monitor is silently clamped by the WM, so it would measure at
+		# the wrong resolution (the exact defect that voided the first 3b run on a 1600-wide
+		# secondary). CARPET_PERF_SCREEN forces a screen index; else auto-pick the first that fits.
+		_place_window_on_capable_screen()
+		# Force the OS window (hence the render viewport) to EXACTLY the target pixels. On a real
+		# display `root.size` alone leaves the OS window at Godot's 1152x648 default and only
+		# resizes the logical viewport (ambiguous window != viewport); window_set_size makes
+		# window == viewport == target, so the readback below is unambiguous. content_scale_factor
+		# pinned to 1 guards against any project-level content scale.
+		root.content_scale_factor = 1.0
+		DisplayServer.window_set_size(Vector2i(TARGET_W, TARGET_H))
+	else:
+		root.size = Vector2i(TARGET_W, TARGET_H)
+	# NEVER trust the request — read back the true window size. On a real display a clamp/DPI
+	# mismatch means the perf number would be at the wrong resolution, so treat it as a STRUCTURE
+	# failure (voids the sentinel + exits nonzero) instead of the old hardcoded "res=1920x1080"
+	# lie. Headless keeps the target verbatim (no display server) -> behavior byte-identical.
+	_render_size = DisplayServer.window_get_size() if _authoritative else Vector2i(TARGET_W, TARGET_H)
+	if _authoritative and _render_size != Vector2i(TARGET_W, TARGET_H):
+		_problems.append("render size %dx%d != target %dx%d (screen %d clamped/scaled; set CARPET_PERF_SCREEN to a screen >= %dx%d) — perf number would be at the WRONG resolution" % [
+			_render_size.x, _render_size.y, TARGET_W, TARGET_H, DisplayServer.window_get_current_screen(), TARGET_W, TARGET_H])
+		_finish()
+		return
 
 	# Gaussian compositor on a WorldEnvironment (parity with the other GPU tools; a no-op
 	# rasterize under the dummy renderer, real compositing on DISPLAY=:0).
@@ -141,8 +167,8 @@ func _initialize() -> void:
 	_cam.current = true
 	_ran = true
 
-	print("[carpet-perf] kind=%s instances=%d variants=%d splats=%d res=1920x1080 orbit=%d frames fps_min=%.1f authoritative=%s" % [
-		_carpet_kind, _instance_count, _variant_count, _total_count, ORBIT_FRAMES, _fps_min, str(_authoritative)])
+	print("[carpet-perf] kind=%s instances=%d variants=%d splats=%d res=%dx%d orbit=%d frames fps_min=%.1f authoritative=%s" % [
+		_carpet_kind, _instance_count, _variant_count, _total_count, _render_size.x, _render_size.y, ORBIT_FRAMES, _fps_min, str(_authoritative)])
 
 
 func _process(_delta: float) -> bool:
@@ -358,6 +384,29 @@ func _place_cam(t: float) -> void:
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────────────
+# Move the window to a screen that can host TARGET_W x TARGET_H so root.size is not clamped by
+# a too-small monitor. CARPET_PERF_SCREEN=<i> forces a screen index; otherwise pick the first
+# screen whose size fits the target. No-op if no screen fits (the size readback then flags it).
+func _place_window_on_capable_screen() -> void:
+	var n := DisplayServer.get_screen_count()
+	var target := -1
+	var forced := OS.get_environment("CARPET_PERF_SCREEN")
+	if not forced.is_empty() and forced.is_valid_int():
+		target = clampi(int(forced), 0, maxi(n - 1, 0))
+	else:
+		for i in n:
+			var ss := DisplayServer.screen_get_size(i)
+			if ss.x >= TARGET_W and ss.y >= TARGET_H:
+				target = i
+				break
+	if target < 0:
+		push_warning("[carpet-perf] no screen fits %dx%d; the size readback will flag the clamp" % [TARGET_W, TARGET_H])
+		return
+	DisplayServer.window_set_current_screen(target)
+	DisplayServer.window_set_position(DisplayServer.screen_get_position(target))
+	print("[carpet-perf] window -> screen %d (screen size %s)" % [target, str(DisplayServer.screen_get_size(target))])
+
+
 func _env_float(name: String, dflt: float) -> float:
 	var v := OS.get_environment(name)
 	if v.is_empty() or not v.is_valid_float():
