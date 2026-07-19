@@ -38,6 +38,7 @@ func _initialize() -> void:
 	_check_determinism(problems)
 	_check_stroke_replay(problems)
 	_check_poisson(problems)
+	_check_paint_poisson(problems)
 	_check_region_trs(problems)
 	_check_weighting(problems)
 	_check_budget(problems)
@@ -153,6 +154,46 @@ func _check_poisson(problems: Array[String]) -> void:
 		problems.append("[poisson] saturation not reported: placed %d of %d (expected fewer)" % [placed.size(), 50])
 	else:
 		print("[splat-studio][poisson] placed %d of %d (saturated); min pair gap^2=%.4f vs md^2=%.4f OK" % [placed.size(), 50, min_found, md2])
+
+
+# ─── 3b. Paint cross-dab Poisson (min_dist holds across the WHOLE stroke) ─────────
+# The gate gap that let the cross-dab bug ship: check 3 asserts the min_dist floor on
+# fill_region only. A paint stroke's dabs must share ONE neighbour grid, so every
+# accepted pair across the whole stroke is >= min_dist — not just pairs within a dab.
+# Repro from the follow-up: radius=1.0, path=[[0,0],[0.2,0]], min_dist=0.4, count=30,
+# seed=3 — two heavily-overlapping dabs, so a per-dab hash leaves many too-close pairs.
+func _check_paint_poisson(problems: Array[String]) -> void:
+	var ops: Array = [
+		{"tool": "paint", "radius": 1.0, "path": [[0.0, 0.0], [0.2, 0.0]], "cfg": {
+			"count": 30, "min_dist": 0.4, "ground_y": 0.0,
+			"variants": [{"id": "a", "weight": 1.0}],
+			"yaw": [0.0, 0.0], "scale": [1.0, 1.0]}},
+	]
+	var placed := ScatterCore.apply_ops(ops, 3)
+	if placed.is_empty():
+		problems.append("[paint-poisson] multi-dab paint placed 0 (rejection loop never accepted)")
+		return
+	var md := 0.4
+	var md2 := md * md
+	var min_found := INF
+	var close_pairs := 0
+	for i in placed.size():
+		for j in range(i + 1, placed.size()):
+			var pi: Vector3 = placed[i]["pos"]
+			var pj: Vector3 = placed[j]["pos"]
+			var dxz := Vector2(pi.x - pj.x, pi.z - pj.z)
+			min_found = minf(min_found, dxz.length_squared())
+			if dxz.length_squared() < md2 - 1e-6:
+				close_pairs += 1
+	if close_pairs > 0:
+		problems.append("[paint-poisson] %d of %d placed across the stroke violate min_dist (closest gap^2=%.4f vs md^2=%.4f) — dabs must share one SpatialHash" % [close_pairs, placed.size(), min_found, md2])
+		return
+	# Stroke replay stays byte-identical with the shared grid (determinism contract).
+	var replay := ScatterCore.apply_ops(ops, 3)
+	if not _instances_equal(placed, replay):
+		problems.append("[paint-poisson] multi-dab paint replay not byte-identical")
+		return
+	print("[splat-studio][paint-poisson] %d instances across 2 dabs; every pair >= min_dist (min gap^2=%.4f vs md^2=%.4f); replay-stable OK" % [placed.size(), min_found, md2])
 
 
 # ─── 4. Region + TRS ──────────────────────────────────────────────────────────────

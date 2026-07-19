@@ -5,6 +5,28 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.25.1] — 2026-07-19
+- **Splat Studio follow-up #1 — Paint cross-dab Poisson spacing + gate gap closed**
+  (`tasks/2026-07-19-paint-cross-dab-spacing.md`; borderline-MAJOR residual from the v0.25.0
+  verify panel). `ScatterCore.apply_ops`'s paint branch now threads ONE `SpatialHash` across all
+  dabs of a stroke (when `min_dist > 0`) via a new optional `shared_grid` param on `sample_disc`,
+  so `min_dist` rejection holds across overlapping dabs — the 4a-a contract ("SpatialHash reused
+  by fill, paint, and pick") now actually holds. Verified repro (`radius=1.0, path=[[0,0],[0.2,0]],
+  count=30, min_dist=0.4, seed=3`): 28 violating pairs → **0** (32→19 instances placed; cross-dab
+  rejection culls overlaps, as intended). rng draw order unchanged → stroke replay byte-identical.
+- **Gate gap closed**: new `_check_paint_poisson` in `splat_studio_smoke.gd` runs the multi-dab
+  repro through `apply_ops` and asserts every accepted pair across the whole stroke ≥ min_dist
+  (plus stroke-replay byte-identity). Red on pre-fix code (28 pairs, closest gap²=0.0002 vs
+  md²=0.1600), green after — the fill-only `_check_poisson` blind spot that let v0.25.0 ship the
+  bug is covered.
+- **No regression** (17-case old-vs-new byte-equality matrix, judge-verified): `fill_region`,
+  `min_dist==0`/absent paint, single-dab paint, mixed op lists, and hostile `min_dist` forms all
+  byte-identical; only multi-dab `min_dist>0` paint changes (the fix). Note: saved docs containing
+  multi-dab `min_dist>0` strokes will trip `open_doc`'s integrity replay on load — the tripwire
+  working as designed, not a defect.
+- Kimi K3 alt-model eval #2 run; medium-tier panel (correctness + regression + flow-verifier),
+  no BLOCKER/MAJOR; pytest 141 passed; all four Godot smokes PASS.
+
 ## [0.25.0] — 2026-07-19
 - **M4 task 4 — Splat Studio (the in-viewer carpet-authoring tool)** (`tasks/2026-07-18-splat-studio.md`).
   Godot-only; no PLY schema change; GDGS untouched; `load_carpet` byte-identical. Builds the

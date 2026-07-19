@@ -7,6 +7,10 @@ lands (or a quick Claude slice). Source: `docs/2026-07-19-handoff-splat-studio-g
 run `wf_edb575ae-e41`.
 
 ## 1. [godot, borderline-MAJOR, TOP] Paint cross-dab Poisson spacing + close the gate gap
+> **SPLIT OUT → `tasks/2026-07-19-paint-cross-dab-spacing.md`** (standalone scoped task, 2026-07-19,
+> Kimi K3 alt-model eval). The full spec + DoD live there; this section is the origin record.
+> **#1 DONE 2026-07-19** — one stroke-wide `SpatialHash` threaded from the `apply_ops` paint branch through every `sample_disc`; new `_check_paint_poisson` gate red (28/32 pairs < min_dist) → green; studio/carpet/perf/base smokes PASS, pytest 141.
+
 `scatter_core.gd`: `sample_disc` allocates a FRESH `SpatialHash` per dab, and the `apply_ops` paint
 branch shares only the `rng` across dabs — so `min_dist` is enforced *within* a dab but NOT *across*
 overlapping dabs in one paint stroke (verified: `radius=1.0, path=[[0,0],[0.2,0]], min_dist=0.4,

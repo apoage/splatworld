@@ -257,10 +257,13 @@ static func fill_region(cfg: Dictionary, stroke_seed_value: int, op_index: int) 
 # Same primitives as fill_region. `cfg` carries variants / yaw / scale / ground_y /
 # min_dist / count (max stamps for this single disc). `rng` is the stroke's rng so a
 # paint path is one continuous stream of draws (centers along the path advance the rng
-# in path order => fully reproducible). Malformed cfg -> [].
+# in path order => fully reproducible). `shared_grid`, when non-null, is the STROKE-wide
+# neighbour grid (created once by the apply_ops paint branch when min_dist>0) so min_dist
+# rejection holds ACROSS dabs, not just within one; when null the dab news its own grid
+# (direct-call behavior unchanged). Malformed cfg -> [].
 static func sample_disc(center_xz: Vector2, radius: float, cfg: Dictionary,
 		rng: RandomNumberGenerator, stroke_seed_value: int, op_index: int,
-		id_offset: int) -> Array:
+		id_offset: int, shared_grid: SpatialHash = null) -> Array:
 	var gy = _num(cfg.get("ground_y", 0.0))
 	if gy == null:
 		return []
@@ -282,8 +285,8 @@ static func sample_disc(center_xz: Vector2, radius: float, cfg: Dictionary,
 	var sc_mx: float = float(sc_v.y)
 	var rad := maxf(radius, 0.0)
 
-	var hash_grid: SpatialHash = null
-	if min_dist > 0.0:
+	var hash_grid: SpatialHash = shared_grid
+	if hash_grid == null and min_dist > 0.0:
 		hash_grid = SpatialHash.new(min_dist)
 
 	var attempts_cap: int = maxi(POISSON_ATTEMPTS_MULT * count, 1)
@@ -377,6 +380,15 @@ static func apply_ops(ops: Array, master_seed: int) -> Array:
 				var radius: float = float(rad) if rad != null else 1.0
 				var ss := stroke_seed(master_seed, i)
 				var rng := make_rng(ss)
+				# ONE shared neighbour grid for the whole stroke: min_dist rejection
+				# must hold ACROSS dabs, not just within one (4a-a contract: the
+				# SpatialHash is reused by fill, paint, and pick). min_dist<=0 -> no
+				# grid, identical to before. Deterministic: the grid is rebuilt from
+				# the same rng stream on every replay.
+				var stroke_grid: SpatialHash = null
+				var md_n = _num(cfg_v.get("min_dist", 0.0))
+				if md_n != null and float(md_n) > 0.0:
+					stroke_grid = SpatialHash.new(float(md_n))
 				var id_off := 0
 				for c in path_v:
 					if not (c is Array) or (c as Array).size() < 2:
@@ -386,7 +398,7 @@ static func apply_ops(ops: Array, master_seed: int) -> Array:
 					if cx == null or cz == null:
 						continue
 					var center := Vector2(float(cx), float(cz))
-					var stamped := sample_disc(center, radius, cfg_v, rng, ss, i, id_off)
+					var stamped := sample_disc(center, radius, cfg_v, rng, ss, i, id_off, stroke_grid)
 					instances.append_array(stamped)
 					id_off += stamped.size()
 			"stamp":
