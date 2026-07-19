@@ -3,8 +3,16 @@
 The factory's single entry point (planner-maintained). STATUS banners on task files remain the
 truth for what's done; this file only orders what's OPEN. The factory takes from the top, skips
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
-**Parked — owner-gated** are NOT factory work: never take them. Last groomed:
-**2026-07-18 late** — reconciled **run #14** (task 3a harness **v0.24.0**) AND executed **task 3b**
+**Parked — owner-gated** are NOT factory work: never take them.
+
+> 🎯 **SCOPED RUN (2026-07-19, alt-model eval #2 = Kimi K3 worker): take ONLY
+> `tasks/2026-07-19-paint-cross-dab-spacing.md`** (Splat Studio follow-up #1 — Paint cross-dab Poisson
+> spacing + close the smoke gate gap). Do NOT take #2–#6, filler, or anything else this run. One task,
+> then stop for planner reconcile (same protocol as the v0.25.0 GLM run).
+
+Last groomed:
+**2026-07-19** — scoped the Paint cross-dab fix (follow-up #1) as the next factory pickup (Kimi K3
+alt-model eval). Prior: **2026-07-18 late** — reconciled **run #14** (task 3a harness **v0.24.0**) AND executed **task 3b**
 (the real perf measurement, owner-greenlit GPU one-shot). **M4 task 3 is now FULLY CLOSED.**
 Verified at true 1080p on the 3090: **1.45M budget carpet = 277 fps (4.6× the 60fps floor)**, full
 2.4M hero = 180.6 fps — the "perf constant unmeasured" risk is RESOLVED and the ≤1.5M budget is
@@ -31,8 +39,9 @@ flight, not yet a task.
 
 | # | Task | Size | Note |
 |---|------|------|------|
+| **1** | **`tasks/2026-07-19-paint-cross-dab-spacing.md`** (Splat Studio follow-up #1) ← **THIS RUN** | S | **Kimi K3 alt-model eval #2.** Thread one SpatialHash across a paint stroke so `min_dist` holds cross-dab (today: 28 pairs < min_dist on the repro) + add the multi-dab paint-Poisson smoke assertion the fill-only `_check_poisson` was missing. Medium risk. Scope = this task ONLY; stop for planner reconcile. |
 | ~~1~~ | ~~`tasks/2026-07-18-splat-studio.md` (M4 task 4 — Splat Studio)~~ | XL | ✅ **4a CORE SHIPPED v0.25.0 (GLM-5.2, Claude-verified).** `scatter_core.gd` toolkit + op/stroke model + `CarpetLoader.resync_materials` + `splat_studio_smoke.gd` (mutation-proven gate) + 4b Fill/Stamp. No BLOCKER/MAJOR from the 4-lens panel; smoke/carpet_smoke/carpet_perf PASS, pytest 141. Follow-ups (Paint cross-dab spacing [borderline-MAJOR] + gate gap, id/target drift, resync queue_free guard, log hygiene, viewer wiring, rest of 4b belt) → **`tasks/2026-07-19-splat-studio-followups.md`**. Banner on the task file. |
-| — | **`tasks/2026-07-19-splat-studio-followups.md`** (Splat Studio residuals) | S–M | Findings from the verify panel. #1 = Paint cross-dab Poisson spacing + close the smoke gap (borderline-MAJOR); #2–4 factory-gateable MINORs; #5–6 owner-attended 4b (viewer wiring + rest of belt). Good **worker-fleet** starter once the MCP harness lands (narrow, gate-checkable). |
+| — | **`tasks/2026-07-19-splat-studio-followups.md`** (Splat Studio residuals #2–#6) | S–M | #1 (Paint cross-dab) is SPLIT OUT as the standalone row above (this run). Remaining: #2–4 factory-gateable MINORs (op-key drift, resync queue_free guard, log hygiene); #5–6 owner-attended 4b (viewer wiring + rest of belt). Take AFTER #1 reconciles. |
 | — | M4 tasks 5 (cleanup-select) / 6 (Blender addon) | M+M | Task 5 = owner-attended WYSIWYG; task 6 needs a headless-blender tooling check first. After Splat Studio follow-ups. |
 | ~~—~~ | ~~**M4 task 3b — REAL perf measurement (GPU one-shot)**~~ | S | ✅ **DONE 2026-07-18 (owner-greenlit).** Verified true 1080p on the 3090: **budget carpet 1.45M = 277 fps (4.6×)**, full 2.4M hero = 180.6 fps — ≤1.5M budget clears 60fps with wide headroom. Minted stride-14 variants via `clean_relight.py`; found+fixed a harness resolution defect mid-run (**hotfix v0.24.1**). `docs/2026-07-18-perf-3b-findings.md` |
 | ~~1~~ | ~~`tasks/2026-07-18-m4-carpet-authoring.md` (task 3a — perf harness)~~ | M | ✅ **SHIPPED v0.24.0 (run #14, 2026-07-18).** `godot/relight/tools/carpet_perf.gd` — deterministic union-AABB orbit, prints `CARPET_PERF count/frame-ms/fps` + a `PERF_FPS_MIN` (60) assert-scaffold. **DoD = the tool + a STRUCTURE self-check** (`CARPET_PERF_RESULT` = load/parity/count only); the fps gate enforces (nonzero exit) **only on a real display**, so headless never fabricates a number (MINOR fix: perf miss drives exit code alone, sentinel stays structure-only, so 3b tells "harness worked" from "perf passed"). Additive-only; GDGS/loader/relight_pass untouched. Real measurement = **task 3b** (above). `docs/2026-07-18-handoff-run14-carpet-perf.md` |
