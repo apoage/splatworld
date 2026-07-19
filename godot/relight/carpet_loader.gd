@@ -49,6 +49,14 @@ const RelightPass = preload("res://relight/relight_pass.gd")
 const SCHEMA := "splat_carpet 1"
 const FRAME_GODOT := "godot"
 
+# Per-parent cache of the last resync's ordered resource IDs (instance_id() per
+# RelightGaussianResource). Lets resync_materials detect the "unique set + order
+# unchanged" case (add/remove an instance of an ALREADY-PLACED variant — the common
+# incremental edit) and SKIP set_materials_multi entirely, so _material_version does
+# not bump and no buffer is re-uploaded. Keyed by carpet_parent.get_instance_id() so
+# two coexisting carpets (e.g. a compare-A/B scene) don't shadow each other.
+static var _resync_state: Dictionary = {}
+
 
 # Parses `json_path`, VALIDATES every instance, then (only if all valid) spawns one
 # GaussianSplatNode per instance under `parent`, assigns the cached (shared) variant
@@ -213,3 +221,119 @@ static func _to_vec3(v) -> Variant:
 static func _err(msg: String) -> Dictionary:
 	push_error("[carpet] %s" % msg)
 	return {"ok": false, "error": msg, "nodes": [], "ordered_resources": [], "node_variant": []}
+
+
+# ─── resync_materials (M4 task 4 — 4a-e) ───────────────────────────────────────────
+# Incremental material re-bind for an EDITED carpet. Walks `carpet_parent`'s children
+# in TREE order, collects the first-seen unique GaussianSplatNode resources (the SAME
+# order the GDGS GaussianSceneRegistry builds its global si.y index in), and re-calls
+# RelightPass.set_materials_multi with that ordered list. This is the cheap path that
+# KILLS the per-stroke teardown hitch: most edits (add/remove an instance of an
+# already-placed variant) leave the unique set + order unchanged, in which case this
+# is a NO-OP (set_materials_multi is skipped, _material_version does not bump).
+#
+# Behaviour vs. the task spec (4a-e):
+#   - add an instance of an ALREADY-PLACED variant → unique set unchanged → no
+#     material work, just the caller's add_child + transform. Returns true.
+#   - add a NEW variant → its resource appends at the END of the ordered list →
+#     existing si.y don't shift → ONE set_materials_multi call. Returns true.
+#   - erase the LAST instance of a variant → re-walk, drop it from the ordered
+#     uniques, ONE set_materials_multi call (no node respawn). Returns true.
+#   - erase ALL instances → ordered list empties → set_materials_multi([]) clears
+#     the material buffer. Returns true.
+#   - Full node teardown stays the caller's job for "Regenerate from scratch" — this
+#     touches materials ONLY, never nodes.
+#
+# OWNERSHIP PRECONDITION (same as load_carpet): `carpet_parent` MUST own every
+# registered GaussianSplatNode. A foreign splat node registered before this carpet
+# prepends a unique-resource entry to the registry's first-seen order that this walk
+# will miss → every si.y shifts → the scene mis-shades. D9 (mixed-scene material
+# offsets) is explicitly OUT OF SCOPE here; this is single-carpet only.
+#
+# Returns false ONLY on a set_materials_multi rejection (a resource with bad
+# attr/count); in that case RelightPass state is unchanged (fail-closed) and the
+# caller's nodes are LEFT IN PLACE (this does not free them — full teardown is the
+# "Regenerate" path).
+static func resync_materials(carpet_parent: Node) -> bool:
+	if carpet_parent == null:
+		push_error("[carpet] resync_materials: parent is null")
+		return false
+
+	# Tree-order walk collecting first-seen unique resources. Mirrors load_carpet's
+	# spawn-pass unique tracking (instance_id() == object identity) so the ordered
+	# list lands in the SAME order the registry built si.y in.
+	var ordered: Array = []
+	var ordered_ids: Array = []
+	var seen: Dictionary = {}
+	for n in carpet_parent.get_children():
+		if not (n is GaussianSplatNode):
+			continue
+		var g = (n as GaussianSplatNode).gaussian
+		if g == null:
+			continue
+		var rid: int = g.get_instance_id()
+		if seen.has(rid):
+			continue
+		seen[rid] = true
+		ordered.append(g)
+		ordered_ids.append(rid)
+
+	# Skip if the unique set AND order is unchanged since the last resync for THIS
+	# parent. This is the "no material work" path: add/remove an instance of an
+	# already-placed variant → the unique set is identical → set_materials_multi is
+	# NOT called → _material_version / _material_count are unchanged.
+	var key: int = carpet_parent.get_instance_id()
+	var prev_ids: Array = _resync_state.get(key, [])
+
+	# An EMPTY carpet MUST clear the material buffer. The no-op short-circuit below is
+	# only valid for a NON-empty unchanged set: load_carpet binds materials directly
+	# WITHOUT priming _resync_state, so a parent whose nodes were all removed AFTER a
+	# load (or right after forget_resync) has prev_ids == [] while materials are STILL
+	# bound — the naive `[] == []` short-circuit would skip the clear and leave stale
+	# materials referencing freed resources. Always clear on empty (set_materials_multi([])
+	# is idempotent — re-calling an already-empty buffer just re-bumps the version).
+	if ordered.is_empty():
+		if not RelightPass.set_materials_multi(ordered):
+			return false
+		_resync_state[key] = ordered_ids
+		return true
+
+	# Non-empty no-op: the unique set AND order is unchanged since the last resync for
+	# THIS parent → skip set_materials_multi entirely (add/remove an instance of an
+	# already-placed variant). This is the "no material work" path.
+	if _ids_equal(prev_ids, ordered_ids):
+		return true
+
+	# set_materials_multi is fail-closed: returns false + mutates nothing if any
+	# resource has a bad attr/count. On success, persist the new ordered IDs so the
+	# next no-op resync skips (and so a foreign parent doesn't get this parent's
+	# cached order). On REJECTION do NOT persist — a later no-op resync must not skip
+	# a change that was never applied.
+	if not RelightPass.set_materials_multi(ordered):
+		return false
+	_resync_state[key] = ordered_ids
+	return true
+
+
+# Drop the per-parent resync cache. Call after a FULL teardown (free the parent) so the
+# static map doesn't keep stale keys. NB: NOT strictly harmless to skip — Godot recycles
+# instance_ids, so if a freed parent's id is reused by a new parent whose ordered-resource
+# set happens to match the stale entry, the no-op short-circuit would skip a needed rebind
+# (theoretical — not reproduced in practice; requires the freed parent's RelightGaussianResource
+# objects to stay alive AND the new parent to reference exactly them — but call this on
+# teardown to close that window). Keyed by instance_id (NOT a weakref) for O(1) lookup.
+static func forget_resync(carpet_parent: Node) -> void:
+	if carpet_parent == null:
+		return
+	_resync_state.erase(carpet_parent.get_instance_id())
+
+
+# Array-of-int identity compare (resource instance_ids). Returns true iff same length
+# and same elements in the same order.
+static func _ids_equal(a: Array, b: Array) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if int(a[i]) != int(b[i]):
+			return false
+	return true

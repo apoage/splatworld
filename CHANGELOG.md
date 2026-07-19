@@ -5,6 +5,57 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-07-19
+- **M4 task 4 — Splat Studio (the in-viewer carpet-authoring tool)** (`tasks/2026-07-18-splat-studio.md`).
+  Godot-only; no PLY schema change; GDGS untouched; `load_carpet` byte-identical. Builds the
+  authoring surface on the M4 spine (v0.23.0) + ratified contract (D8) + measured ≤1.5M budget
+  (task 3b, 277 fps). DoD split honored: **4a placement CORE + op model + loader resync +
+  headless gate** is the factory-gated job; **4b interactive tool belt** is wired (Fill/Stamp)
+  with Paint-drag/Nudge/ghosts/UndoRedo left as an owner-attended follow-up slice.
+- **`godot/relight/scatter_core.gd`** (new, `@tool`, UI-free): the placement toolkit + the
+  deterministic op expander. `make_rng` is the ONLY randomness source; `apply_ops(ops, master_seed)`
+  expands an ordered op list (fill/paint/stamp/nudge/delete) to the flat `instances[]` the loader
+  consumes, replayable byte-identically (each stroke's seed = `hash(master_seed, stroke_index)`,
+  each instance id = `hash(stroke_seed, per_stroke_index)` — stable across deletes). Poisson-disk
+  `fill_region` + disc `sample_disc` (capped attempts, `n_placed` on saturation, never loop);
+  `pick` (ray-nearest for nudge/delete). `build_doc`/`save_doc`/`open_doc` round-trip a doc with an
+  embedded `studio` block (rides the loader's unknown-key tolerance — **no schema bump**); `open_doc`
+  integrity-replays `studio.strokes` and byte-compares the saved `instances[]`. `budget` = Σ
+  point_count over instances, flagging configs over `BUDGET_GREEN` (1.5M).
+- **`godot/relight/carpet_loader.gd`** (additive, `load_carpet` byte-identical): `static func
+  resync_materials(carpet_parent) -> bool` — the incremental material re-bind that kills the
+  per-stroke teardown hitch. Walks the parent's children in tree order, collects first-seen unique
+  resources (mirroring the registry's `si.y` order), re-calls `set_materials_multi`; skips the call
+  entirely when the unique set+order is unchanged (per-parent cache); always clears on empty;
+  fail-closed on a bad resource (returns false, no cache write). D9-respecting (single-carpet only).
+- **`godot/relight/splat_studio.gd`** (new, `@tool`): the 4b tool belt. Self-contained `Node` that
+  builds its own panel in `_ready()` (constructs headless — the ONLY UI gate) on the viewer idiom;
+  Fill + Stamp wired via `commit_*`; `commit_paint`/`commit_nudge` functional through the op model.
+- **Hostile-input hardening** (two fix cycles driven by the high-tier panel): `save_doc` refuses
+  read-only SOURCE roots (`datasets`/`assets/raw`/`photoscan`, matched as a path SEGMENT so
+  bare-relative `datasets/x.json` is caught without false-positiving on `my_datasets`) and `_rebuild`
+  writes only to a scratch `user://splat_studio_autosave.json` (never `_doc_path` — so
+  load-from-protected + commit can't clobber source data, invariant #4); `_num`/`_int`/`_vec3`/
+  `_range2`/`_weight` guards make `open_doc`/`apply_ops`/`pick_variant` degrade to
+  `{ok:false}`/skipped-op on malformed JSON (including non-Dict `variants[]` entries) instead of a
+  SCRIPT ERROR; `commit_*` reject NaN/Inf; `_normalize_variants` guards a missing `path`, drops
+  duplicate ids, and skips the multi-million-splat load under `@tool`; `_rebuild` returns its
+  success (so `load_from` can't report success on an unloadable doc); `budget` is NaN- and
+  negative-safe (clamps each contribution ≥0, no `int(NaN)` INT_MIN).
+- **`godot/relight/tools/splat_studio_smoke.gd`** (new, the headless gate): 18 checks — the 12 DoD
+  (determinism, stroke-replay, Poisson, region+TRS, weighting, budget, round-trip, resync, undo,
+  contract-tolerance, 4b-constructs, no-clash) + 6 hostile-shape regression checks encoding each
+  fix (protected-path incl. bare-relative, hostile-JSON incl. non-Dict variants, finite-reject,
+  variant-guards + load_from-unloadable, resync-edges, budget-nan + negative).
+  Prints `SPLAT_STUDIO_RESULT PASS/FAIL`, nonzero exit on failure; distinct `user://splat_studio_*`
+  scratch + `SPLAT_STUDIO_RESULT` sentinel (no clash with the carpet harnesses).
+- **Verification**: high-tier panel across two fix cycles — security (BLOCKER + 3 MAJOR + 3 MINOR,
+  all probe-confirmed), regression (clean; `load_carpet` byte-identical +102 −0; flagged the
+  empty-resync clear bug), flow-verifier (all 12 claims + 4 artifact invariants independently
+  VERIFIED), plus correctness + fail-closed RE-VERIFICATION of the fixes (caught a residual
+  `pick_variant` non-Dict MAJOR + 4 MINORs). Every BLOCKER/MAJOR is now fixed and gate-locked.
+  Gate 18/18 PASS; `carpet_smoke` PASS; `carpet_perf` PASS; `pytest precompute/tests` 141.
+
 ## [0.24.1] — 2026-07-18
 - **`carpet_perf.gd` resolution verification (planner hotfix, out-of-band from the factory).**
   The 3a harness printed a HARDCODED `res=1920x1080` and only did `root.size = 1920x1080`, which
