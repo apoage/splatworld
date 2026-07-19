@@ -1,5 +1,14 @@
 # M4 task 4 — Splat Studio (in-viewer authoring tool: fill · paint · stamp · nudge)
 
+> **STATUS (2026-07-19): 4a CORE SHIPPED v0.25.0 — GLM-5.2 implemented (dark-factory worker),
+> Claude-verified + finalized** (worker died on a provider limit before its own release ritual →
+> planner reconcile). GREEN on the gated scope: `scatter_core.gd` toolkit + op model,
+> `CarpetLoader.resync_materials`, `splat_studio_smoke.gd` (mutation-proven gate), 4b Fill+Stamp.
+> Gates: smoke PASS, carpet_smoke/carpet_perf PASS, pytest 141. Verify panel = no BLOCKER/MAJOR.
+> **Follow-ups → `tasks/2026-07-19-splat-studio-followups.md`** (top: Paint cross-dab spacing +
+> the gate gap; then id/target drift, resync queue_free guard, log hygiene, viewer wiring, rest of
+> 4b belt). Commit `c4430eb`, tag v0.25.0 (LOCAL — push held for owner review).
+
 **Milestone M4, task 4** (the PRIMARY authoring producer). Build the in-viewer tool that PLACES
 carpet-variant blocks — by region fill, brush paint, and hand stamp — and saves a
 `carpet/<name>.instances.json` the runtime already loads. **Owner-ratified** approach (DECISIONS

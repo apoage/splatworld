@@ -15,20 +15,25 @@ authoring (tasks 4/5 Splat Studio), owner-attended WYSIWYG** — now unblocked w
 NOT unattended-factory work. So the factory's next unattended pickup remains FILLER (quality-pass
 slice 6/7, docs-guide) or the pixel5 one-shot. NEW wall **D9** (mixed-scene material-buffer
 ownership) gated to Moon-Stone. Earlier: run #13 M4 spine v0.22/v0.23; run #12 GDGS v0.21.0; **D8
-RATIFIED**; upstream GDGS report/PR = **parked pending owner cross-validation**. **NOW QUEUED: a
-SCOPED single-task run = M4 task 4 `Splat Studio` ONLY** (`tasks/2026-07-18-splat-studio.md`,
-alternative-model eval, owner 2026-07-18) — Ready #1, filler off-limits this run.
+RATIFIED**; upstream GDGS report/PR = **parked pending owner cross-validation**. **Splat Studio 4a
+core SHIPPED v0.25.0 (2026-07-19)** — the scoped alt-model run: GLM-5.2 implemented, Claude verified +
+finalized after the worker died on a provider limit (commit `c4430eb`, tag v0.25.0 LOCAL, push held for
+owner review); residuals → `tasks/2026-07-19-splat-studio-followups.md`. **Next direction: build the
+factory-worker MCP harness** (Claude-orchestrator + provider-fleet workers + failover) — owner design in
+flight, not yet a task.
 
 ## Ready — take from the top
 
-> ⚠️ **SCOPED RUN (2026-07-18, owner — alternative-model evaluation): build ONLY the Splat Studio
-> task below (Ready #1). Do NOT take any Filler, docs, or other row this run.** One task, full
-> verification panel. This is a deliberate single-task run to evaluate an alternative implementer model.
+> ✅ **SCOPED RUN COMPLETE (2026-07-19): Splat Studio 4a core SHIPPED v0.25.0** — GLM-5.2 (alt-model
+> worker) implemented it, Claude verified + finalized (worker died on a provider limit pre-ritual).
+> Alt-model eval result: strong — an adversarially-verified, regression-clean 4a core + Fill/Stamp in
+> ~20 min, surviving 3 judge cycles. Commit `c4430eb`, tag v0.25.0 (LOCAL — push held for owner review).
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| 1 | `tasks/2026-07-18-splat-studio.md` (M4 **task 4 — Splat Studio**) | XL | ★ **THE ONLY FACTORY TASK THIS RUN.** In-viewer authoring tool (fill · paint · stamp · nudge) → `carpet/<name>.instances.json` the runtime already loads. **Op/stroke model** (deterministic, replayable, undoable) saved in a `studio` block (rides the loader's unknown-key tolerance, no schema bump). Builds ON the spine + ratified contract (D8) + known budget (≤1.5M green, 4.6× — 3b). **DoD split (like task 3):** 4a = placement CORE (`scatter_core.gd` toolkit + op expander) + `CarpetLoader.resync_materials` (incremental, kills teardown-hitch) + save/load + a headless smoke (`splat_studio_smoke.gd`: determinism, stroke-replay, Poisson, region/TRS, budget, resync-order, undo round-trip, `studio`-block + `y!=ground_y` round-trip through `CarpetLoader`) = **the factory gate**; 4b = the interactive tool belt (ghosts/UndoRedo/WorkerThreadPool/tabbed panel), WIRED but visual feel owner-attended (never a gate). **Partial-credit boundary:** 4a complete + Fill/Stamp is a valid stop; Paint/Nudge a follow-up. Respect D9 (resync, teardown only on Regenerate) but **do NOT resolve D9** (single-carpet only). **No OPEN DECISIONS wall blocks this task** — D9 is non-blocking (carpet-only, gated to Moon-Stone), D3 is settled. GDGS + PLY schema untouched. Full spec in the task file. |
-| — | M4 tasks 5 (cleanup-select) / 6 (Blender addon) — **NOT this run** | M+M | Deferred behind the scoped run. Task 5 = owner-attended WYSIWYG; task 6 needs a headless-blender tooling check first. Pick up after Splat Studio lands. |
+| ~~1~~ | ~~`tasks/2026-07-18-splat-studio.md` (M4 task 4 — Splat Studio)~~ | XL | ✅ **4a CORE SHIPPED v0.25.0 (GLM-5.2, Claude-verified).** `scatter_core.gd` toolkit + op/stroke model + `CarpetLoader.resync_materials` + `splat_studio_smoke.gd` (mutation-proven gate) + 4b Fill/Stamp. No BLOCKER/MAJOR from the 4-lens panel; smoke/carpet_smoke/carpet_perf PASS, pytest 141. Follow-ups (Paint cross-dab spacing [borderline-MAJOR] + gate gap, id/target drift, resync queue_free guard, log hygiene, viewer wiring, rest of 4b belt) → **`tasks/2026-07-19-splat-studio-followups.md`**. Banner on the task file. |
+| — | **`tasks/2026-07-19-splat-studio-followups.md`** (Splat Studio residuals) | S–M | Findings from the verify panel. #1 = Paint cross-dab Poisson spacing + close the smoke gap (borderline-MAJOR); #2–4 factory-gateable MINORs; #5–6 owner-attended 4b (viewer wiring + rest of belt). Good **worker-fleet** starter once the MCP harness lands (narrow, gate-checkable). |
+| — | M4 tasks 5 (cleanup-select) / 6 (Blender addon) | M+M | Task 5 = owner-attended WYSIWYG; task 6 needs a headless-blender tooling check first. After Splat Studio follow-ups. |
 | ~~—~~ | ~~**M4 task 3b — REAL perf measurement (GPU one-shot)**~~ | S | ✅ **DONE 2026-07-18 (owner-greenlit).** Verified true 1080p on the 3090: **budget carpet 1.45M = 277 fps (4.6×)**, full 2.4M hero = 180.6 fps — ≤1.5M budget clears 60fps with wide headroom. Minted stride-14 variants via `clean_relight.py`; found+fixed a harness resolution defect mid-run (**hotfix v0.24.1**). `docs/2026-07-18-perf-3b-findings.md` |
 | ~~1~~ | ~~`tasks/2026-07-18-m4-carpet-authoring.md` (task 3a — perf harness)~~ | M | ✅ **SHIPPED v0.24.0 (run #14, 2026-07-18).** `godot/relight/tools/carpet_perf.gd` — deterministic union-AABB orbit, prints `CARPET_PERF count/frame-ms/fps` + a `PERF_FPS_MIN` (60) assert-scaffold. **DoD = the tool + a STRUCTURE self-check** (`CARPET_PERF_RESULT` = load/parity/count only); the fps gate enforces (nonzero exit) **only on a real display**, so headless never fabricates a number (MINOR fix: perf miss drives exit code alone, sentinel stays structure-only, so 3b tells "harness worked" from "perf passed"). Additive-only; GDGS/loader/relight_pass untouched. Real measurement = **task 3b** (above). `docs/2026-07-18-handoff-run14-carpet-perf.md` |
 | ~~1~~ | ~~`tasks/2026-07-13-normal-quality.md` (STEP 2)~~ | M | ✅ **SHIPPED v0.13.0 (run #5, 2026-07-15).** D5 fix = k-NN normal smoothing folded into `decompose` (decompose-side, not export — reuses the trusted held-out-PSNR gate). Opt-in `--smooth-normals-iters` (default 0 = no-op). Real re-decompose of pxl_144634: PSNR −0.11 dB, shimmer 48.77 (−75%), coherence 0.579→0.922. **Fix is default-OFF ⇒ built/mirrored viewer asset UNCHANGED — rollout = filler slice 5 (now unblocked).** `docs/validation-normal-quality-step2-2026-07-15.md` |
@@ -87,6 +92,11 @@ real perf one-shot (owner-greenlit DISPLAY=:0) — **1.45M budget carpet = 277 f
 fps, verified 1080p, ≤1.5M budget clears 60fps by 4.6×**. Mid-run found+fixed a harness resolution
 defect (window landed 1152×648 not 1080p) → v0.24.1 (screen placement + `window_set_size` + true-size
 readback gate; headless byte-identical). `docs/2026-07-18-perf-3b-findings.md`.
+**Splat Studio 4a — v0.25.0 (2026-07-19, GLM-5.2 worker + Claude finalize):** M4 task 4 core —
+`scatter_core.gd` toolkit + op/stroke model + `CarpetLoader.resync_materials` + mutation-proven
+`splat_studio_smoke.gd` + 4b Fill/Stamp. First scoped ALT-MODEL run: GLM-5.2 built it, died on a
+provider limit pre-ritual, Claude verified (4-lens panel, no BLOCKER/MAJOR) + finalized. Follow-ups →
+`tasks/2026-07-19-splat-studio-followups.md`. `docs/2026-07-19-handoff-splat-studio-glm.md`.
 
 ## Filler — anytime, parallel-safe
 
