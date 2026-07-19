@@ -5,10 +5,16 @@ truth for what's done; this file only orders what's OPEN. The factory takes from
 gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows under
 **Parked — owner-gated** are NOT factory work: never take them.
 
-> 🎯 **SCOPED RUN (2026-07-19, alt-model eval #2 = Kimi K3 worker): take ONLY
-> `tasks/2026-07-19-paint-cross-dab-spacing.md`** (Splat Studio follow-up #1 — Paint cross-dab Poisson
-> spacing + close the smoke gate gap). Do NOT take #2–#6, filler, or anything else this run. One task,
-> then stop for planner reconcile (same protocol as the v0.25.0 GLM run).
+> ✅ **PRIOR SCOPED RUN DONE (2026-07-19, Kimi K3 alt-model eval #2): Paint cross-dab #1 SHIPPED
+> v0.25.1** (`663a562` + tag, reconcile `35a3220`). Planner-reconciled + INDEPENDENTLY re-verified
+> (mutation proof: gate red on buggy code 28/32, green on fix; pytest 141). No BLOCKER/MAJOR. Nothing
+> pushed (`allow_push:false`).
+
+> 🎯 **SCOPED RUN (2026-07-19, alt-model eval #3): take ONLY
+> `tasks/2026-07-19-splat-studio-hygiene.md`** (Splat Studio followups #2+#3+#4 batched + the `%g`
+> latent — op-key alias, resync `is_queued_for_deletion` guard, smoke log/test hygiene). Do NOT take
+> #5/#6 (owner-attended), filler, or anything else this run. One task, then stop for planner reconcile.
+> **ARMED** (`state.json` armed:true). Owner picks the worker model for this eval.
 
 Last groomed:
 **2026-07-19** — scoped the Paint cross-dab fix (follow-up #1) as the next factory pickup (Kimi K3
@@ -39,7 +45,8 @@ flight, not yet a task.
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| **1** | **`tasks/2026-07-19-paint-cross-dab-spacing.md`** (Splat Studio follow-up #1) ← **THIS RUN** | S | **Kimi K3 alt-model eval #2.** Thread one SpatialHash across a paint stroke so `min_dist` holds cross-dab (today: 28 pairs < min_dist on the repro) + add the multi-dab paint-Poisson smoke assertion the fill-only `_check_poisson` was missing. Medium risk. Scope = this task ONLY; stop for planner reconcile. |
+| **1** | **`tasks/2026-07-19-splat-studio-hygiene.md`** (Splat Studio followups #2+#3+#4 + %g) ← **THIS RUN, ARMED** | S–M | **alt-model eval #3.** Op-key `id`/`target` alias, `resync_materials` `is_queued_for_deletion` guard, smoke log/test honesty (OK-print gating, `!is_inside_tree()` spam, middle-variant erase coverage) + the `%g` failure-branch format latent. Medium risk (touches the M4 resync material path). Scope = this task ONLY; stop for planner reconcile. |
+| ~~1~~ | ~~`tasks/2026-07-19-paint-cross-dab-spacing.md` (Splat Studio follow-up #1)~~ | S | ✅ **SHIPPED v0.25.1 (Kimi K3 alt-model eval #2, planner-verified).** One stroke-wide SpatialHash threaded through the paint branch (`shared_grid` param) — repro 28 violating pairs → 0 (32→19 instances); new `_check_paint_poisson` gate mutation-proven red→green; pytest 141. `docs/2026-07-19-handoff-paint-cross-dab-v0.25.1.md`. |
 | ~~1~~ | ~~`tasks/2026-07-18-splat-studio.md` (M4 task 4 — Splat Studio)~~ | XL | ✅ **4a CORE SHIPPED v0.25.0 (GLM-5.2, Claude-verified).** `scatter_core.gd` toolkit + op/stroke model + `CarpetLoader.resync_materials` + `splat_studio_smoke.gd` (mutation-proven gate) + 4b Fill/Stamp. No BLOCKER/MAJOR from the 4-lens panel; smoke/carpet_smoke/carpet_perf PASS, pytest 141. Follow-ups (Paint cross-dab spacing [borderline-MAJOR] + gate gap, id/target drift, resync queue_free guard, log hygiene, viewer wiring, rest of 4b belt) → **`tasks/2026-07-19-splat-studio-followups.md`**. Banner on the task file. |
 | — | **`tasks/2026-07-19-splat-studio-followups.md`** (Splat Studio residuals #2–#6) | S–M | #1 (Paint cross-dab) is SPLIT OUT as the standalone row above (this run). Remaining: #2–4 factory-gateable MINORs (op-key drift, resync queue_free guard, log hygiene); #5–6 owner-attended 4b (viewer wiring + rest of belt). Take AFTER #1 reconciles. |
 | — | M4 tasks 5 (cleanup-select) / 6 (Blender addon) | M+M | Task 5 = owner-attended WYSIWYG; task 6 needs a headless-blender tooling check first. After Splat Studio follow-ups. |

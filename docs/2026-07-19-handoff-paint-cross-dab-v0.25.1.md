@@ -72,3 +72,29 @@ working as designed, not a defect. No such docs exist in the repo (regression ju
 1. Take #2–#4 as the next scoped worker run (same one-task protocol), or batch them into one
    "MINOR hygiene" task file?
 2. Fold the `%g` latent into #4 (log hygiene) explicitly?
+
+## Planner reconcile — independent verification (2026-07-19, Claude/orchestrator)
+
+Because this is an alt-model eval and the verify panel was itself Kimi K3, the planner re-verified
+independently rather than trusting the factory self-report. **Verdict: CONFIRMED GREEN.**
+
+- **Diff trace** (`git show 663a562`): fix is minimal + correct — `shared_grid` optional param threads
+  one stroke-wide `SpatialHash` through the paint branch; `fill_region` untouched; `min_dist==0` leaves
+  both grids null; single-dab starts with an identical empty grid → all three byte-identity claims hold
+  by construction. Scope = exactly `scatter_core.gd` + `splat_studio_smoke.gd` + follow-up note +
+  VERSION/CHANGELOG (implementer lane). Tree clean, nothing pushed (matches `allow_push:false`).
+- **Green re-run** (main tree, my invocation): `splat_studio_smoke` exit 0; new check prints
+  `19 instances across 2 dabs; every pair >= min_dist (min gap^2=0.1621 vs md^2=0.1600); replay-stable OK`.
+- **Independent mutation proof**: reverted ONLY `scatter_core.gd` to pre-fix `042003a` in the main tree
+  (auto-restored via trap), kept the v0.25.1 gate → `_check_paint_poisson` went RED with exactly
+  `28 of 32 placed across the stroke violate min_dist (closest gap^2=0.0002 vs md^2=0.1600)`, exit 1.
+  So the gate is non-vacuous and catches this precise bug; it is not graded-its-own-homework.
+  (Note: a worktree mutation is NOT viable here — a fresh worktree lacks the gitignored `.godot/`
+  class cache, so GDGS `class_name GaussianSplatNode` fails to parse; mutate the main tree with a
+  restore trap instead. Corroborates the panel's red-test-race finding — do red-tests serialized in the
+  live tree, not on parallel copies.)
+- **Regression**: `pytest precompute/tests -q` → **141 passed** (13.7s), independently re-run.
+
+Process findings for the multiline track (separate repo): worker-cap death is now 2-for-2 on
+alt-model runs (GLM impl-side, Kimi verify-side) → D10 B-route evidence; and red-test tree-mutation
+must be serialized. Both recorded here + in the eval notes above.
