@@ -18,6 +18,15 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > red→green in the MAIN tree, `load_carpet` byte-identical, scope/lanes clean. Factory
 > **disarmed** (`state.json` armed:false). Nothing pushed (`allow_push:false`).
 
+> 🎯 **SCOPED RUN (2026-07-22): take ONLY `tasks/2026-07-12-docs-guide.md`** — write
+> `docs/pipeline.md` (clip → asset → Godot walkthrough), bring the `core/*` + `run.py` module
+> docstrings current, add a README "Docs" section. Filler-class, S/low risk, **no GPU and no
+> owner-eyeball gate**. Acceptance = a reader following ONLY `docs/pipeline.md` reproduces M1
+> without opening a task file; every command copy-paste runnable from repo root; no content
+> duplicated from decisions.md/CLAUDE.md (pointers only). Do NOT take #5/#6 (owner-attended 4b),
+> pixel5, or anything else this run. One task, then stop for planner reconcile.
+> **ARMED** (`state.json` armed:true).
+
 Last groomed:
 **2026-07-22** — reconciled the Splat Studio hygiene scoped run: batch SHIPPED v0.25.2, planner
 verified GREEN (mutation-proven), factory disarmed. Splat Studio follow-ups #1–#4 are ALL DONE;
@@ -51,6 +60,7 @@ flight, not yet a task.
 
 | # | Task | Size | Note |
 |---|------|------|------|
+| **1** | **`tasks/2026-07-12-docs-guide.md`** (pipeline guide + core docstrings) ← **THIS RUN, ARMED** | S | Write `docs/pipeline.md` (clip → asset → Godot walkthrough), bring `core/*` + `run.py` docstrings current, add README "Docs" section. Filler-class, low risk, no GPU/owner gate. Acceptance = reader reproduces M1 from `docs/pipeline.md` alone; every command copy-paste runnable; pointers not duplication. Scope = this task ONLY; stop for planner reconcile. |
 | ~~1~~ | ~~`tasks/2026-07-19-splat-studio-hygiene.md`~~ (Splat Studio followups #2+#3+#4 + %g) | S–M | ✅ **SHIPPED v0.25.2 (2026-07-22, planner-verified).** Op-key `id`/`target` alias (`_op_target_id` in `scatter_core.gd`), `resync_materials` `is_queued_for_deletion` guard (`carpet_loader.gd`), smoke log/test honesty (per-check OK-print gating, `!is_inside_tree()` spam killed via async `_check_resync`, middle-variant erase coverage) + `%g`→`%.4f`. Two new gates mutation-proven red→green in the MAIN tree; pytest 141. `docs/2026-07-22-handoff-splat-studio-hygiene-v0.25.2.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-paint-cross-dab-spacing.md` (Splat Studio follow-up #1)~~ | S | ✅ **SHIPPED v0.25.1 (Kimi K3 alt-model eval #2, planner-verified).** One stroke-wide SpatialHash threaded through the paint branch (`shared_grid` param) — repro 28 violating pairs → 0 (32→19 instances); new `_check_paint_poisson` gate mutation-proven red→green; pytest 141. `docs/2026-07-19-handoff-paint-cross-dab-v0.25.1.md`. |
 | ~~1~~ | ~~`tasks/2026-07-18-splat-studio.md` (M4 task 4 — Splat Studio)~~ | XL | ✅ **4a CORE SHIPPED v0.25.0 (GLM-5.2, Claude-verified).** `scatter_core.gd` toolkit + op/stroke model + `CarpetLoader.resync_materials` + `splat_studio_smoke.gd` (mutation-proven gate) + 4b Fill/Stamp. No BLOCKER/MAJOR from the 4-lens panel; smoke/carpet_smoke/carpet_perf PASS, pytest 141. Follow-ups (Paint cross-dab spacing [borderline-MAJOR] + gate gap, id/target drift, resync queue_free guard, log hygiene, viewer wiring, rest of 4b belt) → **`tasks/2026-07-19-splat-studio-followups.md`**. Banner on the task file. |
