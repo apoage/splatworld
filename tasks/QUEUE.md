@@ -10,15 +10,21 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > (mutation proof: gate red on buggy code 28/32, green on fix; pytest 141). No BLOCKER/MAJOR. Nothing
 > pushed (`allow_push:false`).
 
-> 🎯 **SCOPED RUN (2026-07-19, alt-model eval #3): take ONLY
-> `tasks/2026-07-19-splat-studio-hygiene.md`** (Splat Studio followups #2+#3+#4 batched + the `%g`
-> latent — op-key alias, resync `is_queued_for_deletion` guard, smoke log/test hygiene). Do NOT take
-> #5/#6 (owner-attended), filler, or anything else this run. One task, then stop for planner reconcile.
-> **ARMED** (`state.json` armed:true). Owner picks the worker model for this eval.
+> ✅ **SCOPED RUN DONE (2026-07-22): Splat Studio hygiene batch SHIPPED v0.25.2**
+> (`tasks/2026-07-19-splat-studio-hygiene.md` — #2 op-key `id`/`target` alias, #3 resync
+> `is_queued_for_deletion` guard, #4 smoke log/test honesty + the `%g`→`%.4f` latent). Commit
+> `26a293e` + handoff `7534095`, tag v0.25.2. Planner INDEPENDENTLY verified GREEN: pytest 141,
+> all 4 Godot smokes PASS, the two new gates (op-key alias + resync-qfree) mutation-proven
+> red→green in the MAIN tree, `load_carpet` byte-identical, scope/lanes clean. Factory
+> **disarmed** (`state.json` armed:false). Nothing pushed (`allow_push:false`).
 
 Last groomed:
-**2026-07-19** — scoped the Paint cross-dab fix (follow-up #1) as the next factory pickup (Kimi K3
-alt-model eval). Prior: **2026-07-18 late** — reconciled **run #14** (task 3a harness **v0.24.0**) AND executed **task 3b**
+**2026-07-22** — reconciled the Splat Studio hygiene scoped run: batch SHIPPED v0.25.2, planner
+verified GREEN (mutation-proven), factory disarmed. Splat Studio follow-ups #1–#4 are ALL DONE;
+remaining #5/#6 (4b viewer wiring + rest of the tool belt) are **owner-attended**, not unattended
+factory work. Factory's next unattended pickup remains FILLER (quality-pass slice 6/7, docs-guide)
+or the pixel5 one-shot — no in-scope unattended work is currently armed. Prior:
+**2026-07-19** — scoped the Paint cross-dab fix (follow-up #1) as the next factory pickup. Prior: **2026-07-18 late** — reconciled **run #14** (task 3a harness **v0.24.0**) AND executed **task 3b**
 (the real perf measurement, owner-greenlit GPU one-shot). **M4 task 3 is now FULLY CLOSED.**
 Verified at true 1080p on the 3090: **1.45M budget carpet = 277 fps (4.6× the 60fps floor)**, full
 2.4M hero = 180.6 fps — the "perf constant unmeasured" risk is RESOLVED and the ≤1.5M budget is
@@ -45,10 +51,10 @@ flight, not yet a task.
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| **1** | **`tasks/2026-07-19-splat-studio-hygiene.md`** (Splat Studio followups #2+#3+#4 + %g) ← **THIS RUN, ARMED** | S–M | **alt-model eval #3.** Op-key `id`/`target` alias, `resync_materials` `is_queued_for_deletion` guard, smoke log/test honesty (OK-print gating, `!is_inside_tree()` spam, middle-variant erase coverage) + the `%g` failure-branch format latent. Medium risk (touches the M4 resync material path). Scope = this task ONLY; stop for planner reconcile. |
+| ~~1~~ | ~~`tasks/2026-07-19-splat-studio-hygiene.md`~~ (Splat Studio followups #2+#3+#4 + %g) | S–M | ✅ **SHIPPED v0.25.2 (2026-07-22, planner-verified).** Op-key `id`/`target` alias (`_op_target_id` in `scatter_core.gd`), `resync_materials` `is_queued_for_deletion` guard (`carpet_loader.gd`), smoke log/test honesty (per-check OK-print gating, `!is_inside_tree()` spam killed via async `_check_resync`, middle-variant erase coverage) + `%g`→`%.4f`. Two new gates mutation-proven red→green in the MAIN tree; pytest 141. `docs/2026-07-22-handoff-splat-studio-hygiene-v0.25.2.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-paint-cross-dab-spacing.md` (Splat Studio follow-up #1)~~ | S | ✅ **SHIPPED v0.25.1 (Kimi K3 alt-model eval #2, planner-verified).** One stroke-wide SpatialHash threaded through the paint branch (`shared_grid` param) — repro 28 violating pairs → 0 (32→19 instances); new `_check_paint_poisson` gate mutation-proven red→green; pytest 141. `docs/2026-07-19-handoff-paint-cross-dab-v0.25.1.md`. |
 | ~~1~~ | ~~`tasks/2026-07-18-splat-studio.md` (M4 task 4 — Splat Studio)~~ | XL | ✅ **4a CORE SHIPPED v0.25.0 (GLM-5.2, Claude-verified).** `scatter_core.gd` toolkit + op/stroke model + `CarpetLoader.resync_materials` + `splat_studio_smoke.gd` (mutation-proven gate) + 4b Fill/Stamp. No BLOCKER/MAJOR from the 4-lens panel; smoke/carpet_smoke/carpet_perf PASS, pytest 141. Follow-ups (Paint cross-dab spacing [borderline-MAJOR] + gate gap, id/target drift, resync queue_free guard, log hygiene, viewer wiring, rest of 4b belt) → **`tasks/2026-07-19-splat-studio-followups.md`**. Banner on the task file. |
-| — | **`tasks/2026-07-19-splat-studio-followups.md`** (Splat Studio residuals #2–#6) | S–M | #1 (Paint cross-dab) is SPLIT OUT as the standalone row above (this run). Remaining: #2–4 factory-gateable MINORs (op-key drift, resync queue_free guard, log hygiene); #5–6 owner-attended 4b (viewer wiring + rest of belt). Take AFTER #1 reconciles. |
+| — | **`tasks/2026-07-19-splat-studio-followups.md`** (Splat Studio residuals #2–#6) | S–M | #1 (Paint cross-dab) → SHIPPED v0.25.1. #2–4 (op-key drift, resync queue_free guard, log hygiene) → batched + SHIPPED v0.25.2. **Remaining #5/#6 = owner-attended 4b (viewer wiring + rest of belt) — NOT unattended-factory work.** |
 | — | M4 tasks 5 (cleanup-select) / 6 (Blender addon) | M+M | Task 5 = owner-attended WYSIWYG; task 6 needs a headless-blender tooling check first. After Splat Studio follow-ups. |
 | ~~—~~ | ~~**M4 task 3b — REAL perf measurement (GPU one-shot)**~~ | S | ✅ **DONE 2026-07-18 (owner-greenlit).** Verified true 1080p on the 3090: **budget carpet 1.45M = 277 fps (4.6×)**, full 2.4M hero = 180.6 fps — ≤1.5M budget clears 60fps with wide headroom. Minted stride-14 variants via `clean_relight.py`; found+fixed a harness resolution defect mid-run (**hotfix v0.24.1**). `docs/2026-07-18-perf-3b-findings.md` |
 | ~~1~~ | ~~`tasks/2026-07-18-m4-carpet-authoring.md` (task 3a — perf harness)~~ | M | ✅ **SHIPPED v0.24.0 (run #14, 2026-07-18).** `godot/relight/tools/carpet_perf.gd` — deterministic union-AABB orbit, prints `CARPET_PERF count/frame-ms/fps` + a `PERF_FPS_MIN` (60) assert-scaffold. **DoD = the tool + a STRUCTURE self-check** (`CARPET_PERF_RESULT` = load/parity/count only); the fps gate enforces (nonzero exit) **only on a real display**, so headless never fabricates a number (MINOR fix: perf miss drives exit code alone, sentinel stays structure-only, so 3b tells "harness worked" from "perf passed"). Additive-only; GDGS/loader/relight_pass untouched. Real measurement = **task 3b** (above). `docs/2026-07-18-handoff-run14-carpet-perf.md` |
