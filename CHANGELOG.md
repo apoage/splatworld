@@ -5,6 +5,31 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-07-23
+- **Pipeline guide + core docstrings** (`tasks/2026-07-12-docs-guide.md`; filler-class, S/low
+  risk). The repo had records (decisions.md, task banners, CLAUDE.md invariants) but no *guide* —
+  a fresh reader could not go clip → asset → Godot without reverse-engineering `run.py`.
+- **NEW `docs/pipeline.md`** — the start-to-finish walkthrough: pick/record a clip (steady, texture
+  anchor, the motion-blur SKIP lesson) → run the precompute stages (`run.py`, per-stage
+  input/output + the `metrics_*.json` gate each must pass, the knobs that matter) → mirror into
+  `godot/gs_assets/` and open in Godot (data gate, interactive viewer, render tools) → `smoke.sh`
+  health check. Links, does not duplicate: env recipe stays in `decisions.md`, schema in
+  `CLAUDE.md`/`schema.py`. Acceptance: a reader following only this file reproduces M1 on
+  `pxl_144634`; every command copy-paste runnable from repo root.
+- **README `## Docs` section** — pointers to `pipeline.md` / `decisions.md` / `CLAUDE.md` and the
+  read-order (`CLAUDE.md` → `pipeline.md` → `decisions.md`).
+- **`precompute/core/gaussmath.py`** module docstring brought current — now accurately describes
+  both quaternion↔rotation-matrix directions (`quat_to_rotmat` vectorized over leading dims;
+  `rotmat_to_quat` single 3×3) and the full set of downstream consumers. Other core docstrings
+  (`schema.py`, `ply_io.py`, `colmap_io.py`, `run.py`) verified current — left untouched.
+- **Verification**: independent correctness judge caught + confirmed-fixed a BLOCKER (the guide's
+  data-gate command used `smoke_test.gd`, the vanilla-`.ply` M0 gate, which cannot load a
+  `.relightply` → switched to `relight_smoke.gd`) and a MAJOR (mirrored decompose's *pre-flip*
+  `env_sh.json`, which the Godot reader silently refuses → switched to export's *post-flip*
+  `asset_env_sh.json`), plus 2 MINOR. Flow-verifier confirmed every command block runnable. Docs
+  only + one docstring comment — no pipeline behavior change; pytest 141 passed, the corrected
+  `relight_smoke.gd` gate run headless → PASS (exit 0). No BLOCKER/MAJOR outstanding.
+
 ## [0.25.2] — 2026-07-22
 - **Splat Studio hygiene batch — follow-ups #2 + #3 + #4 + the `%g` latent**
   (`tasks/2026-07-19-splat-studio-hygiene.md`; the three factory-gateable MINORs from the v0.25.0

@@ -2,8 +2,9 @@
 helpers that were previously copy-pasted across colmap_io, export and the tests.
 
 Pure numpy. No PLY bytes here (those live only in ply_io.py); this module holds
-only the vectorized quaternion->rotation-matrix conversion and the SH degree-0
-<-> RGB helpers used by both the trainer init and the exporter.
+the quaternion<->rotation-matrix conversions (both directions: quat_to_rotmat is
+vectorized over leading dims; rotmat_to_quat takes a single 3x3) and the SH
+degree-0 <-> RGB helpers, used by the trainer init, colmap_io, the exporter and ply_io.
 
 Quaternion convention: (w, x, y, z), matching COLMAP / 3DGS / our schema.
 """

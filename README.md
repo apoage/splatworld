@@ -90,6 +90,16 @@ RELIGHT_ASSET=res://gs_assets/<name>.relightply DISPLAY=:0 \
 godot --path godot --headless --script res://relight/tools/smoke_test.gd
 ```
 
+## Docs
+- **[`docs/pipeline.md`](docs/pipeline.md)** — the start-to-finish walkthrough: record/pick a
+  clip → run the precompute stages → view the asset in Godot → health check. Follow it and you
+  can reproduce **M1** end to end. Start here to *run* something.
+- **[`docs/decisions.md`](docs/decisions.md)** — append-only log: the full environment recipe,
+  hardware, and every architecture decision (the *why*).
+- **[`CLAUDE.md`](CLAUDE.md)** — the contract: thesis, per-Gaussian schema, invariants.
+
+Read order: `CLAUDE.md` → `docs/pipeline.md` → `docs/decisions.md`.
+
 ## Attribution / third-party
 - **GDGS** (Godot Gaussian Splatting) — vendored in `godot/addons/gdgs/` under the **MIT
   License**, © ReconWorldLab. Patched for Godot 4.7 (documented in `docs/decisions.md`).

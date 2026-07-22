@@ -1,3 +1,12 @@
+> **STATUS (2026-07-23): SHIPPED as v0.26.0.** All three parts landed — NEW `docs/pipeline.md`
+> (clip→asset→Godot walkthrough; M1 reproducible from the guide alone; M1-neutral vs M2-relightable
+> paths; knobs table; Godot open/data-gate/viewer/render + smoke.sh; links-not-duplicates), README
+> `## Docs` section, and `core/gaussmath.py` docstring brought current (other core docstrings verified
+> current → untouched). Independent panel (correctness judge + flow-verifier) caught + confirmed-fixed
+> a BLOCKER (data-gate `smoke_test.gd`→`relight_smoke.gd`) + a MAJOR (env sidecar pre-flip→post-flip)
+> + 2 MINOR; corrected `relight_smoke.gd` gate run headless → PASS; pytest 141. Handoff:
+> `docs/2026-07-23-handoff-docs-guide-v0.26.0.md`. Nothing remaining. Not pushed.
+
 # docs-guide — hand-written pipeline guide + core docstrings
 
 **Size/risk:** S / low. **Status:** READY (filler-class; owner asked "do we have documentation
