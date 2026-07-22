@@ -7,9 +7,12 @@ lands (or a quick Claude slice). Source: `docs/2026-07-19-handoff-splat-studio-g
 run `wf_edb575ae-e41`.
 
 > **STATUS (2026-07-19):** #1 **DONE v0.25.1** (split-out task, Kimi K3). #2 + #3 + #4 (+ the `%g`
-> latent) **batched → `tasks/2026-07-19-splat-studio-hygiene.md`** (alt-model eval #3, armed). #5/#6
-> remain owner-attended 4b (viewer wiring + rest of the tool belt). This file is now the origin record;
-> the hygiene task carries the live spec + DoD for #2–#4.
+> latent) **DONE** via `tasks/2026-07-19-splat-studio-hygiene.md` (alt-model eval #3): #2 nudge/delete
+> now resolve by `id` OR `target`; #3 `resync_materials` skips `is_queued_for_deletion()` nodes; #4a
+> honest OK prints + undo `return`; #4b `!is_inside_tree()` spam killed (aux registry reads after an
+> in-tree frame); #4c middle-variant erase coverage; #4d `%g`→`%.4f`. #5/#6 remain owner-attended 4b
+> (viewer wiring + rest of the tool belt). This file is now the origin record; the hygiene task carries
+> the live spec + DoD for #2–#4.
 
 ## 1. [godot, borderline-MAJOR, TOP] Paint cross-dab Poisson spacing + close the gate gap
 > **SPLIT OUT → `tasks/2026-07-19-paint-cross-dab-spacing.md`** (standalone scoped task, 2026-07-19,

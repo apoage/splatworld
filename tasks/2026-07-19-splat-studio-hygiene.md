@@ -1,3 +1,11 @@
+> **STATUS (2026-07-22): SHIPPED as v0.25.2** (alt-model eval #3). All four items landed —
+> #2 op-key `id`/`target` alias (`_op_target_id`), #3 `resync_materials` `is_queued_for_deletion()`
+> guard, #4a honest OK prints + `_check_undo` return, #4b `!is_inside_tree()` spam killed (aux
+> registry registers after an awaited in-tree frame), #4c middle-variant erase coverage, #4d
+> `%g`→`%.4f`. Medium-tier panel (correctness + regression + flow-verifier) — no BLOCKER/MAJOR;
+> two new smoke checks (`_check_op_key_alias`, `_check_resync_queued_free`) mutation-proven red→green;
+> pytest 141, all four Godot smokes PASS, `is_inside_tree` spam grep=0. Nothing remaining. Not pushed.
+
 # M4 — Splat Studio hygiene batch (follow-ups #2 + #3 + #4, + the %g latent)
 
 Batches the three factory-gateable MINORs from `tasks/2026-07-19-splat-studio-followups.md` (#2 op-key,

@@ -89,9 +89,10 @@ flat `instances[]` the loader consumes is the deterministic EXPANSION of that op
  "studio":{"master_seed":7,"strokes":[{"tool":"fill","cfg":{...}},
                                       {"tool":"paint","radius":2.0,"path":[[x,z],...]},
                                       {"tool":"stamp","pos":[x,y,z],"yaw":..,"scale":..,"variant":".."},
-                                      {"tool":"nudge","target":<id>,"pos":[...]},
-                                      {"tool":"delete","target":<id>}]}}
+                                      {"tool":"nudge","id":<id>,"pos":[...]},
+                                      {"tool":"delete","id":<id>}]}}
 ```
+(`id` is the canonical nudge/delete key; `target` is also accepted as an alias on read.)
 On open: read `studio.strokes` → `apply_ops` → assert it reproduces the saved `instances[]`
 (integrity check) → restore the full editing session. Reopening continues the session, not just flat
 points. Headless-testable both ways.

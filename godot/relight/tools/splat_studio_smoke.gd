@@ -43,7 +43,9 @@ func _initialize() -> void:
 	_check_weighting(problems)
 	_check_budget(problems)
 	_check_round_trip(problems)
-	_check_resync(problems)
+	_check_op_key_alias(problems)      # #2: nudge/delete resolve by 'id' AND 'target'
+	await _check_resync(problems)      # async: awaits frames so aux-registry nodes are in-tree (#4b)
+	_check_resync_queued_free(problems)  # #3: queue_free()'d node excluded from ordered set
 	_check_undo(problems)
 	_check_contract_tolerance(problems)
 	_check_studio_constructs(problems)
@@ -69,6 +71,7 @@ func _initialize() -> void:
 
 # ─── 1. Determinism ───────────────────────────────────────────────────────────────
 func _check_determinism(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	var ops: Array = [
 		{"tool": "fill", "cfg": {
 			"min": [-2.0, -2.0], "max": [2.0, 2.0], "ground_y": 0.0,
@@ -86,7 +89,7 @@ func _check_determinism(problems: Array[String]) -> void:
 		problems.append("[determinism] different seed produced identical instances (must differ)")
 	if a.size() == 0:
 		problems.append("[determinism] apply_ops produced 0 instances (cfg wrong?)")
-	else:
+	if problems.size() == n0:
 		print("[splat-studio][determinism] %d instances, replay-stable + seed-sensitive OK" % a.size())
 
 
@@ -146,7 +149,7 @@ func _check_poisson(problems: Array[String]) -> void:
 			var dxz := Vector2(pi.x - pj.x, pi.z - pj.z)
 			min_found = minf(min_found, dxz.length_squared())
 			if dxz.length_squared() < md2 - 1e-6:
-				problems.append("[poisson] pair (%d,%d) closer than min_dist %g" % [i, j, md])
+				problems.append("[poisson] pair (%d,%d) closer than min_dist %.4f" % [i, j, md])
 				return
 	# (b) saturation: requested 50 in a 1x1 rect at min_dist=0.4 cannot fit (the rect
 	# fits at most ~9 points on a 0.4 grid) -> n_placed < count.
@@ -297,6 +300,7 @@ func _check_budget(problems: Array[String]) -> void:
 
 # ─── 7. Round-trip via CarpetLoader ───────────────────────────────────────────────
 func _check_round_trip(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	var variants := [{"id": "a", "path": TINY_A}, {"id": "b", "path": TINY_B}]
 	var ops: Array = [
 		{"tool": "fill", "cfg": {
@@ -346,7 +350,7 @@ func _check_round_trip(problems: Array[String]) -> void:
 			var expect_pc: int = int(id_to_pc.get(first_seen[i], -1))
 			if pc != expect_pc:
 				problems.append("[round-trip] ordered[%d] point_count %d != expected %d for variant '%s'" % [i, pc, expect_pc, first_seen[i]])
-	if problems.is_empty():
+	if problems.size() == n0:
 		print("[splat-studio][round-trip] load_carpet ok, %d nodes, ordered matches first-seen order %s OK" % [nodes.size(), str(first_seen)])
 	parent.free()
 
@@ -376,10 +380,17 @@ func _check_resync(problems: Array[String]) -> void:
 		parent.free()
 		return
 	var nodes: Array = result["nodes"]
+	var node_variant: Array = result["node_variant"]
 	var res_a = result["ordered_resources"][0]
 	var res_b = result["ordered_resources"][1]
 	var count_a: int = int(res_a.point_count)
 	var count_b: int = int(res_b.point_count)
+	# The single variant-B node (doc is A,B,A) — the MIDDLE variant erased in stage (c2).
+	var b_node: Node = null
+	for i in nodes.size():
+		if String(node_variant[i]) == "b":
+			b_node = nodes[i]
+			break
 
 	# Warm-up resync (populates CarpetLoader._resync_state for this parent).
 	if not CarpetLoader.resync_materials(parent):
@@ -388,6 +399,7 @@ func _check_resync(problems: Array[String]) -> void:
 		return
 
 	# --- (a) add-instance-of-EXISTING-variant -> no material work -----------------
+	var na := problems.size()
 	var v0 := RelightPass._material_version
 	var c0 := RelightPass._material_count
 	var a3 := GaussianSplatNode.new()
@@ -400,10 +412,16 @@ func _check_resync(problems: Array[String]) -> void:
 		problems.append("[resync] add-existing bumped _material_version (should be no-op)")
 	if RelightPass._material_count != c0:
 		problems.append("[resync] add-existing changed _material_count (should be unchanged)")
-	if problems.is_empty():
+	if problems.size() == na:
 		print("[splat-studio][resync] add-instance-of-existing: no material work OK (v=%d c=%d)" % [RelightPass._material_version, RelightPass._material_count])
 
 	# --- (b) add-new-variant C -> appended; prior si.y unshifted -----------------
+	var nb := problems.size()
+	# The aux registry reads global_transform; the smoke's nodes are not yet is_inside_tree()
+	# during _initialize, which spams a benign "!is_inside_tree()" error and returns identity
+	# transforms (si.y is transform-independent, so the result is unaffected). Await one frame
+	# so the registered nodes are in-tree and the register call is clean (#4b).
+	await process_frame
 	# Register the post-load tree in a registry to read si.y BEFORE adding C.
 	var reg := GaussianSceneRegistry.new()
 	for n in nodes:
@@ -451,7 +469,10 @@ func _check_resync(problems: Array[String]) -> void:
 		if not ok_order:
 			problems.append("[resync] cached order != [A,B,C] (got %s want %s)" % [str(cached_ids), str(want)])
 
-	# Prior si.y must be unshifted: re-register all + read B's first si.y again.
+	# Prior si.y must be unshifted: re-register all + read B's first si.y again. C was
+	# add_child'd after the stage-(b) frame, so await another frame to bring it in-tree
+	# before the registry reads its transform (#4b: keep the register call clean).
+	await process_frame
 	var reg2 := GaussianSceneRegistry.new()
 	for n in parent.get_children():
 		if n is GaussianSplatNode:
@@ -461,11 +482,12 @@ func _check_resync(problems: Array[String]) -> void:
 		var b_si_y_after := ids_after[count_a * 2 + 1]
 		if b_si_y_after != b_si_y_before:
 			problems.append("[resync] variant-B si.y shifted %d -> %d (must be unshifted)" % [b_si_y_before, b_si_y_after])
-	if problems.is_empty():
+	if problems.size() == nb:
 		print("[splat-studio][resync] add-new-variant appended at end, prior si.y unshifted OK")
 
-	# --- (c) erase-last-of-variant -> ordered uniques == tree order ---------------
+	# --- (c) erase-LAST-of-variant -> ordered uniques == tree order ---------------
 	# Remove the C node (only C instance) + resync -> ordered should drop to [A, B].
+	var nc := problems.size()
 	for c in parent.get_children():
 		if c == c1:
 			parent.remove_child(c)
@@ -481,9 +503,152 @@ func _check_resync(problems: Array[String]) -> void:
 		var want2 := [res_a.get_instance_id(), res_b.get_instance_id()]
 		if int(cached_after_erase[0]) != int(want2[0]) or int(cached_after_erase[1]) != int(want2[1]):
 			problems.append("[resync] after erase-last, cached order != [A,B]")
-	if problems.is_empty():
+	if problems.size() == nc:
 		print("[splat-studio][resync] erase-last-of-variant -> ordered uniques == tree order OK")
 
+	# --- (c2) erase-MIDDLE-variant [A,B,C] -> [A,C] (#4c) --------------------------
+	# Re-add a C node so the set is [A,B,C] again, then erase the MIDDLE variant (the
+	# single B node). The ordered uniques must collapse to [A,C] in TREE order, and
+	# variant-A (the variant BEFORE the erased B) must keep its si.y region at the front.
+	var nm := problems.size()
+	var c2 := GaussianSplatNode.new()
+	c2.gaussian = res_c
+	parent.add_child(c2)
+	c2.transform = Transform3D(Basis.IDENTITY, Vector3(5, 0, 0))
+	if not CarpetLoader.resync_materials(parent):
+		problems.append("[resync] middle-erase setup (re-add C) resync returned false")
+	# Erase the middle variant: drop every B node -> tree collapses to [A, C].
+	if b_node != null and is_instance_valid(b_node):
+		parent.remove_child(b_node)
+		b_node.free()
+	if not CarpetLoader.resync_materials(parent):
+		problems.append("[resync] middle-erase resync returned false")
+	var cached_mid: Array = CarpetLoader._resync_state.get(parent.get_instance_id(), [])
+	if cached_mid.size() != 2:
+		problems.append("[resync] after middle-erase, cached ordered size %d != 2 (want [A,C])" % cached_mid.size())
+	else:
+		var want_ac := [res_a.get_instance_id(), res_c.get_instance_id()]
+		if int(cached_mid[0]) != int(want_ac[0]) or int(cached_mid[1]) != int(want_ac[1]):
+			problems.append("[resync] after middle-erase, cached order != [A,C] (got %s want %s)" % [str(cached_mid), str(want_ac)])
+	# Prior si.y unshifted: variant-A stays first-seen -> its region starts at index 0.
+	await process_frame
+	var reg3 := GaussianSceneRegistry.new()
+	for n in parent.get_children():
+		if n is GaussianSplatNode:
+			reg3.register_splat_node(n)
+	var ids_ac: PackedInt32Array = reg3.get_splat_instance_ids_byte().to_int32_array()
+	if ids_ac.size() >= 2 and ids_ac[1] != 0:
+		problems.append("[resync] middle-erase shifted variant-A si.y front (first A si.y=%d, want 0)" % ids_ac[1])
+	if problems.size() == nm:
+		print("[splat-studio][resync] middle-variant erase [A,B,C]->[A,C]: ordered uniques == tree order, prior si.y unshifted OK")
+
+	CarpetLoader.forget_resync(parent)
+	parent.free()
+
+
+# ─── 8b. Op-key alias: nudge/delete resolve by 'id' AND 'target' (#2) ─────────────
+# The producer emits "id"; the task-doc example keyed nudge/delete by "target". Both
+# must resolve to the SAME instance so a hand-authored op following the doc doesn't
+# silently no-op. Non-vacuous: if the "target" alias is NOT honored, the target-keyed
+# op is a no-op and its result diverges from the id-keyed result.
+func _check_op_key_alias(problems: Array[String]) -> void:
+	var n0 := problems.size()
+	# Two stamps so we have a stable, addressable id (the 2nd instance).
+	var base_ops: Array = [
+		{"tool": "stamp", "pos": [0.0, 0.0, 0.0], "yaw": 0.0, "scale": 1.0, "variant": "a"},
+		{"tool": "stamp", "pos": [1.0, 0.0, 0.0], "yaw": 0.0, "scale": 1.0, "variant": "a"},
+	]
+	var base := ScatterCore.apply_ops(base_ops, 5)
+	if base.size() != 2:
+		problems.append("[op-key] setup expected 2 instances, got %d" % base.size())
+		return
+	var target_id := int(base[1]["id"])
+	var new_pos := [7.0, 8.0, 9.0]
+
+	# nudge: by "id" vs by "target" — must move the SAME instance identically.
+	var by_id_ops := base_ops.duplicate(true)
+	by_id_ops.append({"tool": "nudge", "id": target_id, "pos": new_pos})
+	var by_id := ScatterCore.apply_ops(by_id_ops, 5)
+	var by_tgt_ops := base_ops.duplicate(true)
+	by_tgt_ops.append({"tool": "nudge", "target": target_id, "pos": new_pos})
+	var by_tgt := ScatterCore.apply_ops(by_tgt_ops, 5)
+	# Guard against a vacuous pass (both no-ops): the id-keyed nudge MUST have moved it.
+	if by_id.size() == 2 and (by_id[1]["pos"] as Vector3).distance_squared_to(Vector3(7, 8, 9)) > 1e-9:
+		problems.append("[op-key] nudge by 'id' did not move the target instance")
+	if not _instances_equal(by_id, by_tgt):
+		problems.append("[op-key] nudge by 'target' != nudge by 'id' ('target' alias not honored)")
+
+	# delete: by "id" vs by "target" — must remove the SAME instance.
+	var del_id_ops := base_ops.duplicate(true)
+	del_id_ops.append({"tool": "delete", "id": target_id})
+	var del_id := ScatterCore.apply_ops(del_id_ops, 5)
+	var del_tgt_ops := base_ops.duplicate(true)
+	del_tgt_ops.append({"tool": "delete", "target": target_id})
+	var del_tgt := ScatterCore.apply_ops(del_tgt_ops, 5)
+	if del_id.size() != 1:
+		problems.append("[op-key] delete by 'id' did not remove exactly one instance (size=%d)" % del_id.size())
+	if not _instances_equal(del_id, del_tgt):
+		problems.append("[op-key] delete by 'target' != delete by 'id' ('target' alias not honored)")
+
+	if problems.size() == n0:
+		print("[splat-studio][op-key] nudge/delete resolve identically by 'id' and 'target' OK")
+
+
+# ─── 8c. queue_free()'d node excluded from resync ordered set (#3) ────────────────
+# A node marked queue_free() lingers in get_children() until frame-end; resync_materials
+# must skip it (is_queued_for_deletion guard) so its resource never enters the ordered
+# unique set. Non-vacuous: without the guard the freed B node stays in the walk (no frame
+# processed here) and the ordered set is [A,B] instead of [A].
+func _check_resync_queued_free(problems: Array[String]) -> void:
+	var n0 := problems.size()
+	RelightPass.clear_materials()
+	var doc := {
+		"schema": "splat_carpet 1", "frame": "godot",
+		"variants": [{"id": "a", "path": TINY_A}, {"id": "b", "path": TINY_B}],
+		"instances": [
+			{"variant": "a", "pos": [0.0, 0.0, 0.0], "yaw": 0.0, "scale": 1.0, "id": 1},
+			{"variant": "b", "pos": [1.0, 0.0, 0.0], "yaw": 0.0, "scale": 1.0, "id": 2},
+		],
+	}
+	var path := "user://_ss_resync_qfree.json"
+	_write_json(path, JSON.stringify(doc))
+	var parent := Node3D.new()
+	root.add_child(parent)
+	var result := CarpetLoader.load_carpet(path, parent)
+	if not bool(result.get("ok", false)):
+		problems.append("[resync-qfree] baseline load failed: %s" % result.get("error", "?"))
+		parent.free()
+		return
+	var nodes: Array = result["nodes"]
+	var node_variant: Array = result["node_variant"]
+	var res_a = result["ordered_resources"][0]
+	var count_a: int = int(res_a.point_count)
+	if not CarpetLoader.resync_materials(parent):
+		problems.append("[resync-qfree] warm-up resync returned false")
+
+	# queue_free() the B node (stays in get_children() until frame-end) + resync.
+	var b_node: Node = null
+	for i in nodes.size():
+		if String(node_variant[i]) == "b":
+			b_node = nodes[i]
+			break
+	if b_node == null:
+		problems.append("[resync-qfree] could not find the variant-B node")
+		parent.free()
+		return
+	b_node.queue_free()
+	if not b_node.is_queued_for_deletion():
+		problems.append("[resync-qfree] queue_free did not mark node queued (test precondition)")
+	if not CarpetLoader.resync_materials(parent):
+		problems.append("[resync-qfree] resync after queue_free returned false")
+	# Ordered uniques must drop the queued B -> [A] only.
+	var cached: Array = CarpetLoader._resync_state.get(parent.get_instance_id(), [])
+	if cached.size() != 1 or int(cached[0]) != res_a.get_instance_id():
+		problems.append("[resync-qfree] queued node not excluded: cached=%s want [A]" % str(cached))
+	if RelightPass._material_count != count_a:
+		problems.append("[resync-qfree] material_count %d != count_a %d (queued B leaked into buffer)" % [RelightPass._material_count, count_a])
+	if problems.size() == n0:
+		print("[splat-studio][resync-qfree] queue_free()'d node excluded from ordered set OK")
 	CarpetLoader.forget_resync(parent)
 	parent.free()
 
@@ -504,6 +669,7 @@ func _check_undo(problems: Array[String]) -> void:
 	var with_extra := ScatterCore.apply_ops(ops1, 11)
 	if with_extra.size() != snap.size() + 1:
 		problems.append("[undo] stamp op did not append exactly one instance (%d -> %d)" % [snap.size(), with_extra.size()])
+		return
 	# Undo = drop the last op + re-expand.
 	var ops_after_undo: Array = ops1.duplicate(true)
 	ops_after_undo.pop_back()
@@ -555,6 +721,7 @@ func _check_contract_tolerance(problems: Array[String]) -> void:
 
 # ─── 11. 4b constructs headless ───────────────────────────────────────────────────
 func _check_studio_constructs(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	# Instantiate SplatStudio, parent it into the scene (so _ready fires + the panel
 	# builds). This is the ONLY UI assertion: it must not error.
 	var s := SplatStudio.new()
@@ -591,7 +758,7 @@ func _check_studio_constructs(problems: Array[String]) -> void:
 	if splat_count_after_stamp <= splat_count_after_fill:
 		problems.append("[constructs] Stamp did not add a node (fill=%d after_stamp=%d)" % [splat_count_after_fill, splat_count_after_stamp])
 
-	if problems.is_empty():
+	if problems.size() == n0:
 		print("[splat-studio][constructs] SplatStudio instantiates headless + Fill/Stamp wired (%d nodes after fill+stamp) OK" % splat_count_after_stamp)
 
 	# Smoke Paint + Nudge too (functional via op-model even if interactive drag is deferred).
@@ -618,6 +785,7 @@ func _check_studio_constructs(problems: Array[String]) -> void:
 # assets/raw/ / photoscan), and _rebuild must NEVER write to _doc_path (so loading a
 # doc from a protected location + committing a stroke can't clobber source data).
 func _check_protected_path(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	# (a) the guard logic directly: protected roots flagged, normal paths not.
 	for bad in ["/tmp/probe/photoscan/doc.json", "/tmp/probe/datasets/x.json",
 			"/tmp/probe/assets/raw/y.json", "res://datasets/z.json",
@@ -652,7 +820,7 @@ func _check_protected_path(problems: Array[String]) -> void:
 	var after := FileAccess.get_file_as_string(load_path)
 	if before != after:
 		problems.append("[protected] _rebuild overwrote _doc_path on commit — must use the scratch autosave")
-	elif problems.is_empty():
+	elif problems.size() == n0:
 		print("[splat-studio][protected] save_doc refuses SOURCE roots + _rebuild writes scratch not _doc_path OK")
 	s.queue_free()
 	parent.queue_free()
@@ -662,6 +830,7 @@ func _check_protected_path(problems: Array[String]) -> void:
 # open_doc / apply_ops must return {ok:false} or skip the bad op on a malformed doc,
 # NEVER raise a GDScript SCRIPT ERROR. Each shape below used to crash (security judge).
 func _check_hostile_json(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	# Structural malformation -> open_doc returns a clean {ok:false} (not a crash/null).
 	var cases := [
 		['{"studio":"not_a_dict"}', false],
@@ -733,12 +902,13 @@ func _check_hostile_json(problems: Array[String]) -> void:
 	s3.queue_free()
 	p3.queue_free()
 
-	if problems.is_empty():
+	if problems.size() == n0:
 		print("[splat-studio][hostile] open_doc + apply_ops + load_from top-level degrade cleanly (no SCRIPT ERROR) OK")
 
 
 # ─── 15. commit_* reject non-finite (MAJOR 3) ────────────────────────────────────
 func _check_finite_reject(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	var s := SplatStudio.new()
 	root.add_child(s)
 	var parent := Node3D.new()
@@ -756,7 +926,7 @@ func _check_finite_reject(problems: Array[String]) -> void:
 			"variants": [{"id": "a", "weight": 1.0}], "yaw": [0.0, 0.0], "scale": [1.0, 1.0]})
 	if s.op_count() != before:
 		problems.append("[finite] a non-finite commit appended an op (%d -> %d); must reject" % [before, s.op_count()])
-	elif problems.is_empty():
+	elif problems.size() == n0:
 		print("[splat-studio][finite] commit_* reject NaN/Inf (no bricked op appended) OK")
 	s.queue_free()
 	parent.queue_free()
@@ -764,6 +934,7 @@ func _check_finite_reject(problems: Array[String]) -> void:
 
 # ─── 16. Variant guards: missing path + dup id (MAJOR 4 + MINOR 5) ───────────────
 func _check_variant_guards(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	var s := SplatStudio.new()
 	root.add_child(s)
 	# Missing path must not crash (direct v["path"] used to raise); point_count defaults 0.
@@ -798,7 +969,7 @@ func _check_variant_guards(problems: Array[String]) -> void:
 	s2.queue_free()
 	bp.queue_free()
 
-	if problems.is_empty():
+	if problems.size() == n0:
 		print("[splat-studio][variants] missing-path + dup-id + load_from-unloadable OK")
 
 
@@ -820,6 +991,7 @@ func _check_resync_edges(problems: Array[String]) -> void:
 		problems.append("[resync-edge] baseline load failed")
 		parent.free()
 	else:
+		var na := problems.size()
 		if RelightPass._material_count <= 0:
 			problems.append("[resync-edge] baseline did not bind materials (count=%d)" % RelightPass._material_count)
 		for c in parent.get_children():
@@ -829,7 +1001,7 @@ func _check_resync_edges(problems: Array[String]) -> void:
 			problems.append("[resync-edge] empty resync returned false")
 		if RelightPass._material_count != 0:
 			problems.append("[resync-edge] empty resync left _material_count=%d (must clear to 0)" % RelightPass._material_count)
-		else:
+		if problems.size() == na:
 			print("[splat-studio][resync-edge] empty carpet resync clears materials OK")
 		CarpetLoader.forget_resync(parent)
 		parent.free()
@@ -837,6 +1009,7 @@ func _check_resync_edges(problems: Array[String]) -> void:
 	# (b) A resource with a bad attr/point_count -> set_materials_multi rejects ->
 	# resync returns false, _material_version UNCHANGED, cache NOT populated.
 	RelightPass.clear_materials()
+	var nb := problems.size()
 	var bad_res := RelightPlyLoader.load(TINY_A)
 	bad_res.attr_data_byte = bad_res.attr_data_byte.slice(0, 8)  # truncate -> attr/pc mismatch
 	var bad := GaussianSplatNode.new()
@@ -853,7 +1026,7 @@ func _check_resync_edges(problems: Array[String]) -> void:
 		problems.append("[resync-edge] bad-resource resync bumped _material_version (must leave unchanged)")
 	if CarpetLoader._resync_state.has(p2.get_instance_id()):
 		problems.append("[resync-edge] bad-resource resync populated the cache (must NOT on rejection)")
-	else:
+	if problems.size() == nb:
 		print("[splat-studio][resync-edge] bad-resource resync fail-closed (false, no mutation, no cache) OK")
 	CarpetLoader.forget_resync(p2)
 	p2.free()
@@ -861,6 +1034,7 @@ func _check_resync_edges(problems: Array[String]) -> void:
 
 # ─── 18. budget hostile guards (NaN + negative; MINOR 6 + correctness-MINOR-1) ────
 func _check_budget_nan(problems: Array[String]) -> void:
+	var n0 := problems.size()
 	var insts := [{"variant": "a"}, {"variant": "a"}]
 	var b := ScatterCore.budget(insts, {"a": NAN})
 	if b < 0:
@@ -869,7 +1043,7 @@ func _check_budget_nan(problems: Array[String]) -> void:
 	var bn := ScatterCore.budget(insts, {"a": -100})
 	if bn != 0:
 		problems.append("[budget-nan] budget(negative=-100)=%d (must clamp to 0)" % bn)
-	if problems.is_empty():
+	if problems.size() == n0:
 		print("[splat-studio][budget-nan] budget(NaN -> 0) + budget(negative -> 0 clamp) OK")
 
 

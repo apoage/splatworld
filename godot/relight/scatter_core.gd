@@ -420,9 +420,23 @@ static func apply_ops(ops: Array, master_seed: int) -> Array:
 	return instances
 
 
-# Edit op: nudge by stable id (op["id"]) to op["pos"]. Malformed -> no-op.
+# Resolve a nudge/delete op's target instance id. op["id"] is canonical; op["target"] is
+# accepted as an ALIAS on read (the task-doc example keyed it "target", so a hand-authored
+# op following the doc must resolve identically). id wins when present. Returns the finite
+# id as a float Variant, or null if neither key is a finite JSON number (missing / non-
+# numeric -> caller degrades to a no-op, never a SCRIPT ERROR).
+static func _op_target_id(op: Dictionary) -> Variant:
+	if op.has("id"):
+		return _num(op.get("id", null))
+	if op.has("target"):
+		return _num(op.get("target", null))
+	return null
+
+
+# Edit op: nudge to op["pos"] the instance keyed by op["id"] (canonical) or op["target"]
+# (alias). Malformed / missing / non-numeric key -> no-op (hostile-doc discipline).
 static func _apply_nudge(instances: Array, op: Dictionary) -> void:
-	var id_v = _num(op.get("id", -1.0))
+	var id_v = _op_target_id(op)
 	var pos = _vec3(op.get("pos", null))
 	if id_v == null or pos == null:
 		return
@@ -433,12 +447,12 @@ static func _apply_nudge(instances: Array, op: Dictionary) -> void:
 			return
 
 
-# Edit op: delete by op["id"] OR by op["center"]+[x,z]+op["radius"] (drops every id
-# inside that disc). Single-pass filter; ids of survivors are UNCHANGED (stable across
-# deletes — that's why id is a hash, not a list index). Malformed -> no-op.
+# Edit op: delete by op["id"] / op["target"] (alias) OR by op["center"]+[x,z]+op["radius"]
+# (drops every id inside that disc). Single-pass filter; ids of survivors are UNCHANGED
+# (stable across deletes — that's why id is a hash, not a list index). Malformed -> no-op.
 static func _apply_delete(instances: Array, op: Dictionary) -> void:
-	if op.has("id"):
-		var id_v = _num(op.get("id", -1.0))
+	if op.has("id") or op.has("target"):
+		var id_v = _op_target_id(op)
 		if id_v == null:
 			return
 		var target: int = int(float(id_v))

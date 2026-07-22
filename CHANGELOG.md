@@ -5,6 +5,36 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
+## [0.25.2] — 2026-07-22
+- **Splat Studio hygiene batch — follow-ups #2 + #3 + #4 + the `%g` latent**
+  (`tasks/2026-07-19-splat-studio-hygiene.md`; the three factory-gateable MINORs from the v0.25.0
+  verify panel, batched). Alt-model eval #3 run.
+- **#2 nudge/delete op-key alias** (`scatter_core.gd`): new `_op_target_id(op)` helper — `id` is the
+  canonical key, `target` is accepted as an alias on read, wired into both `_apply_nudge` and
+  `_apply_delete`. A hand-authored op following the (old) task-doc `"target"` example now resolves
+  identically instead of silently no-opping. `id` wins when both present; a missing/non-numeric key
+  still degrades to a no-op, never a SCRIPT ERROR. The `center`+`radius` disc-delete branch is
+  untouched. Task-doc example corrected to canonical `"id"` (with a `target`-also-accepted note).
+- **#3 `resync_materials` queue-free guard** (`carpet_loader.gd`): the tree walk now skips
+  `n.is_queued_for_deletion()` nodes so a `queue_free()`'d `GaussianSplatNode`'s resource never
+  enters the ordered unique material set. Not hit today (the shipped `_rebuild` frees synchronously),
+  but a future deferred Nudge/Delete doing `queue_free(); resync_materials()` in one frame would
+  otherwise mis-shade for ≥1 frame. `load_carpet` and the resync happy-path stay byte-identical.
+- **#4 test/log hygiene** (`splat_studio_smoke.gd`): (a) OK prints now gate on a per-check
+  `n0 := problems.size()` snapshot (not the global array / a bare `else`), so a human never sees both
+  a check's "…OK" and its "FAIL:" in one run + added the missing `return` in `_check_undo`; (b) the
+  ~25 `!is_inside_tree()` error lines are gone — the aux `GaussianSceneRegistry` now registers nodes
+  only after an awaited in-tree frame (`_check_resync` became a coroutine); (c) new middle-variant
+  erase coverage ([A,B,C]→[A,C]) asserting ordered uniques == tree order with prior si.y unshifted;
+  (d) the failure-branch `%g` (unsupported by GDScript `String %`) → `%.4f`.
+- **New non-vacuous smoke checks**: `_check_op_key_alias` (#2 — fails if `target` isn't honored) and
+  `_check_resync_queued_free` (#3 — fails if the queued node leaks into the ordered set); both proven
+  red→green by mutation.
+- **No regression**: `load_carpet` byte-identical; resync happy-path (add-existing/add-new/erase-last)
+  unchanged; `scatter_core` determinism + stroke-replay + paint-poisson green; `fill_region` and
+  `min_dist==0`/single-dab paint byte-identical. Medium-tier panel (correctness + regression +
+  flow-verifier), no BLOCKER/MAJOR; pytest 141 passed; all four Godot smokes PASS.
+
 ## [0.25.1] — 2026-07-19
 - **Splat Studio follow-up #1 — Paint cross-dab Poisson spacing + gate gap closed**
   (`tasks/2026-07-19-paint-cross-dab-spacing.md`; borderline-MAJOR residual from the v0.25.0

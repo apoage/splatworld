@@ -268,6 +268,12 @@ static func resync_materials(carpet_parent: Node) -> bool:
 	for n in carpet_parent.get_children():
 		if not (n is GaussianSplatNode):
 			continue
+		# Skip a node already queue_free()'d: it lingers in get_children() until frame-end,
+		# but its resource must NOT enter the ordered unique set. A future deferred
+		# Nudge/Delete doing queue_free(); resync_materials() in one frame would otherwise
+		# bind a stale material buffer and mis-shade for >=1 frame.
+		if n.is_queued_for_deletion():
+			continue
 		var g = (n as GaussianSplatNode).gaussian
 		if g == null:
 			continue
