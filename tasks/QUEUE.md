@@ -35,23 +35,31 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > not routine factory output. Revisit only if the owner wants the factory maintaining guides
 > unattended.
 
-> 🎯 **SCOPED RUN (2026-07-23): take ONLY `tasks/2026-07-23-vply-cleanup-roundtrip.md`** — three
-> deliverables enabling the SuperSplat cleanup round-trip: **(A)** unify EVERY non-vanilla splat on
-> `.vply` (`asset.ply`→`.vply`, `decompose.ply`→`decompose.vply`, Godot `.relightply`→`.vply`;
-> `train_base.ply` stays `.ply` = genuine standard 3DGS; bytes/header identical, NO schema bump, NO
-> vendored-gdgs edit); **(B)** baseline-refresh helper so `decompose --in
-> train_base_clean.ply` gates honestly against a recomputed baseline (the 48k-clobber guard stays
-> intact); **(C)** `relight_to_vanilla.py` downgrade tool (extended→standard 3DGS, inverse of
-> `vanilla_to_relight.py`). Each with a non-vacuous gate; owner-confirmed; decision logged in
-> `docs/decisions.md` (2026-07-23). Do NOT re-decompose the heroes (planner GPU step after) or take
-> anything else. One task, then stop for planner reconcile. **ARMED** (`state.json` armed:true).
+> ✅ **SCOPED RUN DONE (2026-07-23): .vply unify + cleanup round-trip SHIPPED v0.27.0**
+> (`tasks/2026-07-23-vply-cleanup-roundtrip.md`, A/B/C). **(A)** `schema.ASSET_EXT="vply"`;
+> `asset.ply`→`asset.vply`, `decompose.ply`→`decompose.vply` (train_base stays `.ply`); all 15
+> Godot `.relightply`→`.vply`; no schema bump, bytes byte-identical, GDGS untouched. **(B)**
+> `tools/refresh_baseline.py` + stem-tracked `baseline_metrics_path()` — 48k-clobber guard intact,
+> fail-closed. **(C)** `tools/relight_to_vanilla.py` downgrade (explicit `--coord`). Commit
+> `7b94a5d`, tag v0.27.0, handoff `docs/2026-07-23-handoff-vply-cleanup-roundtrip-v0.27.0.md`.
+> Planner INDEPENDENTLY verified GREEN: pytest **149** (141 + 8 new) in the MAIN tree, zero actual
+> `.relightply` extension strings (10 hits = the `_write_tiny_relightply` fn name, cosmetic),
+> run.py live wiring → `asset.vply`/`decompose.vply`, baseline stem-tracking correct + guard
+> untouched. Factory **disarmed**. Nothing pushed (`allow_push:false`). Planner also fixed the
+> stale `docs/pipeline.md` Step-3 mirror commands (`.relightply`/`asset.ply`→`.vply`) — guide-doc,
+> planner lane. **NEXT (owner GPU step):** re-mirror both heroes as `gs_assets/*.vply`, run
+> `refresh_baseline.py` on each `train_base_clean.ply`, then re-decompose → relightable `asset.vply`.
 
 Last groomed:
+**2026-07-23 (latest)** — reconciled the **`.vply` + cleanup round-trip** scoped run: SHIPPED
+v0.27.0 (`7b94a5d`), planner verified GREEN (pytest 149, zero `.relightply` extension, guard intact
++ stem-tracked), factory disarmed. Fixed stale `docs/pipeline.md` mirror commands (planner lane).
+**Next = owner GPU step:** re-mirror heroes as `gs_assets/*.vply`, `refresh_baseline.py` each
+`train_base_clean.ply`, re-decompose the cleaned clouds → `asset.vply`. Prior:
 **2026-07-23 (late)** — owner cleaned both heroes in SuperSplat (`train_base_clean.ply` staged in
 each `assets/built/<name>/`: pxl_144634 −42%, pxl_131945 −50%, originals intact, gitignored). Armed
 the **`.vply` + cleanup round-trip** scoped run (A extension unify / B baseline-refresh helper / C
-downgrade tool); `.vply` decision logged in `docs/decisions.md`. After it ships + planner-verifies,
-the planner re-decomposes both cleaned heroes (GPU step) into relightable `asset.vply`. Prior:
+downgrade tool); `.vply` decision logged in `docs/decisions.md`. Prior:
 **2026-07-23** — reconciled the docs-guide scoped run: SHIPPED v0.26.0, planner verified GREEN
 (pytest 141, guide claims checked against source, both judge-caught defects present in the shipped
 guide), factory disarmed. Remaining Ready rows (#5/#6 4b, M4 tasks 5/6) are owner-attended; leftover

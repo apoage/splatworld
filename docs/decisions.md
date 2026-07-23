@@ -370,3 +370,8 @@ is confined to OUR code — **no `godot/addons/gdgs/` edit**. Single source of t
 `schema.ASSET_EXT`. Tracked as `tasks/2026-07-23-vply-cleanup-roundtrip.md` deliverable A
 (batched with the baseline-refresh helper that unblocks re-decomposing SuperSplat-cleaned clouds,
 and a `.vply`→standard-3DGS downgrade tool, the inverse of `vanilla_to_relight.py`).
+
+**SHIPPED v0.27.0** (`7b94a5d`, 2026-07-23) — all three deliverables landed exactly as decided;
+`schema.ASSET_EXT="vply"`, bytes byte-identical, `SCHEMA_VERSION` still 1, no GDGS edit. Planner
+verified GREEN (pytest 149; zero actual `.relightply` extension strings; run.py wiring →
+`asset.vply`/`decompose.vply`). Handoff `docs/2026-07-23-handoff-vply-cleanup-roundtrip-v0.27.0.md`.

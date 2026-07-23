@@ -46,9 +46,9 @@ that file, not a screenshot, is the pass/fail signal.
 |---|---|---|---|
 | `ingest` | a clip under `datasets/` | `assets/raw/<name>/colmap/dense/{sparse_txt,images}` | `metrics_ingest.json` — frames registered, reprojection error |
 | `train_base` | raw `sparse_txt` + `images` | `assets/built/<name>/train_base.ply` | `metrics_train_base.json` — held-out PSNR ≥ `--min-psnr`, count, NaN checks |
-| `decompose` | `train_base.ply` + views | `assets/built/<name>/decompose.ply` + `env_sh.json` | `metrics_decompose.json` — re-render PSNR within **1.5 dB** of `train_base` (else the decomposition is wrong) |
-| `export` | `train_base.ply` (+ `decompose.ply`, `env_sh.json`) | `assets/built/<name>/asset.ply` (+ `asset_env_sh.json`, the Godot-frame ambient sidecar) | `metrics_export.json` — schema/range/NaN + the one COLMAP→Godot flip |
-| `transmission` | `asset.ply` | `asset.ply` (rewrites `trans` in place) | `metrics_transmission.json` — per-label `trans` assignment |
+| `decompose` | `train_base.ply` + views | `assets/built/<name>/decompose.vply` + `env_sh.json` | `metrics_decompose.json` — re-render PSNR within **1.5 dB** of `train_base` (else the decomposition is wrong) |
+| `export` | `train_base.ply` (+ `decompose.vply`, `env_sh.json`) | `assets/built/<name>/asset.vply` (+ `asset_env_sh.json`, the Godot-frame ambient sidecar) | `metrics_export.json` — schema/range/NaN + the one COLMAP→Godot flip |
+| `transmission` | `asset.vply` | `asset.vply` (rewrites `trans` in place) | `metrics_transmission.json` — per-label `trans` assignment |
 
 `--stages all` = `ingest,train_base,decompose,export,transmission` (in that order).
 `label` and `bake_basis` are not implemented yet. The extended per-Gaussian schema those
@@ -100,7 +100,7 @@ backfills completed steps rather than re-running SfM):
 python precompute/run.py --asset pxl_144634 --stages ingest,train_base,export --gpu 0
 ```
 
-Output lands in `assets/built/pxl_144634/`: `train_base.ply`, `asset.ply`, and the
+Output lands in `assets/built/pxl_144634/`: `train_base.ply`, `asset.vply`, and the
 `metrics_*.json` gates. M1 reference numbers: 204/204 frames registered, ~2.39 M
 gaussians, ~21.7 dB held-out PSNR.
 
@@ -143,7 +143,7 @@ Omit any of these to get the stage default. Full list: `python precompute/run.py
 | `--trans-leaf` / `--trans-grass` | transmission | constant `trans` for those labels [0,1] |
 
 **Minting a low-count carpet variant** (M4 blocks, per DECISIONS D2 — ~500k @ opacity-0.02):
-decimate an existing hero `.relightply` with `precompute/tools/clean_relight.py`
+decimate an existing hero `.vply` with `precompute/tools/clean_relight.py`
 (`--prune-opacity`, AABB crop, label filter, decimation). See its module docstring for the
 filter semantics and `metrics_clean.json` output.
 
@@ -152,14 +152,16 @@ filter semantics and `metrics_clean.json` output.
 ## Step 3 — open it in Godot
 
 The relight tools read the extended asset directly (via `RelightPlyLoader`, not Godot's
-import system) and expect it as `godot/gs_assets/<name>.relightply`, with the env-SH
+import system) and expect it as `godot/gs_assets/<name>.vply`, with the env-SH
 ambient sidecar mirrored alongside as `<name>_env_sh.json`. `gs_assets/*` is gitignored —
-these files (`gs_assets/*.relightply`, `*_env_sh.json`) are gitignored working copies, no
-`--import` step needed.
+these files (`gs_assets/*.vply`, `*_env_sh.json`) are gitignored working copies, no
+`--import` step needed. (`.vply` = `schema.ASSET_EXT`, our non-vanilla extended splat; the
+built `asset.vply` already carries it, so the mirror is a straight copy + rename to
+`<name>.vply`.)
 
 ```bash
-# mirror the built asset into gs_assets/ (rename to .relightply):
-cp assets/built/pxl_144634/asset.ply         godot/gs_assets/pxl_144634.relightply
+# mirror the built asset into gs_assets/ (rename to <name>.vply):
+cp assets/built/pxl_144634/asset.vply        godot/gs_assets/pxl_144634.vply
 # and the GODOT-frame env sidecar (export's asset_env_sh.json, NOT decompose's
 # pre-flip env_sh.json — the reader refuses the pre-flip frame). M2 only:
 cp assets/built/pxl_144634/asset_env_sh.json godot/gs_assets/pxl_144634_env_sh.json
@@ -168,24 +170,24 @@ cp assets/built/pxl_144634/asset_env_sh.json godot/gs_assets/pxl_144634_env_sh.j
 ### Data gate (headless, pass/fail)
 
 ```bash
-SMOKE_ASSET=res://gs_assets/pxl_144634.relightply SMOKE_MIN_COUNT=50000 \
+SMOKE_ASSET=res://gs_assets/pxl_144634.vply SMOKE_MIN_COUNT=50000 \
   ~/godot/godot --headless --path godot --script res://relight/tools/relight_smoke.gd
 ```
 
 `relight_smoke.gd` loads the extended asset through `RelightPlyLoader` and asserts
 well-formed GPU + material buffers (and DC-normalized env-SH); it **exits nonzero on
 failure**. (`smoke_test.gd` is the separate M0 gate for *vanilla* GDGS `.ply`, loaded via
-the import system — it won't accept a `.relightply`.) This is the gate; the screenshots
+the import system — it won't accept a `.vply`.) This is the gate; the screenshots
 elsewhere are for human eyeballing only, never a pass/fail signal.
 
 ### Interactive viewer (real GPU)
 
 ```bash
-RELIGHT_ASSET=res://gs_assets/pxl_144634.relightply \
+RELIGHT_ASSET=res://gs_assets/pxl_144634.vply \
   DISPLAY=:0 ~/godot/godot --path godot res://scenes/viewer.tscn
 ```
 
-`RELIGHT_ASSET` overrides the viewer's default asset (which is `pxl_144634.relightply`);
+`RELIGHT_ASSET` overrides the viewer's default asset (which is `pxl_144634.vply`);
 omit it to load the default.
 
 Controls (`relight/tools/orbit_viewer.gd`): left-drag orbits, wheel zooms; right-drag
