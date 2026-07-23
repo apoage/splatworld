@@ -29,7 +29,7 @@ const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
-const ASSET_PATH := "res://gs_assets/pxl_144634.relightply"
+const ASSET_PATH := "res://gs_assets/pxl_144634.vply"
 
 const RES := Vector2i(1280, 720)       # 16:9, even dims for yuv420p h264
 const BG := Color(0.06, 0.07, 0.09)    # dark neutral; distinct enough for a coverage mask
@@ -134,7 +134,7 @@ func _initialize() -> void:
 	gs.gaussian = _res
 	root.add_child(gs)
 	gs.transform = Transform3D.IDENTITY   # D3 rule: suppress GDGS's conditional -180deg Z flip on our
-	                                      # already-Godot-convention .relightply (else grounded assets orbit upside down)
+	                                      # already-Godot-convention .vply (else grounded assets orbit upside down)
 
 	var ab: AABB = _res.aabb
 	var center := ab.position + ab.size * 0.5

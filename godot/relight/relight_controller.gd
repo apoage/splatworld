@@ -11,7 +11,7 @@ const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
-const ASSET_PATH := "res://gs_assets/pxl_144634.relightply"
+const ASSET_PATH := "res://gs_assets/pxl_144634.vply"
 
 const WRAP_POWER := 2.0
 const AMBIENT := 0.2
@@ -31,7 +31,7 @@ func _ready() -> void:
 	_build_ui()
 
 	# RELIGHT_ASSET env var overrides the default asset (owner eyeballs of other
-	# heroes without a code edit): RELIGHT_ASSET=res://gs_assets/pxl_131945.relightply
+	# heroes without a code edit): RELIGHT_ASSET=res://gs_assets/pxl_131945.vply
 	var asset_path := OS.get_environment("RELIGHT_ASSET")
 	if asset_path.is_empty():
 		asset_path = ASSET_PATH
@@ -49,7 +49,7 @@ func _ready() -> void:
 	_splat = GaussianSplatNode.new()
 	_splat.gaussian = res
 	add_child(_splat)
-	# Our .relightply is already Godot-convention (export owns the ONE conversion);
+	# Our .vply is already Godot-convention (export owns the ONE conversion);
 	# GDGS's default -PI Z model-orientation correction is meant for raw y-down 3DGS
 	# plys and would flip a grounded asset upside down. It is applied in _enter_tree
 	# only when the transform is identity-ish, so reset AFTER add_child.

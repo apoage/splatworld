@@ -6,13 +6,13 @@ extends SceneTree
 # budget. Reports ms/frame (wall-clock over a fixed window, vsync disabled, matching
 # the viewer HUD's fps->ms) for both, and the delta.
 #   DISPLAY=:0 ~/godot/godot --path godot --script res://relight/tools/flashlight_perf.gd
-#   RELIGHT_ASSET=res://gs_assets/<name>.relightply overrides the asset.
+#   RELIGHT_ASSET=res://gs_assets/<name>.vply overrides the asset.
 
 const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
-const DEFAULT_ASSET := "res://gs_assets/pxl_144634.relightply"
+const DEFAULT_ASSET := "res://gs_assets/pxl_144634.vply"
 const WARMUP := 60                   # frames to settle before each measurement window
 const MEASURE := 240                 # frames per measurement window
 

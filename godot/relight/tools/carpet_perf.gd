@@ -23,7 +23,7 @@ extends SceneTree
 #   1. CARPET_JSON=<res://…|abs> env set + loadable  -> use it verbatim (the real carpet;
 #      task 3b points this at the heroes + a ~1.5M decimated variant minted by
 #      clean_relight.py). This build step does NOT mint or run clean_relight on real assets.
-#   2. else both hero .relightply present            -> synthesize a small hero grid carpet
+#   2. else both hero .vply present            -> synthesize a small hero grid carpet
 #      (exercises the real extended-schema assets when the gitignored gs_assets are here).
 #   3. else                                          -> a tiny SYNTHETIC carpet written to
 #      user:// (a handful of ~5-Gaussian fixtures). Runs anywhere; this is the DoD path.
@@ -41,10 +41,10 @@ const CarpetLoader = preload("res://relight/carpet_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 
-const HERO_A := "res://gs_assets/pxl_144634.relightply"
-const HERO_B := "res://gs_assets/pxl_131945.relightply"
-const TINY_A := "user://carpet_perf_tiny_a.relightply"
-const TINY_B := "user://carpet_perf_tiny_b.relightply"
+const HERO_A := "res://gs_assets/pxl_144634.vply"
+const HERO_B := "res://gs_assets/pxl_131945.vply"
+const TINY_A := "user://carpet_perf_tiny_a.vply"
+const TINY_B := "user://carpet_perf_tiny_b.vply"
 const TINY_JSON := "user://carpet_perf_tiny.json"
 const HERO_JSON := "user://carpet_perf_hero.json"
 

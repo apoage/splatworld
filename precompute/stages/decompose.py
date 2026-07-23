@@ -35,9 +35,13 @@ Usage:
     --in    assets/built/<name>/train_base.ply \
     --sparse assets/raw/<name>/colmap/dense/sparse_txt \
     --images assets/raw/<name>/colmap/dense/images \
-    --out   assets/built/<name>/decompose.ply \
+    --out   assets/built/<name>/decompose.vply \
     --env-out assets/built/<name>/env_sh.json \
     --iterations 7000 --pbr-iteration 3000 --gpu 0
+
+The intermediate wears `.vply` (schema.ASSET_EXT) — it carries non-standard
+albedo/normal/rough columns, so it is not vanilla-loadable; `export --from-decompose`
+consumes it. Filename/routing only; the decompose header comment + bytes are unchanged.
 """
 from __future__ import annotations
 
@@ -445,6 +449,19 @@ def held_out_psnr(shaded, gt, mask):
     return psnr_full, psnr_masked
 
 
+def baseline_metrics_path(inp, out_dir):
+    """Path to the train_base baseline metrics json for the `--in` cloud this run
+    decomposes. The name TRACKS the --in stem so a SuperSplat-cleaned re-decompose
+    (`--in train_base_clean.ply`) reads its OWN refreshed baseline
+    (`metrics_train_base_clean.json`, written by tools/refresh_baseline.py) instead of
+    the original full-cloud `metrics_train_base.json` — whose count would never match
+    the smaller cleaned cloud and would (correctly) trip the 48k-clobber guard.
+
+    `--in train_base.ply` -> `metrics_train_base.json` (unchanged from before)."""
+    stem = os.path.splitext(os.path.basename(inp))[0]
+    return os.path.join(out_dir, f"metrics_{stem}.json")
+
+
 def read_verified_baseline_psnr(tb_metrics_path, n_gaussians_loaded):
     """Read train_base's held-out PSNR from metrics_train_base.json — but ONLY after
     verifying that json describes the SAME train_base.ply decompose actually loaded.
@@ -605,7 +622,7 @@ def main():
     ap.add_argument("--in", dest="inp", required=True, help="train_base.ply (standard 3DGS)")
     ap.add_argument("--sparse", required=True, help="COLMAP TXT sparse dir (undistorted PINHOLE)")
     ap.add_argument("--images", required=True, help="undistorted images dir")
-    ap.add_argument("--out", required=True, help="output decompose.ply (geometry + albedo/normal/rough)")
+    ap.add_argument("--out", required=True, help="output decompose.vply (geometry + albedo/normal/rough)")
     ap.add_argument("--env-out", dest="env_out", default=None,
                     help="output env_sh.json (ambient SH, PRE-flip). Default: env_sh.json beside --out")
     ap.add_argument("--iterations", type=int, default=7000)
@@ -715,10 +732,12 @@ def main():
     # ---- geometry (frozen, COLMAP frame) from train_base ----
     g = ply_io.read_standard_3dgs_ply(args.inp)
     N = g["xyz"].shape[0]
-    # baseline consistency (MINOR-C): verify metrics_train_base.json describes the
-    # SAME train_base.ply we just loaded BEFORE we ever trust its PSNR — fail fast
-    # (before the whole optimization) on the 48k-clobber divergence class.
-    tb_metrics_path = os.path.join(out_dir, "metrics_train_base.json")
+    # baseline consistency (MINOR-C): verify the train_base baseline metrics describe
+    # the SAME cloud we just loaded BEFORE we ever trust its PSNR — fail fast (before
+    # the whole optimization) on the 48k-clobber divergence class. The baseline name
+    # tracks the --in stem (baseline_metrics_path), so a cleaned re-decompose reads its
+    # refreshed metrics_<stem>.json, not the original full-cloud baseline.
+    tb_metrics_path = baseline_metrics_path(args.inp, out_dir)
     tb_psnr = read_verified_baseline_psnr(tb_metrics_path, N)
     means = torch.tensor(g["xyz"], device=dev)
     quats = torch.tensor(g["rot"], device=dev)

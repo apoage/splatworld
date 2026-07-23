@@ -5,7 +5,46 @@ All notable changes. Versions are bumped by the dark-factory release ritual
 
 ## [Unreleased]
 
-## [0.26.0] — 2026-07-23
+## [0.27.0] — 2026-07-23
+- **`.vply` extension unify + SuperSplat cleanup round-trip** (`tasks/2026-07-23-vply-cleanup-roundtrip.md`;
+  M/medium risk — touches `core/schema.py`, `run.py`, `stages/decompose.py`/`export.py`, the Godot
+  load path, and adds two `precompute/tools/` scripts). Enables the SuperSplat cleanup round-trip
+  (cleaned `train_base_clean.ply` staged for both heroes) and disambiguates our extended splat
+  from vanilla `.ply`. **NOT a schema change** — bytes + the `splat_relight_schema 1` header
+  comment stay byte-identical, `SCHEMA_VERSION` unchanged (still 1), GDGS untouched.
+- **(A) `.vply` extension.** New source-of-truth constant `schema.ASSET_EXT = "vply"`. The two
+  non-vanilla pipeline outputs renamed for uniformity — `assets/built/<name>/asset.ply` →
+  `asset.vply` and `decompose.ply` → `decompose.vply` (both carry non-standard fields, so neither
+  wears `.ply`); every `run.py` stage arg (decompose `--out`, export `--out`/`--from-decompose`,
+  transmission `--in`/`--out`) rewired. **`train_base.ply` stays `.ply`** — it is genuine standard
+  3DGS. Godot: every `.relightply` string across the 15 `godot/relight/**/*.gd` files → `.vply`
+  (loader, `relight_controller.ASSET_PATH`, `relight_env_sh` sidecar derivation, `carpet_loader`,
+  `splat_studio`, all render/smoke/perf tools + their `user://` fixtures). The `<stem>_env_sh.json`
+  sidecar rule is unchanged and resolves off the new stem. `.gitignore` now covers
+  `godot/gs_assets/*.vply`.
+- **(B) baseline-refresh helper.** New `precompute/tools/refresh_baseline.py` recomputes a
+  trustworthy `metrics_<stem>.json` for a SuperSplat-cleaned cloud — recounts `n_gaussians` from
+  the cleaned ply and re-renders the held-out set through the same gsplat/PSNR path `train_base`
+  uses. `decompose` now derives its baseline-metrics path from the `--in` stem
+  (`baseline_metrics_path()`): `train_base.ply` → `metrics_train_base.json` (unchanged),
+  `train_base_clean.ply` → `metrics_train_base_clean.json`. The 48k-clobber guard
+  (`read_verified_baseline_psnr`) is **untouched and still fail-closed** on a count mismatch.
+- **(C) downgrade tool.** New `precompute/tools/relight_to_vanilla.py` — inverse of
+  `vanilla_to_relight.py`: extended `.vply` → standard 3DGS `.ply` (`sh0 = rgb2sh(albedo)`, the
+  exact inverse of the export DC; higher SH `f_rest` = zeros; material/normal/label dropped, per
+  docstring). Coordinate handling is EXPLICIT (`--coord`, default `none`; `--coord colmap` applies
+  the inverse `diag(1,-1,-1)` flip to re-enter the COLMAP frame).
+- **Gates (each non-vacuous, mutation-reasoned):** byte-identity (`.vply` bytes == `.ply` bytes for
+  the same asset); a repo check asserting **zero** `.relightply` refs under `godot/relight/`;
+  refreshed-baseline count = cleaned count (not the original) + fault-injection that the guard still
+  FATALs on a wrong count; round-trip geometry/`sh0` preserved and the coord flip fires only on
+  `--coord colmap`.
+- **Verification (medium tier, independent):** correctness + regression judges + flow-verifier —
+  no BLOCKER/MAJOR (4 non-blocking MINOR flagged to the planner). pytest **149 passed** (141 + 8
+  new). Real `relight_smoke.gd` against a `.vply` asset = PASS, exit 0 (env-SH sidecar stem
+  derivation confirmed for the new extension). GPU `smoke.sh` intentionally not run (filename/routing
+  rename + standalone tools; no trained-output behavior change). Planner follow-ups: `docs/pipeline.md`
+  Step-3 mirror commands + owner re-mirrors heroes as `gs_assets/*.vply`, then the GPU re-decompose.
 - **Pipeline guide + core docstrings** (`tasks/2026-07-12-docs-guide.md`; filler-class, S/low
   risk). The repo had records (decisions.md, task banners, CLAUDE.md invariants) but no *guide* —
   a fresh reader could not go clip → asset → Godot without reverse-engineering `run.py`.

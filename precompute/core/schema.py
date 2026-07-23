@@ -15,6 +15,16 @@ Rules (from CLAUDE.md, do not re-litigate):
 SCHEMA_VERSION = 1
 HEADER_COMMENT = f"splat_relight_schema {SCHEMA_VERSION}"
 
+# File extension (no leading dot) for OUR non-vanilla extended splat files — the
+# built `asset.vply` and the `decompose.vply` intermediate, and their Godot mirror.
+# This is a FILENAME/ROUTING marker only, NOT a schema field: the bytes and the
+# `splat_relight_schema N` header comment are byte-identical regardless of extension.
+# It disambiguates "our extended splat, use our reader" from a genuine vanilla 3DGS
+# `.ply` (e.g. train_base.ply, which stays `.ply`). Changing THIS does not bump
+# SCHEMA_VERSION (no bytes change); the header comment still distinguishes the actual
+# schema of the file's contents.
+ASSET_EXT = "vply"
+
 # --- Standard 3DGS geometry (kept verbatim from vanilla 3DGS) -----------------
 # Conventions (enforced/documented in ply_io.py):
 #   position  : world units, Godot convention in the *built* asset (Y-up, -Z fwd)

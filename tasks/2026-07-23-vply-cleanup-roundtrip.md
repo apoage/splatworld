@@ -1,3 +1,13 @@
+> **STATUS (2026-07-23): SHIPPED as v0.27.0.** All three deliverables landed
+> (A `.vply` extension unify · B `refresh_baseline.py` + stem-tracked baseline · C
+> `relight_to_vanilla.py`). Medium-tier panel GREEN (correctness + regression judges +
+> flow-verifier, no BLOCKER/MAJOR); pytest 149 passed; real `relight_smoke.gd` on a `.vply`
+> PASS exit 0; zero `.relightply` under `godot/relight/`. No schema bump, bytes byte-identical,
+> GDGS untouched. Handoff `docs/2026-07-23-handoff-vply-cleanup-roundtrip-v0.27.0.md`.
+> **PLANNER REMAINDERS (not shipped here):** `docs/pipeline.md` Step-3 mirror commands → `.vply`;
+> owner re-mirrors heroes as `gs_assets/*.vply` then runs the GPU re-decompose of the cleaned
+> clouds; optional prose-uniformity sweep (MINOR-4). Factory disarmed, nothing pushed.
+
 # .vply extension + cleanup round-trip enablement
 
 **Size/risk:** M / medium (touches `core/ply_io.py` + `core/schema.py` read/write paths, the

@@ -15,17 +15,21 @@ into the single conversion (C = M @ R_align), so the ground reads as ground in
 Godot. The env-SH sidecar is rotated by the SAME C so the light rotates with the
 asset. --no-align keeps the pure M path (byte-identical to the pre-alignment export).
 
+The extended output wears `.vply` (schema.ASSET_EXT), not `.ply` — the "our
+non-vanilla extended splat, use our reader" marker (train_base.ply, genuine
+standard 3DGS, keeps `.ply`). Filename/routing only; bytes + header unchanged.
+
 Usage:
   python -m precompute.stages.export \
     --in  assets/built/<name>/train_base.ply \
-    --out assets/built/<name>/asset.ply \
+    --out assets/built/<name>/asset.vply \
     --label 2 --rough 0.6 --trans 0.0
   # ground-aligned re-export from decompose:
   python -m precompute.stages.export \
-    --from-decompose assets/built/<name>/decompose.ply \
+    --from-decompose assets/built/<name>/decompose.vply \
     --env-sh assets/built/<name>/env_sh.json \
     --sparse assets/raw/<name>/colmap/dense/sparse_txt \
-    --out assets/built/<name>/asset.ply
+    --out assets/built/<name>/asset.vply
 """
 from __future__ import annotations
 
@@ -135,14 +139,14 @@ def shortest_axis_normals(scales_log, quats):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="inp", required=True, help="standard 3DGS .ply (train_base output)")
-    ap.add_argument("--out", required=True, help="extended-schema asset.ply")
+    ap.add_argument("--out", required=True, help="extended-schema asset.vply")
     ap.add_argument("--label", type=int, default=2, help="default label id (2=leaf)")
     ap.add_argument("--rough", type=float, default=0.6)
     ap.add_argument("--trans", type=float, default=0.0)
     # --- M2 decompose path (optional). Omit BOTH to keep the M1 neutral path
     # byte-identical (albedo=SH0, shortest-axis normal, constant rough).
     ap.add_argument("--from-decompose", dest="from_decompose", default=None,
-                    help="decompose.ply with solved albedo/normal/rough (real "
+                    help="decompose.vply with solved albedo/normal/rough (real "
                          "reflectance). If set, read --in from this file INSTEAD of "
                          "the train_base ply and use the solved attributes.")
     ap.add_argument("--env-sh", dest="env_sh", default=None,

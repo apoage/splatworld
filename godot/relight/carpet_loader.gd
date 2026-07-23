@@ -22,7 +22,7 @@ class_name CarpetLoader
 # GaussianSceneRegistry in FIRST-SEEN order (= the order nodes are add_child'd =
 # the order we spawn instances here). So the ordered unique-resource list passed to
 # RelightPass.set_materials_multi MUST match that spawn/first-seen order, and each
-# variant's .relightply resource OBJECT must be loaded ONCE and shared across all its
+# variant's .vply resource OBJECT must be loaded ONCE and shared across all its
 # instances (a re-load = a new object = a duplicate VRAM upload + wrong offsets).
 #
 # OWNERSHIP PRECONDITION (correctness): set_materials_multi OVERWRITES the single global

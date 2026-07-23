@@ -10,7 +10,7 @@ const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 
-const DEFAULT_ASSET := "res://gs_assets/pxl_144634.relightply"
+const DEFAULT_ASSET := "res://gs_assets/pxl_144634.vply"
 const DEFAULT_MIN_COUNT := 1000000    # pxl_144634 has 2,394,584 splats
 
 # Real degree-2 SH basis (mirrors relight.glsl / core.sh_env; comment-locked by the

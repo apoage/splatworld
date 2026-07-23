@@ -57,14 +57,14 @@ extends SceneTree
 # D3 rule (load-bearing for the sphere agreement): after add_child(gs) we set
 # gs.transform = Transform3D.IDENTITY so GDGS's conditional -180deg Z correction (meant
 # for raw y-down 3DGS plys, fired in _enter_tree on identity-ish nodes) does NOT flip our
-# already-Godot-convention .relightply. render_orbit/relight_render_gate lack this and are
+# already-Godot-convention .vply. render_orbit/relight_render_gate lack this and are
 # orientation-agnostic; this tool must NOT be. (ref relight_controller.gd:43-50.)
 
 const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
-const ASSET_PATH := "res://gs_assets/pxl_144634.relightply"
+const ASSET_PATH := "res://gs_assets/pxl_144634.vply"
 
 const RES := Vector2i(1280, 720)
 const BG := Color(0.06, 0.07, 0.09)     # dark neutral; distinct from foliage + gray sphere

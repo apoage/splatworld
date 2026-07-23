@@ -24,7 +24,7 @@ const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
-const ASSET_PATH := "res://gs_assets/pxl_144634.relightply"
+const ASSET_PATH := "res://gs_assets/pxl_144634.vply"
 
 const BG := Color(0.15, 0.0, 0.20)     # distinct hue vs green foliage, for coverage mask
 const AMBIENT := 0.2

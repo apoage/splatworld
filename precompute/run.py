@@ -5,7 +5,13 @@ CUDA_VISIBLE_DEVICES (CLAUDE.md: never multi-GPU a single job).
 
 Path convention:
   raw model:  assets/raw/<name>/colmap/dense/{sparse_txt,images}   (from ingest)
-  built:      assets/built/<name>/{train_base.ply, asset.ply, metrics_*.json}
+  built:      assets/built/<name>/{train_base.ply, asset.vply, metrics_*.json}
+
+Extensions: train_base.ply is genuine standard 3DGS (full SH, vanilla-loadable) and
+KEEPS `.ply`. The non-vanilla extended outputs (asset + the decompose intermediate)
+carry our schema, so they wear `.vply` (schema.ASSET_EXT) — the "use our reader" marker.
+This is a filename/routing change only; the on-disk bytes + `splat_relight_schema` header
+comment are unchanged (no SCHEMA_VERSION bump).
 
 --asset accepts a bare name OR an `assets/raw/<name>` path (the prefix is stripped);
 the raw workspace dir must exist or the run fails fast. Unknown CLI flags are a hard
@@ -33,7 +39,7 @@ RAW = os.path.join(REPO, "assets", "raw")
 BUILT = os.path.join(REPO, "assets", "built")
 
 # Stages implemented so far. label/bake_basis are M2+ TODO. transmission runs AFTER
-# export (it rewrites the built asset.ply's per-Gaussian `trans`; scalar, no coord conv).
+# export (it rewrites the built asset.vply's per-Gaussian `trans`; scalar, no coord conv).
 STAGE_ORDER = ["ingest", "train_base", "decompose", "export", "transmission"]
 
 
@@ -65,24 +71,24 @@ def _cmd(stage, name, gpu, extra, built_root, with_decompose=False):
                 "--in", os.path.join(built, "train_base.ply"),
                 "--sparse", os.path.join(raw, "colmap/dense/sparse_txt"),
                 "--images", os.path.join(raw, "colmap/dense/images"),
-                "--out", os.path.join(built, "decompose.ply"),
+                "--out", os.path.join(built, "decompose.vply"),
                 "--env-out", os.path.join(built, "env_sh.json"),
                 "--gpu", "0", *extra]
     if stage == "export":
         # If decompose is part of THIS run, export consumes its solved attributes
         # (M2 relightable asset); otherwise export stays on the M1 neutral path.
-        decompose_args = (["--from-decompose", os.path.join(built, "decompose.ply"),
+        decompose_args = (["--from-decompose", os.path.join(built, "decompose.vply"),
                            "--env-sh", os.path.join(built, "env_sh.json")]
                           if with_decompose else [])
         return [sys.executable, "-m", "precompute.stages.export",
                 "--in", os.path.join(built, "train_base.ply"),
-                "--out", os.path.join(built, "asset.ply"), *decompose_args, *extra]
+                "--out", os.path.join(built, "asset.vply"), *decompose_args, *extra]
     if stage == "transmission":
-        # operates on the BUILT asset.ply (post-export). `trans` is a per-Gaussian scalar
+        # operates on the BUILT asset.vply (post-export). `trans` is a per-Gaussian scalar
         # (no coordinate conversion), so rewriting it in place after export is frame-safe.
         return [sys.executable, "-m", "precompute.stages.transmission",
-                "--in", os.path.join(built, "asset.ply"),
-                "--out", os.path.join(built, "asset.ply"), *extra]
+                "--in", os.path.join(built, "asset.vply"),
+                "--out", os.path.join(built, "asset.vply"), *extra]
     raise ValueError(f"unknown/unimplemented stage: {stage}")
 
 

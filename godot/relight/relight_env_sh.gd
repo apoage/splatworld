@@ -16,7 +16,7 @@ class_name RelightEnvSH
 # source of truth. This reader only marshals the 9x3 coefficients to the GPU.
 #
 # Convention (documented): sidecar path = <asset path with extension stripped>
-# + "_env_sh.json". e.g. res://gs_assets/pxl_144634.relightply ->
+# + "_env_sh.json". e.g. res://gs_assets/pxl_144634.vply ->
 # res://gs_assets/pxl_144634_env_sh.json. Mirrors the built-asset naming
 # (asset.ply -> asset_env_sh.json).
 #

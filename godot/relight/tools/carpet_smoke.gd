@@ -3,7 +3,7 @@ extends SceneTree
 # RelightPass.set_materials_multi at the DATA level (no GPU needed), and covers the
 # fail-closed / atomicity paths.
 #
-# Runs FAST on self-generated tiny synthetic .relightply fixtures (seconds), then repeats
+# Runs FAST on self-generated tiny synthetic .vply fixtures (seconds), then repeats
 # the happy-path coupling on the two real hero assets when present (skipped cleanly if the
 # gitignored gs_assets are absent — the synthetic + failure coverage still runs and gates).
 #
@@ -38,10 +38,10 @@ const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const GaussianSceneRegistry = preload("res://addons/gdgs/runtime/render/gaussian_scene_registry.gd")
 
-const HERO_A := "res://gs_assets/pxl_144634.relightply"
-const HERO_B := "res://gs_assets/pxl_131945.relightply"
-const TINY_A := "user://carpet_smoke_tiny_a.relightply"
-const TINY_B := "user://carpet_smoke_tiny_b.relightply"
+const HERO_A := "res://gs_assets/pxl_144634.vply"
+const HERO_B := "res://gs_assets/pxl_131945.vply"
+const TINY_A := "user://carpet_smoke_tiny_a.vply"
+const TINY_B := "user://carpet_smoke_tiny_b.vply"
 const BYTES_PER_SPLAT := 240
 const MATERIAL_BYTES := 48
 

@@ -112,7 +112,7 @@ static func load(path: String) -> RelightGaussianResource:
 	# the SAME centered object-space position the GDGS render path uses (the builder
 	# subtracts the per-asset centroid); the flashlight/point-light pass transforms it
 	# to world with the same instance matrix already used for the normal. This is our
-	# GPU buffer layout, NOT the PLY schema (.relightply already stores x/y/z) -> no
+	# GPU buffer layout, NOT the PLY schema (.vply already stores x/y/z) -> no
 	# schema-version bump.
 	var attr := PackedFloat32Array()
 	attr.resize(count * 12)

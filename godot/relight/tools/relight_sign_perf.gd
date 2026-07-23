@@ -5,13 +5,13 @@ extends SceneTree
 # only a branch + (mode 2) a normalize on the already-computed splat world pos, so the
 # expectation is "~free". Mirrors flashlight_perf's warm/measure windowing.
 #   DISPLAY=:0 ~/godot/godot --path godot --script res://relight/tools/relight_sign_perf.gd
-#   RELIGHT_ASSET=res://gs_assets/<name>.relightply overrides the asset.
+#   RELIGHT_ASSET=res://gs_assets/<name>.vply overrides the asset.
 
 const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
-const DEFAULT_ASSET := "res://gs_assets/pxl_144634.relightply"
+const DEFAULT_ASSET := "res://gs_assets/pxl_144634.vply"
 const WARMUP := 60
 const MEASURE := 240
 

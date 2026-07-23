@@ -20,7 +20,7 @@ extends SceneTree
 # baseline and RELIT-minus-RAW the shading-induced sparkle.
 #
 #   DISPLAY=:0 ~/godot/godot --path godot --script res://relight/tools/render_sparkle.gd
-#   RELIGHT_ASSET=res://gs_assets/foo.relightply  -> asset to load (default pxl_144634).
+#   RELIGHT_ASSET=res://gs_assets/foo.vply  -> asset to load (default pxl_144634).
 #                                                    Absolute OS paths also accepted.
 #   RELIGHT_SPARKLE_MODE=raw|relit                -> single render mode (default relit).
 #   RELIGHT_SHOT_DIR=/abs/dir                     -> frames -> frame_%04d.png (required).
@@ -31,7 +31,7 @@ const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const RelightPass = preload("res://relight/relight_pass.gd")
 const RelightEnvSH = preload("res://relight/relight_env_sh.gd")
 
-const DEFAULT_ASSET := "res://gs_assets/pxl_144634.relightply"
+const DEFAULT_ASSET := "res://gs_assets/pxl_144634.vply"
 
 const RES := Vector2i(1280, 720)       # match render_orbit framing exactly
 const BG := Color(0.06, 0.07, 0.09)    # dark neutral; same coverage-mask reference
@@ -126,7 +126,7 @@ func _initialize() -> void:
 	gs.gaussian = _res
 	root.add_child(gs)
 	gs.transform = Transform3D.IDENTITY   # D3 rule: suppress GDGS's conditional -180deg Z flip on our
-	                                      # already-Godot-convention .relightply (else grounded assets render upside down)
+	                                      # already-Godot-convention .vply (else grounded assets render upside down)
 
 	var ab: AABB = _res.aabb
 	var center := ab.position + ab.size * 0.5

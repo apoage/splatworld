@@ -80,7 +80,7 @@ func set_variants(variants: Array) -> void:
 # Normalize a variants[] list: drop non-objects, reject duplicate ids (loader resolves
 # dup ids last-write-wins -> silent material mis-bind), guard a missing `path` (a direct
 # v["path"] used to raise "Invalid access to key"), cache point_count, default weight.
-# Under @tool / in the editor, do NOT parse multi-million-splat .relightply on the editor
+# Under @tool / in the editor, do NOT parse multi-million-splat .vply on the editor
 # thread (hangs the editor) — point_count stays 0 there, which is correct (no live carpet
 # in the editor). Returns a fresh clean list (caller's array is not mutated in place).
 func _normalize_variants(vs: Array) -> Array:

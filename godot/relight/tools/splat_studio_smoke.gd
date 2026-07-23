@@ -19,9 +19,9 @@ const RelightPlyLoader = preload("res://relight/relight_ply_loader.gd")
 const GaussianSceneRegistry = preload("res://addons/gdgs/runtime/render/gaussian_scene_registry.gd")
 const SplatStudio = preload("res://relight/splat_studio.gd")
 
-const TINY_A := "user://splat_studio_tiny_a.relightply"
-const TINY_B := "user://splat_studio_tiny_b.relightply"
-const TINY_C := "user://splat_studio_tiny_c.relightply"
+const TINY_A := "user://splat_studio_tiny_a.vply"
+const TINY_B := "user://splat_studio_tiny_b.vply"
+const TINY_C := "user://splat_studio_tiny_c.vply"
 const MATERIAL_BYTES := 48
 const BYTES_PER_SPLAT := 240
 
