@@ -18,21 +18,33 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > red→green in the MAIN tree, `load_carpet` byte-identical, scope/lanes clean. Factory
 > **disarmed** (`state.json` armed:false). Nothing pushed (`allow_push:false`).
 
-> 🎯 **SCOPED RUN (2026-07-22): take ONLY `tasks/2026-07-12-docs-guide.md`** — write
-> `docs/pipeline.md` (clip → asset → Godot walkthrough), bring the `core/*` + `run.py` module
-> docstrings current, add a README "Docs" section. Filler-class, S/low risk, **no GPU and no
-> owner-eyeball gate**. Acceptance = a reader following ONLY `docs/pipeline.md` reproduces M1
-> without opening a task file; every command copy-paste runnable from repo root; no content
-> duplicated from decisions.md/CLAUDE.md (pointers only). Do NOT take #5/#6 (owner-attended 4b),
-> pixel5, or anything else this run. One task, then stop for planner reconcile.
-> **ARMED** (`state.json` armed:true).
+> ✅ **SCOPED RUN DONE (2026-07-23): docs-guide SHIPPED v0.26.0**
+> (`tasks/2026-07-12-docs-guide.md`). NEW `docs/pipeline.md` (clip → asset → Godot walkthrough,
+> M1 reproducible from the guide alone), README "## Docs" section, `core/gaussmath.py` docstring
+> brought current (other core docstrings verified current, untouched). Commit `476140a`, tag
+> v0.26.0. Independent panel caught + fixed a BLOCKER (data gate used the M0 `smoke_test.gd` which
+> can't load `.relightply` → `relight_smoke.gd`) and a MAJOR (mirrored decompose's pre-flip
+> `env_sh.json`, which the reader refuses → export's post-flip `asset_env_sh.json`) + 2 MINOR.
+> Planner re-verified GREEN: scope docstring-only in code, both fixes present in the shipped guide,
+> guide claims checked against source (`STAGE_ORDER`, 1.5 dB budget, `RelightPlyLoader`), pytest
+> 141. GPU `smoke.sh` skipped (docs + 1 docstring comment = no pipeline behavior change).
+> Factory **disarmed**. Nothing pushed (`allow_push:false`).
+> **LANE NOTE:** `docs/` is planner-lane; guide-docs are NOT in `implementer_doc_exceptions`
+> (`["handoff","validation","status"]`), so this run needed a disarm/arm dance. Planner call =
+> LEAVE IT — guide docs are planner-curated content (that's why "write guide first, then arm"),
+> not routine factory output. Revisit only if the owner wants the factory maintaining guides
+> unattended.
 
 Last groomed:
+**2026-07-23** — reconciled the docs-guide scoped run: SHIPPED v0.26.0, planner verified GREEN
+(pytest 141, guide claims checked against source, both judge-caught defects present in the shipped
+guide), factory disarmed. **No in-scope unattended work is currently armed.** Remaining Ready rows
+(#5/#6 4b, M4 tasks 5/6) are owner-attended; remaining unattended filler = quality-pass slice 6/7
+or the pixel5 GPU one-shot. Next strategic track = the factory-worker MCP harness (owner design in
+flight, not yet a task). Prior:
 **2026-07-22** — reconciled the Splat Studio hygiene scoped run: batch SHIPPED v0.25.2, planner
-verified GREEN (mutation-proven), factory disarmed. Splat Studio follow-ups #1–#4 are ALL DONE;
-remaining #5/#6 (4b viewer wiring + rest of the tool belt) are **owner-attended**, not unattended
-factory work. Factory's next unattended pickup remains FILLER (quality-pass slice 6/7, docs-guide)
-or the pixel5 one-shot — no in-scope unattended work is currently armed. Prior:
+verified GREEN (mutation-proven), factory disarmed. Splat Studio follow-ups #1–#4 all DONE;
+remaining #5/#6 owner-attended. Prior:
 **2026-07-19** — scoped the Paint cross-dab fix (follow-up #1) as the next factory pickup. Prior: **2026-07-18 late** — reconciled **run #14** (task 3a harness **v0.24.0**) AND executed **task 3b**
 (the real perf measurement, owner-greenlit GPU one-shot). **M4 task 3 is now FULLY CLOSED.**
 Verified at true 1080p on the 3090: **1.45M budget carpet = 277 fps (4.6× the 60fps floor)**, full
@@ -60,7 +72,7 @@ flight, not yet a task.
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| **1** | **`tasks/2026-07-12-docs-guide.md`** (pipeline guide + core docstrings) ← **THIS RUN, ARMED** | S | Write `docs/pipeline.md` (clip → asset → Godot walkthrough), bring `core/*` + `run.py` docstrings current, add README "Docs" section. Filler-class, low risk, no GPU/owner gate. Acceptance = reader reproduces M1 from `docs/pipeline.md` alone; every command copy-paste runnable; pointers not duplication. Scope = this task ONLY; stop for planner reconcile. |
+| ~~1~~ | ~~`tasks/2026-07-12-docs-guide.md`~~ (pipeline guide + core docstrings) | S | ✅ **SHIPPED v0.26.0 (2026-07-23, planner-verified).** NEW `docs/pipeline.md` (clip → asset → Godot, M1 reproducible from the guide alone) + README "## Docs" + `gaussmath.py` docstring. Panel caught+fixed a BLOCKER (M0 `smoke_test.gd` → `relight_smoke.gd` for the `.relightply` data gate) + a MAJOR (pre-flip `env_sh.json` → post-flip `asset_env_sh.json` mirror) + 2 MINOR. pytest 141; guide claims source-checked. `docs/2026-07-23-handoff-docs-guide-v0.26.0.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-splat-studio-hygiene.md`~~ (Splat Studio followups #2+#3+#4 + %g) | S–M | ✅ **SHIPPED v0.25.2 (2026-07-22, planner-verified).** Op-key `id`/`target` alias (`_op_target_id` in `scatter_core.gd`), `resync_materials` `is_queued_for_deletion` guard (`carpet_loader.gd`), smoke log/test honesty (per-check OK-print gating, `!is_inside_tree()` spam killed via async `_check_resync`, middle-variant erase coverage) + `%g`→`%.4f`. Two new gates mutation-proven red→green in the MAIN tree; pytest 141. `docs/2026-07-22-handoff-splat-studio-hygiene-v0.25.2.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-paint-cross-dab-spacing.md` (Splat Studio follow-up #1)~~ | S | ✅ **SHIPPED v0.25.1 (Kimi K3 alt-model eval #2, planner-verified).** One stroke-wide SpatialHash threaded through the paint branch (`shared_grid` param) — repro 28 violating pairs → 0 (32→19 instances); new `_check_paint_poisson` gate mutation-proven red→green; pytest 141. `docs/2026-07-19-handoff-paint-cross-dab-v0.25.1.md`. |
 | ~~1~~ | ~~`tasks/2026-07-18-splat-studio.md` (M4 task 4 — Splat Studio)~~ | XL | ✅ **4a CORE SHIPPED v0.25.0 (GLM-5.2, Claude-verified).** `scatter_core.gd` toolkit + op/stroke model + `CarpetLoader.resync_materials` + `splat_studio_smoke.gd` (mutation-proven gate) + 4b Fill/Stamp. No BLOCKER/MAJOR from the 4-lens panel; smoke/carpet_smoke/carpet_perf PASS, pytest 141. Follow-ups (Paint cross-dab spacing [borderline-MAJOR] + gate gap, id/target drift, resync queue_free guard, log hygiene, viewer wiring, rest of 4b belt) → **`tasks/2026-07-19-splat-studio-followups.md`**. Banner on the task file. |
