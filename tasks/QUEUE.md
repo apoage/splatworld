@@ -35,13 +35,27 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > not routine factory output. Revisit only if the owner wants the factory maintaining guides
 > unattended.
 
+> 🎯 **SCOPED RUN (2026-07-23): take ONLY `tasks/2026-07-23-vply-cleanup-roundtrip.md`** — three
+> deliverables enabling the SuperSplat cleanup round-trip: **(A)** unify the extended-schema
+> extension on `.vply` (`asset.ply`→`.vply`, Godot `.relightply`→`.vply`, bytes/header identical,
+> NO schema bump, NO vendored-gdgs edit); **(B)** baseline-refresh helper so `decompose --in
+> train_base_clean.ply` gates honestly against a recomputed baseline (the 48k-clobber guard stays
+> intact); **(C)** `relight_to_vanilla.py` downgrade tool (extended→standard 3DGS, inverse of
+> `vanilla_to_relight.py`). Each with a non-vacuous gate; owner-confirmed; decision logged in
+> `docs/decisions.md` (2026-07-23). Do NOT re-decompose the heroes (planner GPU step after) or take
+> anything else. One task, then stop for planner reconcile. **ARMED** (`state.json` armed:true).
+
 Last groomed:
+**2026-07-23 (late)** — owner cleaned both heroes in SuperSplat (`train_base_clean.ply` staged in
+each `assets/built/<name>/`: pxl_144634 −42%, pxl_131945 −50%, originals intact, gitignored). Armed
+the **`.vply` + cleanup round-trip** scoped run (A extension unify / B baseline-refresh helper / C
+downgrade tool); `.vply` decision logged in `docs/decisions.md`. After it ships + planner-verifies,
+the planner re-decomposes both cleaned heroes (GPU step) into relightable `asset.vply`. Prior:
 **2026-07-23** — reconciled the docs-guide scoped run: SHIPPED v0.26.0, planner verified GREEN
 (pytest 141, guide claims checked against source, both judge-caught defects present in the shipped
-guide), factory disarmed. **No in-scope unattended work is currently armed.** Remaining Ready rows
-(#5/#6 4b, M4 tasks 5/6) are owner-attended; remaining unattended filler = quality-pass slice 6/7
-or the pixel5 GPU one-shot. Next strategic track = the factory-worker MCP harness (owner design in
-flight, not yet a task). Prior:
+guide), factory disarmed. Remaining Ready rows (#5/#6 4b, M4 tasks 5/6) are owner-attended; leftover
+filler = quality-pass slice 6/7 or the pixel5 GPU one-shot. Next strategic track = the
+factory-worker MCP harness (owner design in flight, not yet a task). Prior:
 **2026-07-22** — reconciled the Splat Studio hygiene scoped run: batch SHIPPED v0.25.2, planner
 verified GREEN (mutation-proven), factory disarmed. Splat Studio follow-ups #1–#4 all DONE;
 remaining #5/#6 owner-attended. Prior:
@@ -72,6 +86,7 @@ flight, not yet a task.
 
 | # | Task | Size | Note |
 |---|------|------|------|
+| **1** | **`tasks/2026-07-23-vply-cleanup-roundtrip.md`** (.vply + cleanup round-trip) ← **THIS RUN, ARMED** | M | (A) `.vply` extension unify (bytes/header identical, no schema bump, no gdgs edit); (B) baseline-refresh helper unblocking re-decompose of SuperSplat-cleaned `train_base_clean.ply` (guard stays intact); (C) `relight_to_vanilla.py` downgrade tool. Each with a non-vacuous gate. Medium risk = touches `ply_io`/`schema` read-write + Godot load path. Scope = this task ONLY; stop for planner reconcile. |
 | ~~1~~ | ~~`tasks/2026-07-12-docs-guide.md`~~ (pipeline guide + core docstrings) | S | ✅ **SHIPPED v0.26.0 (2026-07-23, planner-verified).** NEW `docs/pipeline.md` (clip → asset → Godot, M1 reproducible from the guide alone) + README "## Docs" + `gaussmath.py` docstring. Panel caught+fixed a BLOCKER (M0 `smoke_test.gd` → `relight_smoke.gd` for the `.relightply` data gate) + a MAJOR (pre-flip `env_sh.json` → post-flip `asset_env_sh.json` mirror) + 2 MINOR. pytest 141; guide claims source-checked. `docs/2026-07-23-handoff-docs-guide-v0.26.0.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-splat-studio-hygiene.md`~~ (Splat Studio followups #2+#3+#4 + %g) | S–M | ✅ **SHIPPED v0.25.2 (2026-07-22, planner-verified).** Op-key `id`/`target` alias (`_op_target_id` in `scatter_core.gd`), `resync_materials` `is_queued_for_deletion` guard (`carpet_loader.gd`), smoke log/test honesty (per-check OK-print gating, `!is_inside_tree()` spam killed via async `_check_resync`, middle-variant erase coverage) + `%g`→`%.4f`. Two new gates mutation-proven red→green in the MAIN tree; pytest 141. `docs/2026-07-22-handoff-splat-studio-hygiene-v0.25.2.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-paint-cross-dab-spacing.md` (Splat Studio follow-up #1)~~ | S | ✅ **SHIPPED v0.25.1 (Kimi K3 alt-model eval #2, planner-verified).** One stroke-wide SpatialHash threaded through the paint branch (`shared_grid` param) — repro 28 violating pairs → 0 (32→19 instances); new `_check_paint_poisson` gate mutation-proven red→green; pytest 141. `docs/2026-07-19-handoff-paint-cross-dab-v0.25.1.md`. |

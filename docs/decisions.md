@@ -345,3 +345,24 @@ Validation + empirical detail: `docs/2026-07-18-gdgs-tile-dropout-validation.md`
 #12, implementer `8030116`). Upstream report/PR to `ReconWorldLab/godot-gaussian-splatting` remains gated on
 owner approval (external action). (Entry authored by the implementer in the validation doc; placed here by
 the planner per the two-thread contract — the implementer's lane guard blocks `docs/decisions.md`.)
+
+---
+
+## 2026-07-23 — extended-schema file extension `.ply`/`.relightply` → `.vply` (owner-decided)
+
+**Decision:** unify the extended-schema splat file on a single extension **`.vply`** everywhere —
+built `assets/built/<name>/asset.ply` → `asset.vply`, and the Godot mirror `.relightply` → `.vply`.
+Bytes and the `splat_relight_schema 1` header comment are **byte-identical**; this is a
+filename/routing change, **not** a schema change (SCHEMA_VERSION stays 1).
+
+**Why:** introducing SuperSplat into the workflow (manual floater/edge cleanup on the vanilla
+`train_base.ply` before decompose) makes a distinct extension earn its keep — it stops our
+*extended* file being loaded into a vanilla splat tool (and vice-versa), and it collapses the
+current dual-name confusion (built `.ply` vs Godot `.relightply`) so the mirror is a straight copy.
+
+**Scope / safety:** `.relightply`/`.vply` is runtime-loaded raw by `relight_ply_loader.gd`
+(no `.import`, not a Godot EditorImportPlugin; vendored GDGS registers only `.ply`), so the rename
+is confined to OUR code — **no `godot/addons/gdgs/` edit**. Single source of truth =
+`schema.ASSET_EXT`. Tracked as `tasks/2026-07-23-vply-cleanup-roundtrip.md` deliverable A
+(batched with the baseline-refresh helper that unblocks re-decomposing SuperSplat-cleaned clouds,
+and a `.vply`→standard-3DGS downgrade tool, the inverse of `vanilla_to_relight.py`).
