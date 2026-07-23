@@ -19,9 +19,15 @@ change, NOT a schema change; do NOT bump `SCHEMA_VERSION`).
 
 - `core/schema.py`: add a single constant `ASSET_EXT = "vply"` (source of truth). Nothing else
   in schema.py changes.
-- `stages/export.py` + `run.py`: the built output `assets/built/<name>/asset.ply` → `asset.vply`
-  (run.py hardcodes `asset.ply` in the export arg — update it; keep `train_base.ply` /
-  `decompose.ply` names as-is, those are standard/intermediate).
+- `stages/export.py` + `run.py`: rename BOTH non-vanilla outputs for uniformity —
+  `assets/built/<name>/asset.ply` → `asset.vply` AND `decompose.ply` → `decompose.vply`
+  (both carry non-standard fields, so neither should wear `.ply`). Update every hardcoded
+  reference in `run.py` (export `--out asset.ply`, decompose `--out decompose.ply`, export
+  `--from-decompose decompose.ply`) and any default paths in `stages/decompose.py` /
+  `stages/export.py` / `read_decompose_ply` callers. **Keep `train_base.ply` as `.ply`** — it is
+  genuine standard 3DGS (full SH), vanilla-loadable, correctly labelled. The `.vply` marker means
+  "our non-vanilla extended splat, use our reader"; the header comment still distinguishes the
+  actual schema (full-extended asset vs decompose's standard+albedo/normal/rough).
 - Godot: replace every `.relightply` string reference → `.vply` across `godot/relight/*.gd` and
   `godot/relight/tools/*.gd` (loader, `relight_controller.ASSET_PATH`, `relight_env_sh` sidecar
   derivation, `carpet_loader`, `splat_studio`, all render/smoke tools). The env-sidecar naming

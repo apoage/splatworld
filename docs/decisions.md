@@ -350,10 +350,14 @@ the planner per the two-thread contract — the implementer's lane guard blocks 
 
 ## 2026-07-23 — extended-schema file extension `.ply`/`.relightply` → `.vply` (owner-decided)
 
-**Decision:** unify the extended-schema splat file on a single extension **`.vply`** everywhere —
-built `assets/built/<name>/asset.ply` → `asset.vply`, and the Godot mirror `.relightply` → `.vply`.
-Bytes and the `splat_relight_schema 1` header comment are **byte-identical**; this is a
-filename/routing change, **not** a schema change (SCHEMA_VERSION stays 1).
+**Decision:** unify EVERY non-vanilla splat file on a single extension **`.vply`** — built
+`asset.ply` → `asset.vply`, the `decompose.ply` intermediate → `decompose.vply`, and the Godot
+mirror `.relightply` → `.vply`. **`train_base.ply` stays `.ply`** (genuine standard 3DGS, full SH,
+vanilla-loadable — correctly labelled). Bytes and the `splat_relight_schema 1` header comment are
+**byte-identical**; this is a filename/routing change, **not** a schema change (SCHEMA_VERSION
+stays 1). The `.vply` marker means "our non-vanilla extended splat, use our reader"; the header
+comment still distinguishes the actual schema (full-extended asset vs decompose's
+standard+albedo/normal/rough). Uniformity is deliberate — a non-vanilla file must never wear `.ply`.
 
 **Why:** introducing SuperSplat into the workflow (manual floater/edge cleanup on the vanilla
 `train_base.ply` before decompose) makes a distinct extension earn its keep — it stops our

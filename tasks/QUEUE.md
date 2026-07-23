@@ -36,9 +36,10 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > unattended.
 
 > 🎯 **SCOPED RUN (2026-07-23): take ONLY `tasks/2026-07-23-vply-cleanup-roundtrip.md`** — three
-> deliverables enabling the SuperSplat cleanup round-trip: **(A)** unify the extended-schema
-> extension on `.vply` (`asset.ply`→`.vply`, Godot `.relightply`→`.vply`, bytes/header identical,
-> NO schema bump, NO vendored-gdgs edit); **(B)** baseline-refresh helper so `decompose --in
+> deliverables enabling the SuperSplat cleanup round-trip: **(A)** unify EVERY non-vanilla splat on
+> `.vply` (`asset.ply`→`.vply`, `decompose.ply`→`decompose.vply`, Godot `.relightply`→`.vply`;
+> `train_base.ply` stays `.ply` = genuine standard 3DGS; bytes/header identical, NO schema bump, NO
+> vendored-gdgs edit); **(B)** baseline-refresh helper so `decompose --in
 > train_base_clean.ply` gates honestly against a recomputed baseline (the 48k-clobber guard stays
 > intact); **(C)** `relight_to_vanilla.py` downgrade tool (extended→standard 3DGS, inverse of
 > `vanilla_to_relight.py`). Each with a non-vacuous gate; owner-confirmed; decision logged in
