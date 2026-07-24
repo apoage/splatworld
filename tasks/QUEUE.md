@@ -47,8 +47,12 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > run.py live wiring → `asset.vply`/`decompose.vply`, baseline stem-tracking correct + guard
 > untouched. Factory **disarmed**. Nothing pushed (`allow_push:false`). Planner also fixed the
 > stale `docs/pipeline.md` Step-3 mirror commands (`.relightply`/`asset.ply`→`.vply`) — guide-doc,
-> planner lane. **NEXT (owner GPU step):** re-mirror both heroes as `gs_assets/*.vply`, run
-> `refresh_baseline.py` on each `train_base_clean.ply`, then re-decompose → relightable `asset.vply`.
+> planner lane. **GPU STEP DONE (2026-07-24):** both cleaned heroes re-decomposed → relightable
+> `asset.vply` (pxl_144634 1.41M / pxl_131945 1.03M). Re-render ABOVE the cleaned baseline (well
+> inside the 1.5 dB budget: 17.3/20.7 masked vs 15.4; 18.8/23.3 masked vs 15.9); `relight_smoke.gd`
+> PASS on both; env sidecars DC-normalized. Shipped with `--max-sign-opposition 0.35` (D7 debt
+> recorded, `fb0e5ff`) — the 5% gate is stricter than D7's accepted ~30%. Also fixed a v0.27.0
+> `.gitignore` gap (built `*.vply` heavy binaries were un-ignored).
 
 Last groomed:
 **2026-07-23 (latest)** — reconciled the **`.vply` + cleanup round-trip** scoped run: SHIPPED

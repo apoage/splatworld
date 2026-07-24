@@ -1,6 +1,6 @@
 {
   "stage": "decompose",
-  "n_gaussians": 2405519,
+  "n_gaussians": 1406945,
   "iterations": 7000,
   "pbr_iteration": 3000,
   "image_wh": [
@@ -8,34 +8,104 @@
     1408
   ],
   "albedo": {
-    "min": 0.028801314532756805,
-    "max": 0.9838130474090576,
+    "min": 0.034766800701618195,
+    "max": 0.9836086630821228,
     "nan": 0,
     "inf": 0
   },
-  "albedo_std": 0.23470117151737213,
+  "albedo_std": 0.2415061593055725,
   "rough": {
-    "min": 0.039915308356285095,
-    "max": 0.9618909955024719,
+    "min": 0.025685321539640427,
+    "max": 0.9638623595237732,
     "nan": 0,
     "inf": 0
   },
-  "normal_unit_err": 1.1920928955078125e-07,
-  "psnr_heldout_db": 21.572,
-  "psnr_heldout_masked_db": 21.573,
+  "normal_unit_err": 5.960464477539063e-08,
+  "psnr_heldout_db": 17.303,
+  "psnr_heldout_masked_db": 20.739,
   "test_views": 26,
-  "wall_time_s": 411.1,
+  "wall_time_s": 428.9,
   "normal_smooth": {
-    "iters": 2,
-    "knn": 8,
-    "local_coherence_before": 0.5787300083306737,
-    "local_coherence_after": 0.9222108655531234,
-    "mean_normal_norm_before": 0.2039640202508113,
-    "mean_normal_norm_after": 0.3931143895280539,
-    "over_smooth_coh_ceiling": 0.985,
-    "over_smooth_suspect": false
+    "iters": 0,
+    "knn": 8
   },
-  "train_base_psnr_db": 21.682,
+  "normal_sign": {
+    "enabled": true,
+    "init": {
+      "method": "visibility_voxel",
+      "resolver": "visibility_voxel",
+      "n_gaussians": 1406945,
+      "frac_flipped_visibility": 0.5191453823710237,
+      "n_seen": 1406945,
+      "frac_resolved_visibility": 0.9433972187967546,
+      "frac_resolved_voxel": 0.056564400172003884,
+      "frac_unresolved": 3.838103124144867e-05,
+      "min_face": 0.35,
+      "min_coherence": 0.5,
+      "voxel_size": 0.06619017639434245,
+      "voxel_neighbor_passes": 2,
+      "voxel": {
+        "n_confident": 1327308,
+        "n_voxel_resolved": 79583,
+        "n_unresolved": 54,
+        "n_voxels": 209265,
+        "voxel_size": 0.06619017639434245,
+        "neighbor_passes": 2
+      }
+    },
+    "final": {
+      "method": "visibility_voxel",
+      "resolver": "visibility_voxel",
+      "n_gaussians": 1406945,
+      "frac_flipped_visibility": 0.35781071754759425,
+      "n_seen": 1406945,
+      "frac_resolved_visibility": 0.961296283792188,
+      "frac_resolved_voxel": 0.0386788396134888,
+      "frac_unresolved": 2.4876594323161174e-05,
+      "min_face": 0.35,
+      "min_coherence": 0.5,
+      "voxel_size": 0.06619017639434245,
+      "voxel_neighbor_passes": 2,
+      "voxel": {
+        "n_confident": 1352491,
+        "n_voxel_resolved": 54419,
+        "n_unresolved": 35,
+        "n_voxels": 209265,
+        "voxel_size": 0.06619017639434245,
+        "neighbor_passes": 2
+      }
+    },
+    "opposition_8nn": {
+      "scale": "knn",
+      "k": 8,
+      "n_pairs": 11255560,
+      "frac_opposed": 0.29243822608559683,
+      "frac_strong_opposed": 0.12438892422944749
+    },
+    "opposition_domain": {
+      "scale": "adaptive",
+      "spacing_mult": 4.0,
+      "min_neighbors": 4.0,
+      "floor_frac": 0.25,
+      "global_spacing": 0.029660774559685462,
+      "mean_radius": 0.13723037505178515,
+      "n_query": 200000,
+      "n_query_adequate": 200000,
+      "coverage_frac": 1.0,
+      "n_pairs": 99614220,
+      "mean_neighbors": 498.0711,
+      "frac_opposed": 0.3243771622163984,
+      "frac_strong_opposed": 0.12218166241727335
+    },
+    "degenerate_mean_frac": 0.00030420521058037095,
+    "domain_radius_mode": "adaptive_per_point",
+    "median_knn_spacing": 0.029660774559685462,
+    "min_domain_neighbors": 4.0,
+    "min_domain_coverage_frac": 0.9,
+    "max_opposition": 0.35,
+    "max_degenerate_mean": 0.005
+  },
+  "train_base_psnr_db": 15.395,
   "min_psnr_drop": 1.5,
   "budget_ok": true
 }

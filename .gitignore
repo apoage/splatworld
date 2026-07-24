@@ -16,6 +16,9 @@ assets/raw/*
 assets/built/*/asset.ply
 assets/built/*/preview/
 assets/built/**/*.ply
+# our extended splat (.vply = schema.ASSET_EXT): asset.vply + the decompose.vply
+# intermediate are the same heavy binaries under a new extension — never track them
+assets/built/**/*.vply
 # decompose's REFUSED-run metrics (fail-closed diagnostic, not a shipped artifact) — a refused
 # run drops this next to built assets; tracked metrics_decompose.json stays the shipped pairing
 metrics_decompose_refused.json

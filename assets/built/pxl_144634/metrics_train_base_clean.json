@@ -1,0 +1,13 @@
+{
+  "stage": "refresh_baseline",
+  "source": "train_base_clean.ply",
+  "n_gaussians": 1406945,
+  "psnr_heldout_db": 15.395,
+  "sh_degree": 3,
+  "test_views": 26,
+  "image_wh": [
+    1047,
+    1408
+  ],
+  "wall_time_s": 5.0
+}

@@ -1,18 +1,18 @@
 {
   "stage": "export",
   "schema_version": 1,
-  "n_gaussians": 2405519,
+  "n_gaussians": 1406945,
   "decompose_mode": true,
   "albedo": {
-    "min": 0.028801314532756805,
-    "max": 0.9838130474090576,
+    "min": 0.034766800701618195,
+    "max": 0.9836086630821228,
     "nan": 0,
     "inf": 0
   },
-  "normal_unit_err": 1.7881393432617188e-07,
+  "normal_unit_err": 5.960464477539063e-08,
   "rough": {
-    "min": 0.039915308356285095,
-    "max": 0.9618909955024719,
+    "min": 0.025685321539640427,
+    "max": 0.9638623595237732,
     "nan": 0,
     "inf": 0
   },
@@ -21,8 +21,8 @@
   "any_nan": false,
   "prune": {
     "enabled": false,
-    "n_before": 2405519,
-    "n_after": 2405519,
+    "n_before": 1406945,
+    "n_after": 1406945,
     "n_pruned": 0,
     "n_by_opacity": 0,
     "n_by_scale": 0,
@@ -34,37 +34,10 @@
       "isolation_k": 4
     }
   },
-  "ring_normal_dot_up": 1.0,
   "alignment": {
-    "enabled": true,
-    "sparse": "/home/lukas/splatworld/assets/raw/pxl_144634/colmap/dense/sparse_txt",
-    "ring_normal_dot_up": 1.0,
-    "ring_normal_godot": [
-      -4.6007382274799535e-09,
-      1.0,
-      -1.5687963314998635e-09
-    ],
-    "up_camera_disagreement_deg": 43.54943227231908,
-    "alignment_suspect": true,
-    "method": "plane_fit",
-    "confidence": 0.7204081475546501,
-    "plane_residual_rms": 0.3601734940084199,
-    "up_colmap": [
-      0.5115411216151446,
-      -0.573641844801526,
-      -0.639734878515641
-    ],
-    "mean_camera_up_colmap": [
-      -0.009115896311914496,
-      -0.9601746926224214,
-      -0.27925160712495256
-    ],
-    "n_cameras": 204,
-    "singular_values": [
-      49.545010920036844,
-      18.399343234238923,
-      5.144306458638676
-    ]
+    "enabled": false,
+    "sparse": null,
+    "alignment_suspect": false
   },
   "env_sidecar": "asset_env_sh.json"
 }
