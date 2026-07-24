@@ -55,6 +55,13 @@ gated rows (noting why), and treats FILLER rows as parallel/anytime slices. Rows
 > `.gitignore` gap (built `*.vply` heavy binaries were un-ignored).
 
 Last groomed:
+**2026-07-24 (latest)** — owner GPU step DONE (both cleaned heroes re-decomposed → relightable
+`asset.vply`, transmission `trans=0.5`, `relight_smoke` PASS, pushed `9f7b5ec`+`v0.27.0`). Owner
+eyeball on cactus/foliage: M3 backlit A/B → picks **(b) Frostbite phase**; M3 is code-complete but
+VALUE-GATED on the missing `label` stage (export blankets label=leaf → uniform trans, pot wrongly
+glows). Seeded `tasks/2026-07-24-label-material-classifier.md` (heuristic v1, physical priors in the
+gate) as the next OPEN factory row #1; DECISIONS 2026-07-24 M3 entry records the finding. Quality
+slice 6 marked SUPERSEDED by the SuperSplat round-trip. Prior:
 **2026-07-23 (latest)** — reconciled the **`.vply` + cleanup round-trip** scoped run: SHIPPED
 v0.27.0 (`7b94a5d`), planner verified GREEN (pytest 149, zero `.relightply` extension, guard intact
 + stem-tracked), factory disarmed. Fixed stale `docs/pipeline.md` mirror commands (planner lane).
@@ -99,7 +106,8 @@ flight, not yet a task.
 
 | # | Task | Size | Note |
 |---|------|------|------|
-| **1** | **`tasks/2026-07-23-vply-cleanup-roundtrip.md`** (.vply + cleanup round-trip) ← **THIS RUN, ARMED** | M | (A) `.vply` extension unify (bytes/header identical, no schema bump, no gdgs edit); (B) baseline-refresh helper unblocking re-decompose of SuperSplat-cleaned `train_base_clean.ply` (guard stays intact); (C) `relight_to_vanilla.py` downgrade tool. Each with a non-vacuous gate. Medium risk = touches `ply_io`/`schema` read-write + Godot load path. Scope = this task ONLY; stop for planner reconcile. |
+| **1** | **`tasks/2026-07-24-label-material-classifier.md`** (`label` stage — material classifier, heuristic v1) | M | **Unblocks a demoable M3.** CLAUDE.md pipeline stage 4: per-Gaussian height+color classifier so `transmission` stops blanketing `trans=0.5` over pot/bark/ground. Physical priors baked into the gate (clay pot/ground/bark ≈ opaque `trans≈0`; leaf/grass real). New `stages/label.py` + `STAGE_ORDER` slot (decompose→**label**→export→transmission) + export stops clobbering labels + a pot-must-not-glow end-to-end gate. NO new deps (SAM = v2, ask-first). Slots as stage-4 pipeline work — does NOT reorder the M4 carpet / factory-harness plan. |
+| ~~1~~ | ~~`tasks/2026-07-23-vply-cleanup-roundtrip.md`~~ (.vply + cleanup round-trip) | M | ✅ **SHIPPED v0.27.0 (2026-07-23, planner-verified GREEN).** (A) `.vply` unify, (B) baseline-refresh helper, (C) `relight_to_vanilla.py`. pytest 149; guard intact. Commit `7b94a5d`. Owner GPU step DONE 2026-07-24: both cleaned heroes re-decomposed → relightable `asset.vply` + transmission `trans=0.5` (`9f7b5ec`). |
 | ~~1~~ | ~~`tasks/2026-07-12-docs-guide.md`~~ (pipeline guide + core docstrings) | S | ✅ **SHIPPED v0.26.0 (2026-07-23, planner-verified).** NEW `docs/pipeline.md` (clip → asset → Godot, M1 reproducible from the guide alone) + README "## Docs" + `gaussmath.py` docstring. Panel caught+fixed a BLOCKER (M0 `smoke_test.gd` → `relight_smoke.gd` for the `.relightply` data gate) + a MAJOR (pre-flip `env_sh.json` → post-flip `asset_env_sh.json` mirror) + 2 MINOR. pytest 141; guide claims source-checked. `docs/2026-07-23-handoff-docs-guide-v0.26.0.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-splat-studio-hygiene.md`~~ (Splat Studio followups #2+#3+#4 + %g) | S–M | ✅ **SHIPPED v0.25.2 (2026-07-22, planner-verified).** Op-key `id`/`target` alias (`_op_target_id` in `scatter_core.gd`), `resync_materials` `is_queued_for_deletion` guard (`carpet_loader.gd`), smoke log/test honesty (per-check OK-print gating, `!is_inside_tree()` spam killed via async `_check_resync`, middle-variant erase coverage) + `%g`→`%.4f`. Two new gates mutation-proven red→green in the MAIN tree; pytest 141. `docs/2026-07-22-handoff-splat-studio-hygiene-v0.25.2.md`. |
 | ~~1~~ | ~~`tasks/2026-07-19-paint-cross-dab-spacing.md` (Splat Studio follow-up #1)~~ | S | ✅ **SHIPPED v0.25.1 (Kimi K3 alt-model eval #2, planner-verified).** One stroke-wide SpatialHash threaded through the paint branch (`shared_grid` param) — repro 28 violating pairs → 0 (32→19 instances); new `_check_paint_poisson` gate mutation-proven red→green; pytest 141. `docs/2026-07-19-handoff-paint-cross-dab-v0.25.1.md`. |

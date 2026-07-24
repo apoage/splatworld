@@ -1,0 +1,58 @@
+{
+  "stage": "transmission",
+  "schema_version": 1,
+  "n_gaussians": 1029572,
+  "trans_leaf": 0.5,
+  "trans_grass": 0.5,
+  "trans_range": [
+    0.5,
+    0.5
+  ],
+  "any_nan": false,
+  "per_label": {
+    "ground": {
+      "id": 0,
+      "count": 0,
+      "trans_min": null,
+      "trans_max": null
+    },
+    "grass": {
+      "id": 1,
+      "count": 0,
+      "trans_min": null,
+      "trans_max": null
+    },
+    "leaf": {
+      "id": 2,
+      "count": 1029572,
+      "trans_min": 0.5,
+      "trans_max": 0.5
+    },
+    "bark": {
+      "id": 3,
+      "count": 0,
+      "trans_min": null,
+      "trans_max": null
+    }
+  },
+  "n_other_label": 0,
+  "counts_consistent": true,
+  "assignment": {
+    "leaf": {
+      "id": 2,
+      "count": 1029572,
+      "expected": 0.5,
+      "trans_min": 0.5,
+      "trans_max": 0.5,
+      "assigned_ok": true
+    },
+    "grass": {
+      "id": 1,
+      "count": 0,
+      "expected": 0.5,
+      "trans_min": null,
+      "trans_max": null,
+      "assigned_ok": true
+    }
+  }
+}

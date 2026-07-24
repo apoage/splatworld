@@ -375,3 +375,34 @@ and a `.vply`→standard-3DGS downgrade tool, the inverse of `vanilla_to_relight
 `schema.ASSET_EXT="vply"`, bytes byte-identical, `SCHEMA_VERSION` still 1, no GDGS edit. Planner
 verified GREEN (pytest 149; zero actual `.relightply` extension strings; run.py wiring →
 `asset.vply`/`decompose.vply`). Handoff `docs/2026-07-23-handoff-vply-cleanup-roundtrip-v0.27.0.md`.
+
+## 2026-07-24 — M3 transmission owner eyeball: value-gated on a material classifier (the `label` stage)
+
+**Finding (owner eyeball, cleaned foliage heroes + relightable cactus).** Transmission runs and
+the backlit A/B works (owner picks **(b) Frostbite view–light phase** over (a) `dot(−N,L)` wrap —
+b reads sign-robust and cleaner on the D7 ~30%-wrong-sign clouds). BUT M3 is not demoable yet, and
+the reason is structural, not a bug:
+
+- `stages/label.py` **does not exist** (CLAUDE.md pipeline stage 4 = TODO). `export` assigns ONE
+  constant label to every Gaussian (`--label`, default `2`=leaf), so `transmission` has nothing to
+  discriminate on — it blankets the whole asset at `trans=0.5`, pot/bark/ground included.
+- Consequence on the assets: the **cactus looks unchanged** (its `trans=0`, never assigned); the
+  **foliage/pot "kind of works, a little more translucent"** but blunt and uniform. Neither shows the
+  per-material translucency that would make M3 read as real.
+
+**Physical priors (owner) — these are the classifier's spec, not decoration:**
+- **Clay pot ≈ opaque** — "a little translucent but really little, effectively none for all practical
+  purposes." A leaf-blanket classifier that makes the pot glow is WRONG. Pot/ground/bark → `trans≈0`.
+- **Cactus flesh ≈ tiny** translucency; **leaf/grass ≈ real** translucency. Transmission is only
+  meaningful once labels separate these.
+
+**Decision.** M3 is **code-complete but value-gated on the `label` stage.** No demo-gif polish
+substitutes for it. Next pipeline work = the material classifier, **v1 = height + color heuristics**
+(cheap, in-repo, no new deps; gets pot/ground/leaf roughly right) with SAM-mask projection as the
+accurate-but-heavier v2 (needs source images + a SAM dep → ask-before-adding). Task seeded:
+`tasks/2026-07-24-label-material-classifier.md`. This slots into the EXISTING milestone plan (it is
+stage 4, the thing M3/M4 quality was always going to need) — it does not reorder M4/M5.
+
+**Shipped increment (honest, not a demo):** `transmission` ran on both cleaned heroes → `trans=0.5`
+(uniform, classifier-blind), `metrics_transmission.json` recorded; `relight_smoke.gd` PASS with
+`trans=[0.5,0.5]`. The demoable version waits on the classifier.
